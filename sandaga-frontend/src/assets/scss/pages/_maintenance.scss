@@ -1,0 +1,28 @@
+@use '../abstracts/variables' as *;
+
+.maintenance-page{
+  display:flex;
+  flex-direction:column;
+  gap:calc($spacing*3);
+  align-items:center;
+  text-align:center;
+  padding:calc($spacing*6) 0;
+}
+
+.maintenance-illustration{
+  width:220px;
+  height:220px;
+  border-radius:50%;
+  background:linear-gradient(135deg, rgba(15,96,196,.12), rgba(255,110,20,.12));
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:4rem;
+}
+
+.maintenance-actions{
+  display:flex;
+  gap:calc($spacing*2);
+  flex-wrap:wrap;
+  justify-content:center;
+}

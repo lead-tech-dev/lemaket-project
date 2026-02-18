@@ -1,0 +1,95 @@
+name: CD Dev
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [develop]
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: cd-dev
+  cancel-in-progress: true
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    outputs:
+      backend_image: ${{ steps.meta.outputs.backend_image }}
+      frontend_image: ${{ steps.meta.outputs.frontend_image }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Prepare image names
+        id: meta
+        run: |
+          owner_lc="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          echo "backend_image=ghcr.io/${owner_lc}/sandaga-backend:dev-${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          echo "frontend_image=ghcr.io/${owner_lc}/sandaga-frontend:dev-${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          echo "backend_stable=ghcr.io/${owner_lc}/sandaga-backend:dev" >> "$GITHUB_OUTPUT"
+          echo "frontend_stable=ghcr.io/${owner_lc}/sandaga-frontend:dev" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push backend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./sandaga-backend
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.backend_image }}
+            ${{ steps.meta.outputs.backend_stable }}
+
+      - name: Build and push frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./sandaga-frontend
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.frontend_image }}
+            ${{ steps.meta.outputs.frontend_stable }}
+          build-args: |
+            VITE_API_URL=${{ vars.DEV_VITE_API_URL || 'http://localhost:3000' }}
+            MAPBOX_PUBLIC_KEY=${{ secrets.DEV_VITE_MAPBOX_TOKEN || '' }}
+
+  deploy-dev:
+    runs-on: ubuntu-latest
+    needs: [build-and-push]
+    environment: development
+    if: ${{ secrets.DEV_SSH_HOST != '' && secrets.DEV_SSH_USER != '' && secrets.DEV_SSH_KEY != '' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEV_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+
+      - name: Deploy to development
+        env:
+          DEV_SSH_HOST: ${{ secrets.DEV_SSH_HOST }}
+          DEV_SSH_USER: ${{ secrets.DEV_SSH_USER }}
+          DEV_APP_DIR: ${{ vars.DEV_APP_DIR || '/opt/sandaga-dev' }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BACKEND_IMAGE: ${{ needs.build-and-push.outputs.backend_image }}
+          FRONTEND_IMAGE: ${{ needs.build-and-push.outputs.frontend_image }}
+        run: bash ./scripts/deploy-dev.sh
+
+      - name: Smoke test development
+        env:
+          BASE_URL: ${{ vars.DEV_API_BASE_URL || 'http://localhost:3000' }}
+        run: bash ./scripts/smoke.sh "$BASE_URL"

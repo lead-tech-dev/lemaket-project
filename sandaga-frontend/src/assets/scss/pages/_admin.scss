@@ -1,0 +1,118 @@
+@use '../abstracts/variables' as *;
+
+.admin-shell{
+  display:grid;
+  grid-template-columns: minmax(240px, 280px) minmax(0,1fr);
+  gap:calc($spacing*3);
+  align-items:flex-start;
+}
+.admin-shell__content{
+  display:flex;
+  flex-direction:column;
+  gap:calc($spacing*3.5);
+}
+
+.admin-page{
+  display:flex;
+  flex-direction:column;
+  gap:calc($spacing*3.5);
+}
+
+.admin-grid{
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap:calc($spacing*2.5);
+}
+
+.admin-card{
+  background:var(--color-surface);
+  border-radius:calc($radius*1.1);
+  padding:calc($spacing*3);
+  box-shadow:var(--shadow-soft);
+  display:flex;
+  flex-direction:column;
+  gap:calc($spacing*1.5);
+}
+.admin-card ul{
+  margin:0;
+  padding-left:calc($spacing*2.5);
+  display:grid;
+  gap:calc($spacing*1.25);
+  color:var(--color-muted);
+}
+
+.admin-card__meta{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:calc($spacing*1.5);
+  color:var(--color-muted);
+  font-size:.9rem;
+}
+
+.admin-metrics{
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap:calc($spacing*2.5);
+}
+
+.admin-metric{
+  background:rgba(15,96,196,.08);
+  border-radius:calc($radius*1.1);
+  padding:calc($spacing*3);
+  display:flex;
+  flex-direction:column;
+  gap:calc($spacing*1);
+  color:var(--color-accent);
+}
+
+.admin-table{
+  width:100%;
+  border-collapse:collapse;
+}
+
+.admin-table th,
+.admin-table td{
+  padding:calc($spacing*1.5) calc($spacing*1.25);
+  text-align:left;
+}
+
+.admin-table tbody tr{
+  border-top:1px solid rgba(20,20,20,.08);
+}
+
+.admin-filter-bar{
+  display:flex;
+  flex-wrap:wrap;
+  gap:calc($spacing*2);
+  align-items:center;
+}
+
+.admin-status{
+  display:inline-flex;
+  align-items:center;
+  gap:calc($spacing);
+  padding:calc($spacing*0.75) calc($spacing*1.5);
+  border-radius:999px;
+  font-weight:600;
+}
+
+.admin-status--pending{
+  background:rgba(255,110,20,.12);
+  color:var(--color-primary);
+}
+
+.admin-status--approved{
+  background:rgba(15,96,196,.12);
+  color:var(--color-accent);
+}
+
+.admin-status--rejected{
+  background:rgba(220,53,69,.2);
+  color:#b4232a;
+}
+
+@media (max-width: 1080px){
+  .admin-shell{grid-template-columns:1fr;}
+  .admin-shell__content{gap:calc($spacing*3);}
+}

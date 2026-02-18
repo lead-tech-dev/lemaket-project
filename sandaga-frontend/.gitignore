@@ -1,0 +1,21 @@
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Distribution
+dist
+
+# node_modules
+node_modules
+
+# Env files
+.env
+.env.local
+.env.*.local
+
+# Vite
+.vite/
+
+# Typescript
+*.tsbuildinfo

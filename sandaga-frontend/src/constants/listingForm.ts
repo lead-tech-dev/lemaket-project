@@ -1,0 +1,23 @@
+export const ROOT_LISTING_FIELDS = new Set<string>([
+  'title',
+  'description',
+  'price',
+  'currency',
+  'city',
+  'location',
+  'locationHideExact',
+  'tag',
+  'surface',
+  'rooms',
+  'year',
+  'mileage',
+  'highlights',
+  'equipments',
+  'subject',
+  'body',
+  'price_cents',
+  'price_reco',
+  'donation',
+  'phone',
+  'phone_hidden_information_text'
+])

@@ -1,0 +1,214 @@
+Authentification / Comptes
+US : En tant qu’utilisateur, je veux créer un compte, me connecter, récupérer mon mot de passe et gérer mon profil.
+Implémentation : modules auth/users, JWT, rôles (admin/modérateur/pro/standard).
+
+Dashboard vendeur
+US : En tant que vendeur, je veux voir mes annonces (statut, vues, messages), les éditer, les supprimer et accéder aux options de promotion.
+Implémentation : routes /listings/me, statuts, compteur de vues/messages.
+
+Création / Édition d’annonces
+US : Formulaire dynamique (flow buy/sell), upload images, contact, localisation, prix, estimation, shortlink, export PDF, OG.
+
+Parcours acheteur (détail + contact)
+US : En tant qu’acheteur, je veux consulter une annonce (photos, description, prix, localisation sur carte, infos vendeur), contacter le vendeur (messagerie interne) ou signaler l’annonce.
+Implémentation : page détail avec map, contact modal, report modal, vues similaires, favoris.
+
+Recherche / Filtrage / Listing
+US : En tant qu’acheteur, je veux filtrer par catégorie/sous-catégorie, prix min/max, ville, statut, tags, et trier par date/popularité/prix.
+Implémentation : endpoints de listing avec filtres (categorySlug/id, city, minPrice/maxPrice, sort), sections “featured/latest”.
+
+Recherche par proximité
+US : En tant qu’acheteur, je veux rechercher des annonces dans un rayon donné autour d’une position (lat/lng) pour trouver ce qui est proche de moi.
+Implémentation : filtres lat/lng/radiusKm sur l’API listings (Haversine), champ “Rayon (km)” dans la recherche front pour envoyer ces paramètres.
+
+Catégories hiérarchiques & icônes/gradients
+US : En tant qu’utilisateur, je veux naviguer par catégories parent → sous-catégories avec visuels et icônes pour comprendre l’offre.
+Implémentation : hiérarchie parentId, affichage icônes/gradients, filtrage steps par sous-catégorie.
+
+Form builder admin (steps/fields)
+US : En tant qu’admin, je veux définir des étapes/champs par catégorie et par flow (buy/sell) pour adapter le formulaire.
+Implémentation : tables form_steps/form_fields, seeds, consommation via FormSchemaDTO.
+
+Favoris
+US : En tant qu’utilisateur, je veux ajouter/retirer des annonces de mes favoris pour les retrouver.
+Implémentation : module favorites, bouton favori sur carte/détail.
+
+Messagerie interne
+US : En tant qu’acheteur/vendeur, je veux échanger via un fil de messages associé à l’annonce.
+Implémentation : module messages (envoi, vue), livrabilité à corriger (colonne delivery_status manquante).
+
+Notifications (structure)
+US : En tant qu’utilisateur, je veux être notifié (messages, statut annonce).
+Implémentation : module notifications existant, à enrichir pour SMS/WhatsApp/email.
+
+Paiements / Plans PRO / Promotions
+US : En tant que vendeur, je veux payer un plan (PRO ou options de mise en avant) via un provider.
+Implémentation : Stripe + stubs MTN/Orange (CinetPay retiré), promotions module (à finaliser pour un flux réel).
+
+Signalement / Modération
+US : En tant qu’utilisateur, je veux signaler une annonce ; en tant que modérateur, je veux changer le statut (pending/published/rejected).
+Implémentation : report modal, routes admin/mod pour status.
+
+Rapports / Export
+US : En tant qu’admin, je veux exporter des données (Excel/PDF) et suivre les indicateurs (vues, messages, conversions).
+Implémentation : module reports (présent), export PDF d’annonce.
+
+Média / Stockage
+US : En tant que vendeur, je veux uploader des images (JPEG) ; en tant que plateforme, je veux gérer le stockage (local/cloud).
+Implémentation : MediaService upload, ImagesManager front, première image en cover.
+
+SEO / Partage
+US : En tant que plateforme, je veux des prévisualisations sociales correctes (OG/Twitter) et des liens courts pour le partage.
+Implémentation : /listings/:id/og, shortlinks /links/shorten + /s/:slug.
+
+Home / Découverte
+US : En tant que visiteur, je veux voir des catégories populaires, des annonces récentes/mises en avant.
+Implémentation : sections “featured/latest”, cartes catégorie parent.
+
+Localisation & carte
+US : En tant que vendeur, je veux positionner mon bien sur une carte (lat/lng) et saisir une adresse pour que les acheteurs le trouvent facilement.
+Implémentation : champ map (Mapbox) dans les steps dynamiques, stockage lat/lng/adresse/ville/zipcode, affichage du point sur la page détail.
+
+Gestion des médias (images)
+US : En tant que vendeur, je veux ajouter plusieurs photos, définir une couverture et voir un aperçu.
+Implémentation : upload images (limitée à 8), marquage cover, affichage sur la page détail.
+
+Contact et confidentialité
+US : En tant que vendeur, je veux masquer mon numéro ou refuser le démarchage.
+Implémentation : champs phoneHidden, noSalesmen dans le contact, propagation dans le formData.
+
+Champs dynamiques nettoyés/typage
+US : En tant que plateforme, je veux que seuls les champs pertinents soient envoyés (nettoyage des champs statiques).
+Implémentation : nettoyage dans onSubmit (suppression des champs statiques, normalisation du payload attributes/formData).
+
+Parcours d’édition cohérent
+US : En tant qu’utilisateur, je veux que l’édition d’une annonce réutilise le même schéma que la création et préremplisse les valeurs.
+Implémentation : mapping listing → formValues, réinjection des détails et images, steps filtrées par flow.
+
+Catégories populaires / home
+US : En tant que visiteur, je veux voir les catégories populaires (parents) avec leurs visuels/gradients pour explorer rapidement.
+Implémentation : affichage parents + gradients, filtrage parentId null.
+
+Favoris (sauvegarde d’annonces)
+US : En tant qu’utilisateur, je veux ajouter/retirer une annonce de mes favoris pour la retrouver plus tard.
+Implémentation : bouton Favorite, module backend favorites.
+
+Similaires
+US : En tant qu’acheteur, je veux voir des annonces similaires pour comparer.
+Implémentation : GET /listings/:id/similar, affichage sur la page détail.
+
+Compte Pro / stats de vendeur
+US : En tant que visiteur, je veux identifier si le vendeur est pro et voir ses autres annonces.
+Implémentation : badge Pro, lien “Voir toutes ses annonces”, compteur de vues/messages.
+
+Signalement d’annonce
+US : En tant qu’utilisateur, je veux signaler une annonce problématique.
+Implémentation : modal “Signaler”, envoi motif/détails/email.
+
+Messages (conversation)
+US : En tant qu’acheteur, je veux contacter le vendeur depuis l’annonce.
+Implémentation : modal contact → création/envoi de message (module messages existant).
+
+Estimation de prix
+US : En tant que vendeur, je veux une estimation (min/med/max) basée sur des annonces similaires (catégorie/sous-catégorie/ville) pour fixer un prix cohérent.
+Implémentation : endpoint GET /listings/price-suggestion, affichage sous le champ prix (création/édition) avec bouton “Utiliser cette estimation”.
+
+Liens courts / partage rapide
+US : En tant qu’utilisateur, je veux générer un lien court pour partager facilement mon annonce.
+Implémentation : POST /links/shorten, redirection publique /s/:slug, bouton “Générer un lien court” + copie sur la page détail.
+
+OpenGraph / prévisualisation sociale
+US : En tant que plateforme, je veux que les partages sociaux affichent correctement titre/description/image de l’annonce.
+Implémentation : GET /listings/:id/og génère les balises OG/Twitter et redirige vers l’URL publique.
+
+Export PDF d’annonce
+US : En tant que vendeur/acheteur, je veux télécharger l’annonce en PDF pour la partager ou l’archiver.
+Implémentation : GET /listings/:id/export (pdfkit), bouton “Exporter en PDF” sur la page détail.
+
+Compteur de vues
+US : En tant que plateforme, je veux suivre les vues d’une annonce et incrémenter le compteur lors des visites.
+Implémentation : POST /listings/:id/views au chargement de la page détail.
+
+Type d’annonce (buy/sell) depuis la catégorie
+US : En tant que vendeur, je veux choisir “Demande” ou “Offre” quand la catégorie l’exige, afin d’afficher les étapes adaptées.
+Implémentation : lecture des ad_types dans extraFields, checkboxes buy/sell, filtrage des steps par flow.
+
+Sélecteurs dépendants (ex. marque → modèle)
+US : En tant qu’utilisateur, je veux que le choix d’une marque filtre la liste des modèles.
+Implémentation : champs select avec dependsOn/conditionalOptions dans le FormSchemaDTO, rendu dynamique sur le front.
+
+Préremplissage contact/localisation en édition
+US : En tant qu’utilisateur, je veux que mes coordonnées et ma localisation existantes se préremplissent lors de l’édition d’une annonce.
+Implémentation : mapping listing → formValues, injection email/téléphone/localisation, setValue sur les steps dynamiques.
+
+Gestion de la couverture photo
+US : En tant que vendeur, je veux choisir quelle photo est la couverture de mon annonce.
+Implémentation : ImagesManager côté front (cover toggle), persisté dans le payload images (isCover/position).
+
+Tris et sections de découverte
+US : En tant qu’acheteur/visiteur, je veux accéder rapidement aux annonces récentes ou mises en avant.
+Implémentation : endpoints /listings/latest et /listings/featured (limites paramétrables), sections front “Featured/Latest”.
+
+Statut d’annonce et visibilité
+US : En tant que modérateur/plateforme, je veux contrôler le statut (draft/pending/published/archived/etc.) et afficher uniquement les publiées aux visiteurs.
+Implémentation : ListingStatus, filtre par défaut PUBLISHED pour les visiteurs, routes admin/mod pour changer le statut.
+
+Pagination & limites
+US : En tant qu’acheteur, je veux naviguer dans les résultats paginés sans charger toute la base.
+Implémentation : filtres page/limit sur les endpoints de listing, limites pour featured/latest.
+
+Validation des médias
+US : En tant que plateforme, je veux refuser des images trop lourdes ou au mauvais format.
+Implémentation : validation size/type sur l’upload (5 Mo max JPEG), limite à 8 images, gestion de la cover côté front/back.
+
+Navigation parent → enfant (catégories)
+US : En tant qu’utilisateur, je veux d’abord choisir une catégorie parent, puis une sous-catégorie, et n’afficher que les champs/form steps correspondants.
+Implémentation : séparation parentId null vs enfants, filtrage des steps par sous-catégorie, reset des champs quand on change de catégorie.
+
+Filtrage des steps par flow
+US : En tant que vendeur, je veux que seules les étapes correspondant à mon type d’annonce (buy/sell) s’affichent.
+Implémentation : champ flow dans form_steps, filtrage côté front (wizard) selon adType sélectionné.
+
+Accès public vs protégé
+US : En tant que visiteur, je veux voir uniquement les annonces publiées ; en tant que vendeur/modérateur, je veux accéder aux annonces brouillon/en attente via des routes protégées.
+Implémentation : filtre par défaut PUBLISHED pour les visiteurs, routes /listings/me et /listings/pending protégées par JWT + rôles.
+
+Suppression d’annonce
+US : En tant que vendeur, je veux supprimer une annonce depuis mon dashboard.
+Implémentation : route DELETE /listings/:id (auth requise), bouton “Supprimer” dans l’édition.
+
+Gestion des images en masse
+US : En tant que vendeur, je veux supprimer/ajouter des images et conserver l’ordre/couverture sans tout refaire.
+Implémentation : payload images avec position/isCover, conservation des upload “uploaded” seulement, limite 8 images.
+
+Enrichissement du contact vendeur
+US : En tant qu’acheteur, je veux voir si le vendeur est pro et accéder à ses autres annonces.
+Implémentation : badge pro, lien “Voir toutes ses annonces”, stats vues/messages, owner info dans la page détail.
+
+Conseils et aide
+US : En tant qu’utilisateur, je veux obtenir des conseils rapides (paiement sécurisé, FAQ) depuis la page annonce.
+Implémentation : bloc “Conseils Sandaga” avec liens vers FAQ/aide.
+
+Signalement + contact dans une modale
+US : En tant qu’utilisateur, je veux signaler une annonce et contacter le vendeur via des modales dédiées (sans quitter la page).
+Implémentation : modales “Signaler” et “Contacter” avec formulaires intégrés (motif, détails, email / message).
+
+Filtrage des champs dynamiques visibles
+US : En tant que vendeur, je ne veux voir que les champs pertinents selon mes choix (conditions de visibilité).
+Implémentation : visibilité des champs via conditions (equals/notEquals/in/notIn) évaluées côté front avant rendu.
+
+Reset intelligent lors du changement de catégorie
+US : En tant que vendeur, quand je change de catégorie/sous-catégorie, les champs non pertinents sont réinitialisés pour éviter des valeurs incohérentes.
+Implémentation : reset des valeurs details, steps et adType lors du changement de catégorie; nettoyage des champs exclus.
+
+Gestion du flow (buy/sell) côté front
+US : En tant que vendeur, je veux voir les étapes adaptées à mon choix de flow (demande/offre) sans mélange des deux.
+Implémentation : filtrage des steps par flow au niveau du wizard, toggle adType basé sur les extraFields de la catégorie.
+
+Support des options groupées
+US : En tant qu’utilisateur, je veux voir des sélecteurs avec groupes d’options (optgroup) quand les valeurs sont structurées en groupes.
+Implémentation : form fields select affichent optionGroups si fournis par le DTO.
+
+Géocodage – confirmation et anti-spam
+US : En tant qu’utilisateur, je veux une confirmation visuelle quand l’adresse est géocodée et éviter de sursolliciter l’API.
+Implémentation : toast/small message “Adresse géocodée” après succès, désactivation (ou debounce) des boutons pendant l’appel Mapbox/geo.

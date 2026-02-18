@@ -1,0 +1,219 @@
+@use '../abstracts/variables' as *;
+
+.images-manager {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.images-manager__controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.images-manager__uploader {
+  position: relative;
+}
+
+.images-manager__file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.images-manager__file-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: calc($radius * 0.8);
+  border: 1px dashed rgba(255, 110, 20, 0.35);
+  background: linear-gradient(135deg, rgba(255, 110, 20, 0.08), rgba(15, 96, 196, 0.06));
+  color: var(--color-text);
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.images-manager__file-card:hover {
+  border-color: rgba(255, 110, 20, 0.6);
+  box-shadow: 0 16px 24px rgba(255, 110, 20, 0.15);
+  transform: translateY(-1px);
+}
+
+.images-manager__file-card.is-dragging {
+  border-color: rgba(15, 96, 196, 0.65);
+  box-shadow: 0 20px 32px rgba(15, 96, 196, 0.18);
+  background: linear-gradient(135deg, rgba(15, 96, 196, 0.14), rgba(255, 110, 20, 0.08));
+}
+
+.images-manager__file-card.is-disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+.images-manager__file-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: rgba(255, 110, 20, 0.15);
+  color: var(--color-primary);
+  font-weight: 700;
+  font-size: 1.4rem;
+}
+
+.images-manager__file-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.images-manager__file-title {
+  font-weight: 600;
+}
+
+.images-manager__file-hint {
+  font-size: 0.85rem;
+  color: var(--color-muted);
+}
+
+.images-manager__file-drop-hint {
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+}
+
+.images-manager__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.images-manager__item {
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  transition: box-shadow 0.2s ease-in-out;
+}
+
+.images-manager__item:hover {
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.images-manager__preview {
+  position: relative;
+  width: 100%;
+  padding-bottom: 66%;
+  background-color: #f8f9fa;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.images-manager__preview img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.images-manager__cover-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background-color: #2563eb;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 999px;
+}
+
+.images-manager__preview-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-muted);
+  font-size: 0.85rem;
+}
+
+.images-manager__progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 6px;
+  background: rgba(15, 35, 63, 0.08);
+}
+
+.images-manager__progress-bar {
+  height: 100%;
+  background: #2563eb;
+  transition: width 0.2s ease;
+}
+
+.images-manager__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.images-manager__title {
+  font-size: 0.95rem;
+}
+
+.images-manager__status {
+  font-size: 0.8rem;
+  color: var(--color-muted);
+}
+
+.images-manager__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.images-manager__move {
+  display: flex;
+  gap: 6px;
+}
+
+.images-manager__empty {
+  color: var(--color-muted);
+}
+
+.images-manager__preview-overlay {
+  position: absolute;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s ease-in-out;
+}
+
+.images-manager__preview:hover .images-manager__preview-overlay {
+  opacity: 1;
+}

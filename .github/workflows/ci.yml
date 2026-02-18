@@ -1,0 +1,261 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-build-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sandaga-backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: sandaga-backend/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Unit tests
+        run: npm run test -- --runInBand
+
+  frontend-build-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sandaga-frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: sandaga-frontend/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Build
+        env:
+          VITE_API_URL: http://localhost:3000
+          VITE_MAPBOX_TOKEN: test-token
+        run: npm run build
+
+      - name: Unit tests
+        run: npm run test -- --run
+
+  docker-images-build:
+    runs-on: ubuntu-latest
+    needs: [backend-build-test, frontend-build-test]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./sandaga-backend
+          push: false
+          tags: sandaga-backend:ci
+
+      - name: Build frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./sandaga-frontend
+          push: false
+          tags: sandaga-frontend:ci
+          build-args: |
+            VITE_API_URL=http://localhost:3000
+            MAPBOX_PUBLIC_KEY=test-token
+
+  integration-flow-tests:
+    runs-on: ubuntu-latest
+    needs: [backend-build-test]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: sandaga-backend/package-lock.json
+
+      - name: Install backend deps
+        working-directory: sandaga-backend
+        run: npm ci
+
+      - name: Start infra (db/minio)
+        env:
+          COMPOSE_PROJECT_NAME: ci
+        run: docker compose up -d db minio minio-init
+
+      - name: Detect DB container
+        run: |
+          db_container="$(docker ps \
+            --filter label=com.docker.compose.project=ci \
+            --filter label=com.docker.compose.service=db \
+            --format '{{.Names}}' | head -n1)"
+          if [[ -z "$db_container" ]]; then
+            echo "Could not resolve DB container name" >&2
+            docker ps
+            exit 1
+          fi
+          echo "DB_CONTAINER=$db_container" >> "$GITHUB_ENV"
+
+      - name: Start backend
+        working-directory: sandaga-backend
+        env:
+          PORT: 3000
+          DATABASE_HOST: 127.0.0.1
+          DATABASE_PORT: 5432
+          DATABASE_USER: postgres
+          DATABASE_PASSWORD: postgres
+          DATABASE_NAME: sandaga
+          JWT_SECRET: ci-secret
+          JWT_EXPIRES_IN: 3600
+          STORAGE_DRIVER: s3
+          STORAGE_S3_BUCKET: sandaga-media
+          STORAGE_S3_REGION: us-east-1
+          STORAGE_S3_ACCESS_KEY_ID: minioadmin
+          STORAGE_S3_SECRET_ACCESS_KEY: minioadmin
+          STORAGE_S3_ENDPOINT: http://127.0.0.1:9000
+          STORAGE_S3_PUBLIC_URL: http://127.0.0.1:9000/sandaga-media
+          STORAGE_S3_FORCE_PATH_STYLE: "true"
+          ZIKOPAY_MOCK_MODE: "true"
+          FLW_PUBLIC_KEY: test
+          FLW_SECRET_KEY: test
+        run: |
+          nohup npm run start:dev > /tmp/backend.log 2>&1 &
+          echo $! > /tmp/backend.pid
+          for i in {1..90}; do
+            if curl -fsS http://localhost:3000/health >/dev/null; then
+              echo "API is up"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "API did not start"
+          cat /tmp/backend.log
+          exit 1
+
+      - name: Seed baseline categories for flow tests
+        env:
+          API_BASE_URL: http://localhost:3000
+        run: |
+          set -euo pipefail
+          admin_email="ci.admin.${RANDOM}@example.com"
+          admin_password="Test12345!"
+
+          register_payload="$(jq -n \
+            --arg email "$admin_email" \
+            --arg password "$admin_password" \
+            '{email:$email,password:$password,firstName:"CI",lastName:"Admin",isPro:false}')"
+          reg="$(curl -sS -X POST "${API_BASE_URL}/auth/register" -H "Content-Type: application/json" -d "$register_payload")"
+          admin_id="$(echo "$reg" | jq -r '.user.id')"
+          if [[ -z "$admin_id" || "$admin_id" == "null" ]]; then
+            echo "Unable to register admin" >&2
+            echo "$reg" >&2
+            exit 1
+          fi
+
+          docker exec "${DB_CONTAINER}" psql -U postgres -d sandaga -v ON_ERROR_STOP=1 -c \
+            "UPDATE users SET role='admin' WHERE id='${admin_id}';" >/dev/null
+
+          login_payload="$(jq -n \
+            --arg email "$admin_email" \
+            --arg password "$admin_password" \
+            '{email:$email,password:$password}')"
+          login="$(curl -sS -X POST "${API_BASE_URL}/auth/login" -H "Content-Type: application/json" -d "$login_payload")"
+          admin_token="$(echo "$login" | jq -r '.accessToken')"
+          if [[ -z "$admin_token" || "$admin_token" == "null" ]]; then
+            echo "Unable to login admin" >&2
+            echo "$login" >&2
+            exit 1
+          fi
+
+          parent_slug="ci-parent-${RANDOM}"
+          child_slug="ci-child-${RANDOM}"
+          parent_payload="$(jq -n --arg slug "$parent_slug" '{name:"CI Parent",slug:$slug,description:"CI root category"}')"
+          parent_resp="$(curl -sS -X POST "${API_BASE_URL}/categories" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${admin_token}" \
+            -d "$parent_payload")"
+          parent_id="$(echo "$parent_resp" | jq -r '.id')"
+          if [[ -z "$parent_id" || "$parent_id" == "null" ]]; then
+            echo "Unable to create parent category" >&2
+            echo "$parent_resp" >&2
+            exit 1
+          fi
+
+          child_payload="$(jq -n --arg slug "$child_slug" --arg parentId "$parent_id" '{name:"CI Child",slug:$slug,parentId:$parentId,description:"CI child category"}')"
+          child_resp="$(curl -sS -X POST "${API_BASE_URL}/categories" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${admin_token}" \
+            -d "$child_payload")"
+          child_id="$(echo "$child_resp" | jq -r '.id')"
+          if [[ -z "$child_id" || "$child_id" == "null" ]]; then
+            echo "Unable to create child category" >&2
+            echo "$child_resp" >&2
+            exit 1
+          fi
+
+          echo "LISTING_CATEGORY_ID=${child_id}" >> "$GITHUB_ENV"
+
+      - name: Run critical flow tests
+        working-directory: sandaga-backend
+        env:
+          API_BASE_URL: http://localhost:3000
+          DB_CONTAINER: ${{ env.DB_CONTAINER }}
+          LISTING_CATEGORY_ID: ${{ env.LISTING_CATEGORY_ID }}
+        run: |
+          npm run test:flow:auth
+          npm run test:flow:users
+          npm run test:flow:listings
+          npm run test:flow:messages
+          npm run test:flow:payments
+          npm run test:flow:home-storefront
+          npm run test:flow:engagement
+          npm run test:flow:dashboard
+          npm run test:delivery-flow
+
+      - name: Upload backend log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-log
+          path: /tmp/backend.log
+
+      - name: Teardown
+        if: always()
+        env:
+          COMPOSE_PROJECT_NAME: ci
+        run: |
+          if [[ -f /tmp/backend.pid ]]; then
+            kill "$(cat /tmp/backend.pid)" || true
+          fi
+          docker compose down -v || true

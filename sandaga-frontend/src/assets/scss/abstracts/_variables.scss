@@ -1,0 +1,30 @@
+/* Design System Variables */
+:root[data-theme='light'] {
+  --color-primary: #ff6e14;
+  --color-accent: #0f60c4;
+  --color-bg: #fffefc;
+  --color-surface: #ffffff;
+  --color-surface-alt: #fff4ea;
+  --color-border: rgba(20, 20, 20, 0.1);
+  --color-text: #1f1f1f;
+  --color-muted: #6f6f6f;
+  --color-danger: #dc2626;
+  --shadow-soft: 0 18px 40px rgba(32, 32, 32, 0.08);
+}
+
+:root[data-theme='dark'] {
+  --color-primary: #ff8843;
+  --color-accent: #67a7ff;
+  --color-bg: #101014;
+  --color-surface: #17171d;
+  --color-surface-alt: #1f1f28;
+  --color-border: rgba(255, 255, 255, 0.12);
+  --color-text: #f5f5f5;
+  --color-muted: #a7a7a7;
+  --color-danger: #f97070;
+  --shadow-soft: 0 18px 40px rgba(6, 6, 6, 0.6);
+}
+
+$spacing: 8px;
+$radius: 20px;
+$font: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;

@@ -1,0 +1,59 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Git / temp
+*.swp
+*.swo
+*.tmp
+*.bak
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Node
+**/node_modules/
+**/.npm/
+
+# Build artifacts
+**/dist/
+**/.vite/
+**/.cache/
+**/.next/
+**/coverage/
+**/*.tsbuildinfo
+
+# Env / secrets
+.env
+**/.env
+**/.env.local
+**/.env.*.local
+**/.env.production
+**/.env.development
+**/.env.test
+*.pem
+*.key
+
+# Keep deploy env template tracked
+!deploy/ovh/.env.prod.example
+
+# Runtime uploads / storage
+sandaga-backend/uploads/
+sandaga-backend/uploads-local/
+**/tmp/
+
+# Local deployment/backup artifacts
+deploy/**/*.tgz
+deploy/**/*.tar
+deploy/**/*.gz
+*.sql.gz
+
+# Local clone / deprecated folders
+sandaga-backend1/

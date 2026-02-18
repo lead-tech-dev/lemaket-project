@@ -1,0 +1,225 @@
+@use '../abstracts/variables' as *;
+
+.dashboard-shell{
+  display:grid;
+  grid-template-columns: minmax(240px, 280px) minmax(0,1fr);
+  gap:calc($spacing*3);
+  align-items:flex-start;
+}
+.dashboard-shell__content{
+  display:flex;
+  flex-direction:column;
+  gap:calc($spacing*3.5);
+}
+
+.dashboard-page{
+  display:flex;
+  flex-direction:column;
+  gap:calc($spacing*3.5);
+}
+
+.dashboard-header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:calc($spacing*2);
+}
+
+.dashboard-stats{
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap:calc($spacing*2.5);
+}
+
+.dashboard-stat{
+  background:var(--color-surface);
+  border-radius:calc($radius*1.1);
+  padding:calc($spacing*3);
+  box-shadow:var(--shadow-soft);
+  display:flex;
+  flex-direction:column;
+  gap:calc($spacing*1);
+}
+
+.dashboard-stat strong{font-size:2rem;}
+.dashboard-stat span{color:var(--color-muted);}
+
+.dashboard-section{
+  background:var(--color-surface);
+  border-radius:calc($radius*1.1);
+  padding:calc($spacing*3);
+  box-shadow:var(--shadow-soft);
+  display:flex;
+  flex-direction:column;
+  gap:calc($spacing*2.5);
+}
+
+.dashboard-section__head{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:calc($spacing*2);
+}
+
+.dashboard-table{
+  width:100%;
+  border-collapse:collapse;
+}
+
+.dashboard-table th,
+.dashboard-table td{
+  padding:calc($spacing*1.5);
+  text-align:left;
+}
+
+.dashboard-table th{
+  color:var(--color-muted);
+  font-weight:600;
+}
+
+.dashboard-table tbody tr{
+  border-top:1px solid rgba(20,20,20,.08);
+}
+
+.dashboard-tabs{
+  display:flex;
+  gap:calc($spacing*1.5);
+  flex-wrap:wrap;
+}
+
+.dashboard-tab{
+  border:1px solid rgba(15,23,42,.12);
+  background:#fff;
+  color:var(--color-text);
+  padding:calc($spacing*1) calc($spacing*2.2);
+  border-radius:999px;
+  font-weight:600;
+  transition:all .2s ease;
+}
+
+.dashboard-tab:hover{
+  border-color:rgba(15,96,196,.35);
+  color:var(--color-accent);
+}
+
+.dashboard-tab.is-active{
+  background:rgba(15,96,196,.1);
+  color:var(--color-accent);
+  border-color:rgba(15,96,196,.4);
+}
+
+.dashboard-tab:disabled{
+  opacity:.5;
+  cursor:not-allowed;
+}
+
+.favorites-grid{
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap:calc($spacing*2.5);
+}
+.favorites-empty{
+  color:var(--color-muted);
+  font-style:italic;
+}
+
+.message-list{
+  display:flex;
+  flex-direction:column;
+  gap:calc($spacing*2);
+}
+
+.message-item{
+  display:grid;
+  grid-template-columns: 0.75fr 1fr auto;
+  gap:calc($spacing*2);
+  align-items:center;
+  padding:calc($spacing*2);
+  background:rgba(15,96,196,.05);
+  border-radius:calc($radius*.8);
+}
+
+.message-item__title{font-weight:600;}
+.message-item__snippet{color:var(--color-muted);}
+
+.storefront-media{
+  display:flex;
+  gap:calc($spacing*2);
+  align-items:center;
+  flex-wrap:wrap;
+  margin-top:calc($spacing*1.5);
+}
+
+.storefront-media__preview{
+  width:96px;
+  height:96px;
+  border-radius:calc($radius*1.2);
+  background:rgba(15,96,196,.06);
+  border:1px solid rgba(15,96,196,.15);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  color:var(--color-muted);
+  font-size:.85rem;
+  padding:calc($spacing*1);
+  overflow:hidden;
+}
+
+.storefront-media__preview--avatar{
+  width:88px;
+  height:88px;
+  border-radius:999px;
+}
+
+.storefront-media__preview--hero{
+  width:min(320px, 100%);
+  height:140px;
+  border-radius:calc($radius*1.2);
+}
+
+.storefront-media__preview img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+}
+
+.storefront-media__actions{
+  display:flex;
+  gap:calc($spacing*1.5);
+  flex-wrap:wrap;
+}
+
+.profile-form,
+.settings-form,
+.payment-methods,
+.pro-benefits{
+  display:flex;
+  flex-direction:column;
+  gap:calc($spacing*2);
+}
+
+.pro-benefits__grid{
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap:calc($spacing*2);
+}
+
+.pro-benefit{
+  background:rgba(255,110,20,.08);
+  padding:calc($spacing*2.5);
+  border-radius:calc($radius*.9);
+  display:flex;
+  flex-direction:column;
+  gap:calc($spacing*1);
+}
+
+@media (max-width: 768px){
+  .message-item{grid-template-columns: 1fr; align-items:flex-start;}
+}
+
+@media (max-width: 1080px){
+  .dashboard-shell{grid-template-columns:1fr;}
+  .dashboard-shell__content{gap:calc($spacing*3);}
+}
