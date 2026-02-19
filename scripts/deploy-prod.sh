@@ -8,6 +8,9 @@ set -euo pipefail
 
 BACKEND_IMAGE="${BACKEND_IMAGE:-}"
 FRONTEND_IMAGE="${FRONTEND_IMAGE:-}"
+PROD_ENV_FILE="${PROD_ENV_FILE:-}"
+PROD_APP_PUBLIC_URL="${PROD_APP_PUBLIC_URL:-}"
+PROD_API_PUBLIC_URL="${PROD_API_PUBLIC_URL:-}"
 
 if [[ -z "$BACKEND_IMAGE" || -z "$FRONTEND_IMAGE" ]]; then
   echo "BACKEND_IMAGE and FRONTEND_IMAGE are required." >&2
@@ -60,29 +63,50 @@ EOF
 
 scp "${SSH_OPTS[@]}" "./docker-compose.deploy.yml" "${REMOTE}:${RESOLVED_PROD_APP_DIR}/docker-compose.deploy.yml"
 
+if [[ -n "$PROD_ENV_FILE" ]]; then
+  if [[ ! -f "$PROD_ENV_FILE" ]]; then
+    echo "PROD_ENV_FILE points to a missing file: $PROD_ENV_FILE" >&2
+    exit 1
+  fi
+  scp "${SSH_OPTS[@]}" "$PROD_ENV_FILE" "${REMOTE}:${RESOLVED_PROD_APP_DIR}/.env"
+fi
+
 ssh "${SSH_OPTS[@]}" "$REMOTE" <<EOF
 set -euo pipefail
 cd '${RESOLVED_PROD_APP_DIR}'
 
 if [[ ! -f .env ]]; then
-  echo ".env not found in ${RESOLVED_PROD_APP_DIR}. Create it before deploy." >&2
+  echo ".env not found in ${RESOLVED_PROD_APP_DIR}. Create it before deploy or provide PROD_ENV_FILE." >&2
   exit 1
 fi
+
+chmod 600 .env || true
 
 if [[ -n "${GHCR_USER:-}" && -n "${GHCR_TOKEN:-}" ]]; then
   echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USER}" --password-stdin
 fi
 
-if grep -q '^BACKEND_IMAGE=' .env; then
-  sed -i "s|^BACKEND_IMAGE=.*|BACKEND_IMAGE=${BACKEND_IMAGE}|" .env
-else
-  echo "BACKEND_IMAGE=${BACKEND_IMAGE}" >> .env
+upsert_env() {
+  local key="\$1"
+  local value="\$2"
+  if grep -q "^\${key}=" .env; then
+    sed -i "s|^\${key}=.*|\${key}=\${value}|" .env
+  else
+    echo "\${key}=\${value}" >> .env
+  fi
+}
+
+upsert_env BACKEND_IMAGE "${BACKEND_IMAGE}"
+upsert_env FRONTEND_IMAGE "${FRONTEND_IMAGE}"
+
+# Align runtime public URLs (CORS, links) with prod domains when provided.
+if [[ -n "${PROD_APP_PUBLIC_URL}" ]]; then
+  upsert_env APP_PUBLIC_URL "${PROD_APP_PUBLIC_URL}"
+  upsert_env FRONTEND_URL "${PROD_APP_PUBLIC_URL}"
 fi
 
-if grep -q '^FRONTEND_IMAGE=' .env; then
-  sed -i "s|^FRONTEND_IMAGE=.*|FRONTEND_IMAGE=${FRONTEND_IMAGE}|" .env
-else
-  echo "FRONTEND_IMAGE=${FRONTEND_IMAGE}" >> .env
+if [[ -n "${PROD_API_PUBLIC_URL}" ]]; then
+  upsert_env API_PUBLIC_URL "${PROD_API_PUBLIC_URL}"
 fi
 
 if [[ -x ./backup-postgres.sh ]]; then

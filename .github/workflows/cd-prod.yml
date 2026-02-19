@@ -60,7 +60,7 @@ jobs:
             ${{ steps.meta.outputs.frontend_image }}
             ${{ steps.meta.outputs.frontend_latest }}
           build-args: |
-            VITE_API_URL=${{ vars.PROD_VITE_API_URL || 'http://localhost:3000' }}
+            VITE_API_URL=${{ vars.PROD_VITE_API_URL || 'https://api.lemaket.com' }}
             MAPBOX_PUBLIC_KEY=${{ secrets.PROD_VITE_MAPBOX_TOKEN || '' }}
 
   deploy-production:
@@ -96,6 +96,18 @@ jobs:
           echo "${{ secrets.PROD_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
 
+      - name: Prepare PROD .env file
+        if: ${{ steps.preflight.outputs.ready == 'true' }}
+        id: prod_env
+        env:
+          PROD_ENV_FILE_CONTENT: ${{ secrets.PROD_ENV_FILE }}
+        run: |
+          if [[ -n "$PROD_ENV_FILE_CONTENT" ]]; then
+            printf '%s\n' "$PROD_ENV_FILE_CONTENT" > ./.tmp.prod.env
+            chmod 600 ./.tmp.prod.env
+            echo "path=./.tmp.prod.env" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Deploy to production
         if: ${{ steps.preflight.outputs.ready == 'true' }}
         env:
@@ -106,10 +118,22 @@ jobs:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BACKEND_IMAGE: ${{ needs.build-and-push.outputs.backend_image }}
           FRONTEND_IMAGE: ${{ needs.build-and-push.outputs.frontend_image }}
+          PROD_ENV_FILE: ${{ steps.prod_env.outputs.path }}
+          PROD_APP_PUBLIC_URL: ${{ vars.PROD_APP_PUBLIC_URL || 'https://lemaket.com' }}
+          PROD_API_PUBLIC_URL: ${{ vars.PROD_API_PUBLIC_URL || 'https://api.lemaket.com' }}
         run: bash ./scripts/deploy-prod.sh
 
-      - name: Smoke test production
+      - name: Cleanup temp env file
+        if: always()
+        run: rm -f ./.tmp.prod.env
+
+      - name: Smoke test production (remote)
         if: ${{ steps.preflight.outputs.ready == 'true' }}
         env:
-          BASE_URL: ${{ vars.PROD_API_BASE_URL || 'http://localhost:3000' }}
-        run: bash ./scripts/smoke.sh "$BASE_URL"
+          PROD_SSH_HOST: ${{ secrets.PROD_SSH_HOST }}
+          PROD_SSH_USER: ${{ secrets.PROD_SSH_USER }}
+          PROD_BACKEND_PORT: ${{ vars.PROD_BACKEND_PORT || '3000' }}
+        run: |
+          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            "${PROD_SSH_USER}@${PROD_SSH_HOST}" \
+            "BASE_URL=http://localhost:${PROD_BACKEND_PORT} bash -s" < ./scripts/smoke.sh

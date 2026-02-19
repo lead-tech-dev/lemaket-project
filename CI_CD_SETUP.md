@@ -22,6 +22,7 @@ an initial `.env` from `deploy/ovh/.env.prod.example` and generates a random
 - `PROD_SSH_HOST`
 - `PROD_SSH_USER`
 - `PROD_SSH_KEY`
+- `PROD_ENV_FILE` (optional, full remote `.env` content to auto-provision on deploy)
 - `PROD_VITE_MAPBOX_TOKEN` (optional)
 
 ## Required GitHub Variables
@@ -39,8 +40,13 @@ Note: development smoke tests in CI run on the VPS itself via SSH
 
 ### Production
 - `PROD_APP_DIR` (default `/opt/sandaga`)
-- `PROD_API_BASE_URL` (for smoke tests)
-- `PROD_VITE_API_URL` (frontend build arg)
+- `PROD_VITE_API_URL` (frontend build arg, default `https://api.lemaket.com`)
+- `PROD_BACKEND_PORT` (default `3000`)
+- `PROD_APP_PUBLIC_URL` (default `https://lemaket.com`)
+- `PROD_API_PUBLIC_URL` (default `https://api.lemaket.com`)
+
+Note: production smoke tests in CI run on the VPS itself via SSH
+(`http://localhost:${PROD_BACKEND_PORT}`), so DNS propagation does not block deploy validation.
 
 ## Remote server prerequisites
 - Docker + Docker Compose installed.
