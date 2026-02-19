@@ -101,7 +101,7 @@ jobs:
         env:
           DEV_SSH_HOST: ${{ secrets.DEV_SSH_HOST }}
           DEV_SSH_USER: ${{ secrets.DEV_SSH_USER }}
-          DEV_APP_DIR: ${{ vars.DEV_APP_DIR || '/opt/sandaga-dev' }}
+          DEV_APP_DIR: ${{ vars.DEV_APP_DIR || format('/home/{0}/sandaga-dev', secrets.DEV_SSH_USER) }}
           GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BACKEND_IMAGE: ${{ needs.build-and-push.outputs.backend_image }}

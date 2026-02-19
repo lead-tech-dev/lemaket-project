@@ -21,8 +21,24 @@ SSH_OPTS=(
 
 REMOTE="${PROD_SSH_USER}@${PROD_SSH_HOST}"
 
-ssh "${SSH_OPTS[@]}" "$REMOTE" \
-  "mkdir -p '${PROD_APP_DIR}'"
+ssh "${SSH_OPTS[@]}" "$REMOTE" <<EOF
+set -euo pipefail
+APP_DIR='${PROD_APP_DIR}'
+
+if mkdir -p "\${APP_DIR}" 2>/dev/null; then
+  exit 0
+fi
+
+if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+  sudo mkdir -p "\${APP_DIR}"
+  sudo chown -R "\$(id -u):\$(id -g)" "\${APP_DIR}"
+  exit 0
+fi
+
+echo "Permission denied for \${APP_DIR}." >&2
+echo "Set PROD_APP_DIR to a writable path (example: \$HOME/sandaga) or grant passwordless sudo for mkdir/chown." >&2
+exit 1
+EOF
 
 scp "${SSH_OPTS[@]}" "./docker-compose.deploy.yml" "${REMOTE}:${PROD_APP_DIR}/docker-compose.deploy.yml"
 

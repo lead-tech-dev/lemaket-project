@@ -101,7 +101,7 @@ jobs:
         env:
           PROD_SSH_HOST: ${{ secrets.PROD_SSH_HOST }}
           PROD_SSH_USER: ${{ secrets.PROD_SSH_USER }}
-          PROD_APP_DIR: ${{ vars.PROD_APP_DIR || '/opt/sandaga' }}
+          PROD_APP_DIR: ${{ vars.PROD_APP_DIR || format('/home/{0}/sandaga', secrets.PROD_SSH_USER) }}
           GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BACKEND_IMAGE: ${{ needs.build-and-push.outputs.backend_image }}
