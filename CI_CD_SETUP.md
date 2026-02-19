@@ -14,6 +14,10 @@
 - `DEV_ENV_FILE` (optional, full remote `.env` content to auto-provision on deploy)
 - `DEV_VITE_MAPBOX_TOKEN` (optional)
 
+If `DEV_ENV_FILE` is not set and remote `.env` is missing, `deploy-dev.sh` bootstraps
+an initial `.env` from `deploy/ovh/.env.prod.example` and generates a random
+`JWT_SECRET`. You should review and update that file on the server after first deploy.
+
 ### Production
 - `PROD_SSH_HOST`
 - `PROD_SSH_USER`

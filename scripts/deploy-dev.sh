@@ -67,6 +67,9 @@ if [[ -n "$DEV_ENV_FILE" ]]; then
     exit 1
   fi
   scp "${SSH_OPTS[@]}" "$DEV_ENV_FILE" "${REMOTE}:${RESOLVED_DEV_APP_DIR}/.env"
+else
+  # First deploy convenience: provide a bootstrap env template if remote .env is missing.
+  scp "${SSH_OPTS[@]}" "./deploy/ovh/.env.prod.example" "${REMOTE}:${RESOLVED_DEV_APP_DIR}/.env.bootstrap"
 fi
 
 ssh "${SSH_OPTS[@]}" "$REMOTE" <<EOF
@@ -74,8 +77,17 @@ set -euo pipefail
 cd '${RESOLVED_DEV_APP_DIR}'
 
 if [[ ! -f .env ]]; then
-  echo ".env not found in ${RESOLVED_DEV_APP_DIR}. Create it before deploy or provide DEV_ENV_FILE." >&2
-  exit 1
+  if [[ -f .env.bootstrap ]]; then
+    cp .env.bootstrap .env
+    if grep -q '^JWT_SECRET=change_me_super_long_random_secret$' .env; then
+      jwt_secret="\$(openssl rand -hex 32 2>/dev/null || date +%s%N)"
+      sed -i "s|^JWT_SECRET=.*|JWT_SECRET=\${jwt_secret}|" .env
+    fi
+    echo "Bootstrapped .env from .env.bootstrap. Review values in ${RESOLVED_DEV_APP_DIR}/.env." >&2
+  else
+    echo ".env not found in ${RESOLVED_DEV_APP_DIR}. Create it before deploy or provide DEV_ENV_FILE." >&2
+    exit 1
+  fi
 fi
 
 chmod 600 .env || true
