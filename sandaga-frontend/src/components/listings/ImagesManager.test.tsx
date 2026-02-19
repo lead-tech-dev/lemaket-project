@@ -1,4 +1,4 @@
-import { screen, fireEvent } from '@testing-library/react';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
 import { ImagesManager } from './ImagesManager';
 import { uploadMedia } from '../../utils/media';
 import { renderWithProviders } from '../../test/test-utils'
@@ -9,6 +9,18 @@ vi.mock('../../utils/media', () => ({
 
 describe('ImagesManager', () => {
   const mockOnChange = vi.fn();
+  const originalCreateObjectURL = URL.createObjectURL;
+  const originalRevokeObjectURL = URL.revokeObjectURL;
+
+  beforeEach(() => {
+    URL.createObjectURL = vi.fn(() => 'blob:preview');
+    URL.revokeObjectURL = vi.fn();
+  });
+
+  afterEach(() => {
+    URL.createObjectURL = originalCreateObjectURL;
+    URL.revokeObjectURL = originalRevokeObjectURL;
+  });
 
   it('allows uploading an image file', async () => {
     vi.mocked(uploadMedia).mockResolvedValue({
@@ -19,11 +31,13 @@ describe('ImagesManager', () => {
 
     renderWithProviders(<ImagesManager value={[]} onChange={mockOnChange} />);
 
-    const fileInput = screen.getByLabelText(/Ajouter des images/);
+    const fileInput = screen.getByLabelText(/Ajouter des photos/i);
     const file = new File(['(⌐□_□)'], 'chucknorris.png', { type: 'image/png' });
 
     fireEvent.change(fileInput, { target: { files: [file] } });
 
-    // expect(await screen.findByText('En ligne')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(uploadMedia).toHaveBeenCalled();
+    });
   });
 });

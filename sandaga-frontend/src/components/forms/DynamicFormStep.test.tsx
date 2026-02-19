@@ -59,7 +59,7 @@ describe('DynamicFormStep', () => {
       </TestHarness>
     );
     expect(screen.getByText('Test Step')).toBeInTheDocument();
-    expect(screen.getByText('Step description')).toBeInTheDocument();
+    expect(screen.getByText('Aucun champ à afficher pour cette étape.')).toBeInTheDocument();
   });
 
   it('renders the fields in the step', () => {

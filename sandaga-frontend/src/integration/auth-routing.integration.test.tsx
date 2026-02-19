@@ -7,6 +7,7 @@ import { App } from '../App'
 
 vi.mock('../hooks/useAuth', () => ({
   useAuth: vi.fn(),
+  invalidateAuthCache: vi.fn(),
 }))
 import * as AuthMod from '../hooks/useAuth'
 

@@ -1,21 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { render, screen } from '@testing-library/react';
-import { I18nProvider } from './contexts/I18nContext'
-import { ToastProvider } from './components/ui/Toast'
-import { FeatureFlagProvider } from './contexts/FeatureFlagContext'
-import { App } from './App';
+import { screen } from '@testing-library/react'
+import { App } from './App'
+import { renderAppWithProviders } from './test/test-utils'
 
 describe('App', () => {
-  it('renders the App component', () => {
-    render(
-      <I18nProvider>
-        <FeatureFlagProvider>
-          <ToastProvider>
-            <App />
-          </ToastProvider>
-        </FeatureFlagProvider>
-      </I18nProvider>
-    );
-    expect(screen.getByRole('status')).toBeInTheDocument();
-  });
-});
+  it('renders the App component', async () => {
+    window.history.pushState({}, '', '/')
+    renderAppWithProviders(<App />)
+    expect(await screen.findByRole('link', { name: /lemaket/i })).toBeInTheDocument()
+  })
+})

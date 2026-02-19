@@ -7,11 +7,16 @@ import { getAuthToken } from '../../utils/auth-token';
 import { renderWithProviders } from '../../test/test-utils'
 
 const addToastMock = vi.fn();
-vi.mock('../ui/Toast', () => ({
-  useToast: () => ({ addToast: addToastMock }),
-}));
+vi.mock('../ui/Toast', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../ui/Toast')>()
+  return {
+    ...actual,
+    useToast: () => ({ addToast: addToastMock }),
+  }
+});
 
 vi.mock('../../utils/api', () => ({
+  setApiLocale: vi.fn(),
   apiPost: vi.fn(),
   apiDelete: vi.fn(),
 }));

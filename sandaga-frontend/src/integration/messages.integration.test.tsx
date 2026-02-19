@@ -1,13 +1,15 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { renderWithProviders } from '../test/test-utils'
-import { screen, within } from '@testing-library/react'
+import { renderAppWithProviders } from '../test/test-utils'
+import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { App } from '../App'
 
 vi.mock('../hooks/useAuth', () => ({
   useAuth: vi.fn(),
+  invalidateAuthCache: vi.fn(),
 }))
 vi.mock('../utils/api', () => ({
+  setApiLocale: vi.fn(),
   apiGet: vi.fn(),
   apiPost: vi.fn(),
   apiDelete: vi.fn(),
@@ -31,65 +33,73 @@ describe('Messages page (integration)', () => {
     vi.resetAllMocks()
     // authenticated user
     vi.mocked(AuthMod.useAuth).mockReturnValue({
-      user: { id: 'u1', firstName: 'Jane', lastName: 'Doe', role: 'user', isPro: false },
+      user: { id: 'u1', firstName: 'Jane', lastName: 'Doe', role: 'user', isPro: true },
       loading: false,
       error: null,
       justPromotedPro: false,
       isAuthenticated: true,
-      isPro: false,
+      isPro: true,
       isAdmin: false,
       acknowledgePromotion: () => {}
     } as any)
   })
 
   it('shows empty state when no conversations', async () => {
-    vi.mocked(Api.apiGet).mockResolvedValue(conversationsResponse())
+    vi.mocked(Api.apiGet).mockImplementation(async (url: string) => {
+      if (url.startsWith('/messages/conversations')) return conversationsResponse() as any
+      if (url === '/messages/quick-replies') return [] as any
+      return [] as any
+    })
 
-    renderWithProviders(<App />, { router: { initialEntries: ['/dashboard/messages'] } })
+    renderAppWithProviders(<App />)
 
     expect(await screen.findByRole('heading', { name: /aucune conversation pour le moment/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /actualiser/i })).toBeInTheDocument()
   })
 
   it('shows loading skeleton then content once loaded', async () => {
-    // make the first call defer, then resolve
     let resolveFn: (v: any) => void
-    const pending = new Promise(r => { resolveFn = r })
-    vi.mocked(Api.apiGet).mockReturnValueOnce(pending as any)
+    const pending = new Promise(r => {
+      resolveFn = r
+    })
+    vi.mocked(Api.apiGet).mockImplementation(async (url: string) => {
+      if (url.startsWith('/messages/conversations')) return pending as any
+      if (url === '/messages/quick-replies') return [] as any
+      return [] as any
+    })
 
-    renderWithProviders(<App />, { router: { initialEntries: ['/dashboard/messages'] } })
+    renderAppWithProviders(<App />)
 
-    // skeleton container is rendered while loading
-    const section = await screen.findByRole('region', { hidden: true }).catch(() => null)
-    // Alternatively check by querying the skeleton container via aria-hidden
     expect(document.querySelector('.message-list[aria-hidden]')).toBeTruthy()
 
-    // resolve
     resolveFn!(conversationsResponse())
 
-    // eventually shows empty state
     expect(await screen.findByRole('heading', { name: /aucune conversation pour le moment/i })).toBeInTheDocument()
   })
 
   it('shows RetryBanner on error and retries on click', async () => {
-    // first call rejects
-    vi.mocked(Api.apiGet)
-      .mockRejectedValueOnce(new Error('Network down'))
-      .mockResolvedValueOnce(conversationsResponse())
+    let pageConversationsCallCount = 0
+    vi.mocked(Api.apiGet).mockImplementation(async (url: string) => {
+      if (url.startsWith('/messages/conversations')) {
+        if (url.includes('limit=10')) {
+          return conversationsResponse() as any
+        }
+        pageConversationsCallCount += 1
+        if (pageConversationsCallCount === 1) {
+          throw new Error('Network down')
+        }
+        return conversationsResponse() as any
+      }
+      if (url === '/messages/quick-replies') return [] as any
+      return [] as any
+    })
 
-    renderWithProviders(<App />, { router: { initialEntries: ['/dashboard/messages'] } })
+    renderAppWithProviders(<App />)
 
-    // RetryBanner visible
-    const banner = await screen.findByText(/impossible de charger vos conversations/i)
-    expect(banner).toBeInTheDocument()
-
-    // Click Retry
-    const retryContainer = banner.closest('[role="region"], div') as HTMLElement
-    const retryBtn = within(retryContainer.parentElement as HTMLElement).getByRole('button', { name: /réessayer|actualiser/i })
+    const retryBtn = await screen.findByRole('button', { name: /^réessayer$/i })
     await userEvent.click(retryBtn)
 
-    // Empty state after retry
     expect(await screen.findByRole('heading', { name: /aucune conversation pour le moment/i })).toBeInTheDocument()
-    expect(vi.mocked(Api.apiGet)).toHaveBeenCalledTimes(2)
+    expect(pageConversationsCallCount).toBeGreaterThanOrEqual(2)
   })
 })

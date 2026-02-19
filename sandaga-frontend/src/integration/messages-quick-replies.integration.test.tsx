@@ -1,13 +1,15 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
-import { renderWithProviders } from '../test/test-utils'
+import { renderAppWithProviders } from '../test/test-utils'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { App } from '../App'
 
 vi.mock('../hooks/useAuth', () => ({
   useAuth: vi.fn(),
+  invalidateAuthCache: vi.fn(),
 }))
 vi.mock('../utils/api', () => ({
+  setApiLocale: vi.fn(),
   apiGet: vi.fn(),
   apiPost: vi.fn(),
   apiDelete: vi.fn(),
@@ -30,7 +32,7 @@ describe('Messages quick replies (integration)', () => {
       error: null,
       justPromotedPro: false,
       isAuthenticated: true,
-      isPro: false,
+      isPro: true,
       isAdmin: false,
       acknowledgePromotion: () => {}
     } as any)
@@ -45,7 +47,7 @@ describe('Messages quick replies (integration)', () => {
     const user = userEvent.setup()
     vi.mocked(Api.apiPost).mockResolvedValue({ id: 'qr1', label: 'Merci', content: 'Merci pour votre message.' } as any)
 
-    renderWithProviders(<App />, { router: { initialEntries: ['/dashboard/messages'] } })
+    renderAppWithProviders(<App />)
 
     const manageBtn = await screen.findByRole('button', { name: /gérer les réponses rapides/i })
     await user.click(manageBtn)
@@ -72,7 +74,7 @@ describe('Messages quick replies (integration)', () => {
     })
     vi.mocked(Api.apiDelete).mockResolvedValue({ success: true } as any)
 
-    renderWithProviders(<App />, { router: { initialEntries: ['/dashboard/messages'] } })
+    renderAppWithProviders(<App />)
 
     const manageBtn = await screen.findByRole('button', { name: /gérer les réponses rapides/i })
     await user.click(manageBtn)

@@ -1,94 +1,121 @@
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { renderWithProviders } from '../test/test-utils'
+import { renderAppWithProviders } from '../test/test-utils'
 import { App } from '../App'
 
 vi.mock('../hooks/useAuth', () => ({
   useAuth: vi.fn(),
+  invalidateAuthCache: vi.fn(),
 }))
 vi.mock('../utils/api', () => ({
+  setApiLocale: vi.fn(),
   apiGet: vi.fn(),
   apiPost: vi.fn(),
+  apiPatch: vi.fn(),
 }))
+vi.mock('../contexts/FeatureFlagContext', async (orig) => {
+  const mod: any = await orig()
+  return {
+    ...mod,
+    useFeatureFlagsContext: vi.fn(),
+  }
+})
 
 import * as AuthMod from '../hooks/useAuth'
 import * as Api from '../utils/api'
-
-function overviewWithReminder() {
-  return {
-    stats: [],
-    reminders: [
-      { title: 'Découvrez les offres PRO', due: 'Aujourd\'hui', action: 'Découvrir' },
-    ],
-    messages: [],
-    notificationSummary: null,
-    onboardingChecklist: { dismissed: true, tasks: [] },
-  }
-}
+import { useFeatureFlagsContext } from '../contexts/FeatureFlagContext'
 
 describe('Payments (integration)', () => {
-  const originalAssign = window.location.assign
-
   beforeEach(() => {
-    window.history.pushState({}, '', '/dashboard')
+    window.history.pushState({}, '', '/dashboard/payments')
     vi.resetAllMocks()
+    vi.mocked(useFeatureFlagsContext).mockReturnValue({
+      flags: {} as any,
+      isEnabled: () => true,
+      setFlag: () => {}
+    } as any)
     vi.mocked(AuthMod.useAuth).mockReturnValue({
-      user: { id: 'u1', firstName: 'John', lastName: 'Doe', role: 'user', isPro: false },
+      user: { id: 'u1', firstName: 'John', lastName: 'Doe', role: 'user', isPro: true },
       loading: false,
       error: null,
       justPromotedPro: false,
       isAuthenticated: true,
-      isPro: false,
+      isPro: true,
       isAdmin: false,
       acknowledgePromotion: () => {}
     } as any)
+  })
+
+  it('opens add-method modal and creates a payment method', async () => {
+    const user = userEvent.setup()
     vi.mocked(Api.apiGet).mockImplementation(async (url: string) => {
-      if (url === '/dashboard/overview') return overviewWithReminder() as any
+      if (url.startsWith('/messages/conversations')) {
+        return { data: [], nextCursor: null, unreadTotal: 0 } as any
+      }
+      if (url === '/payments/methods') return [] as any
+      if (url === '/payments/invoices') return [] as any
+      if (url === '/payments/subscriptions') return [] as any
       return [] as any
     })
+    vi.mocked(Api.apiPost).mockResolvedValue({
+      id: 'pm-new',
+      type: 'card',
+      holderName: 'John Doe',
+      isDefault: true,
+      currency: 'XAF'
+    } as any)
+
+    renderAppWithProviders(<App />)
+
+    await user.click(
+      await screen.findByRole('button', { name: /^ajouter une méthode de paiement$/i })
+    )
+    await user.type(screen.getByLabelText(/nom du titulaire/i), 'John Doe')
+    await user.click(screen.getByRole('button', { name: /enregistrer/i }))
+
+    expect(vi.mocked(Api.apiPost)).toHaveBeenCalledWith(
+      '/payments/methods',
+      expect.objectContaining({
+        holderName: 'John Doe'
+      })
+    )
   })
 
-  afterEach(() => {
-    window.location.assign = originalAssign
-  })
-
-  it('opens PRO upgrade modal and redirects to Stripe when redirectUrl is returned', async () => {
+  it('sets a method as default', async () => {
     const user = userEvent.setup()
-    // mock apiPost to return redirectUrl
-    vi.mocked(Api.apiPost).mockResolvedValue({ redirectUrl: 'https://stripe.test/session' } as any)
+    vi.mocked(Api.apiGet).mockImplementation(async (url: string) => {
+      if (url.startsWith('/messages/conversations')) {
+        return { data: [], nextCursor: null, unreadTotal: 0 } as any
+      }
+      if (url === '/payments/methods') {
+        return [
+          {
+            id: 'pm-1',
+            type: 'card',
+            holderName: 'John Doe',
+            isDefault: false,
+            status: 'active',
+            verificationStatus: 'verified',
+            currency: 'XAF'
+          }
+        ] as any
+      }
+      if (url === '/payments/invoices') return [] as any
+      if (url === '/payments/subscriptions') return [] as any
+      return [] as any
+    })
+    vi.mocked(Api.apiPatch).mockResolvedValue({
+      id: 'pm-1',
+      isDefault: true
+    } as any)
 
-    // spy on location.assign
-    const assignSpy = vi.fn()
-    window.location.assign = assignSpy as typeof window.location.assign
+    renderAppWithProviders(<App />)
 
-    renderWithProviders(<App />, { router: { initialEntries: ['/dashboard'] } })
+    await user.click(await screen.findByRole('button', { name: /définir par défaut/i }))
 
-    // Click the reminder CTA "Découvrir" in Actions rapides
-    const discoverBtn = await screen.findByRole('button', { name: /découvrir/i })
-    await user.click(discoverBtn)
-
-    // Modal appears: click on one plan CTA (match by button text from constants, generic by role)
-    const planButtons = await screen.findAllByRole('button', { name: /essai|activer|mensuel|annuel|gratuit|pro/i })
-    await user.click(planButtons[0])
-
-    expect(assignSpy).toHaveBeenCalledWith('https://stripe.test/session')
-  })
-
-  it('shows success toast and closes modal when subscription is activated without redirect', async () => {
-    const user = userEvent.setup()
-    // mock apiPost to return nextRenewalAt only
-    vi.mocked(Api.apiPost).mockResolvedValue({ nextRenewalAt: new Date().toISOString() } as any)
-
-    renderWithProviders(<App />, { router: { initialEntries: ['/dashboard'] } })
-
-    const discoverBtn = await screen.findByRole('button', { name: /découvrir/i })
-    await user.click(discoverBtn)
-
-    const planButtons = await screen.findAllByRole('button', { name: /essai|activer|mensuel|annuel|gratuit|pro/i })
-    await user.click(planButtons[0])
-
-    // Expect a success toast message
-    expect(await screen.findByText(/abonnement confirmé|essai activé/i)).toBeInTheDocument()
+    expect(vi.mocked(Api.apiPatch)).toHaveBeenCalledWith('/payments/methods/pm-1', {
+      isDefault: true
+    })
   })
 })

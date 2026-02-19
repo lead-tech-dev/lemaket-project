@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderAppWithProviders } from '../test/test-utils'
 import { App } from '../App'
 
 vi.mock('../hooks/useAuth', () => ({
   useAuth: vi.fn(),
+  invalidateAuthCache: vi.fn(),
 }))
 vi.mock('../utils/auth', async (orig) => {
   const mod: any = await orig()
@@ -127,23 +128,25 @@ describe('Settings page (integration)', () => {
     // Add first address
     const addBtn = await screen.findByRole('button', { name: /ajouter une adresse|ajouter ma première adresse/i })
     await user.click(addBtn)
+    const modal = await screen.findByRole('dialog')
 
     // Fill minimal required fields in modal form
-    await user.type(screen.getByLabelText(/intitulé/i), 'Maison')
-    await user.type(screen.getByLabelText(/destinataire/i), 'Jane Doe')
-    await user.type(screen.getByLabelText(/^adresse/i), '1 rue A')
-    await user.type(screen.getByLabelText(/ville/i), 'Paris')
-    await user.type(screen.getByLabelText(/code postal/i), '75001')
-    await user.type(screen.getByLabelText(/pays/i), 'France')
+    await user.type(within(modal).getByLabelText(/intitulé/i), 'Maison')
+    await user.type(within(modal).getByLabelText(/destinataire/i), 'Jane Doe')
+    const addressLine1 = modal.querySelector('#address-line1') as HTMLInputElement
+    await user.type(addressLine1, '1 rue A')
+    await user.type(within(modal).getByLabelText(/ville/i), 'Paris')
+    await user.type(within(modal).getByLabelText(/code postal/i), '75001')
+    await user.type(within(modal).getByLabelText(/pays/i), 'France')
 
     // Submit
-    await user.click(screen.getByRole('button', { name: /enregistrer|ajouter/i }))
+    await user.click(within(modal).getByRole('button', { name: /enregistrer|ajouter/i }))
 
     // Address added toast
     expect(await screen.findByText(/adresse ajoutée|adresse mise à jour/i)).toBeInTheDocument()
 
     // After list refresh, click delete
-    const deleteBtn = await screen.findByRole('button', { name: /supprimer/i })
+    const deleteBtn = await screen.findByRole('button', { name: /^supprimer$/i })
     await user.click(deleteBtn)
 
     // Deleted toast

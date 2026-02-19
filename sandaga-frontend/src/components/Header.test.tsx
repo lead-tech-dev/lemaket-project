@@ -1,20 +1,25 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import Header from './Header';
 import { I18nProvider } from '../contexts/I18nContext';
 
 vi.mock('../hooks/useAuth', () => ({
   useAuth: vi.fn(),
+  invalidateAuthCache: vi.fn(),
 }));
 
 vi.mock('../hooks/useMessageNotifications', () => ({
   useMessageNotifications: vi.fn(),
 }));
 
-vi.mock('../contexts/FeatureFlagContext', () => ({
-  useFeatureFlagsContext: vi.fn(),
-}));
+vi.mock('../contexts/FeatureFlagContext', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../contexts/FeatureFlagContext')>()
+  return {
+    ...actual,
+    useFeatureFlagsContext: vi.fn(),
+  }
+});
 
 vi.mock('../hooks/useCategories', () => ({
   useCategories: vi.fn(),
@@ -153,6 +158,7 @@ describe('Header', () => {
   });
 
   it('shows unread message count', () => {
+    vi.mocked(AuthMod.useAuth).mockReturnValue({ user: { firstName: 'John' }, isPro: true, isAdmin: false } as any);
     vi.mocked(NotifMod.useMessageNotifications).mockReturnValue(5 as any);
 
     render(
@@ -163,6 +169,7 @@ describe('Header', () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText('5')).toBeInTheDocument();
+    const messagesLink = screen.getByRole('link', { name: /Messages/i });
+    expect(within(messagesLink).getByText('5')).toBeInTheDocument();
   });
 });

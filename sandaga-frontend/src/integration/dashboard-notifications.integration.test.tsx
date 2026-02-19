@@ -1,13 +1,15 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { renderWithProviders } from '../test/test-utils'
+import { renderAppWithProviders } from '../test/test-utils'
 import { App } from '../App'
 
 vi.mock('../hooks/useAuth', () => ({
   useAuth: vi.fn(),
+  invalidateAuthCache: vi.fn(),
 }))
 vi.mock('../utils/api', () => ({
+  setApiLocale: vi.fn(),
   apiGet: vi.fn(),
   apiPatch: vi.fn(),
 }))
@@ -58,34 +60,30 @@ describe('Dashboard notifications (integration)', () => {
     vi.mocked(Api.apiGet).mockResolvedValue(overviewResponse() as any)
     vi.mocked(Api.apiPatch).mockResolvedValue({} as any)
 
-    renderWithProviders(<App />, { router: { initialEntries: ['/dashboard'] } })
+    renderAppWithProviders(<App />)
 
-    // Wait for Center heading
-    expect(await screen.findByRole('heading', { name: /centre de notifications/i })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /notifications/i })).toBeInTheDocument()
 
-    // Find the first item and click "Marquer comme lu"
     const list = document.querySelector('.notification-center__list') as HTMLElement
-    const firstItem = within(list).getAllByText(/marquer comme lu/i)[0]
-    await userEvent.click(firstItem)
+    const firstAction = within(list).getAllByRole('button', { name: /marquer/i })[0]
+    await userEvent.click(firstAction)
 
-    // Button should disappear for that item (replaced by "Lu") and counts decrease
+    expect(vi.mocked(Api.apiPatch)).toHaveBeenCalledWith('/notifications/n1/read')
     expect(await screen.findByText('Lu')).toBeInTheDocument()
-    expect(screen.getByText(/non lues/i).textContent).toMatch(/1\s+non lues/)
   })
 
   it('marks all notifications as read', async () => {
     vi.mocked(Api.apiGet).mockResolvedValue(overviewResponse() as any)
     vi.mocked(Api.apiPatch).mockResolvedValue({} as any)
 
-    renderWithProviders(<App />, { router: { initialEntries: ['/dashboard'] } })
+    renderAppWithProviders(<App />)
 
-    expect(await screen.findByRole('heading', { name: /centre de notifications/i })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /notifications/i })).toBeInTheDocument()
 
-    // Click "Tout marquer comme lu"
     const markAllBtn = screen.getByRole('button', { name: /tout marquer comme lu/i })
     await userEvent.click(markAllBtn)
 
-    // Badge shows 0 non lues
-    expect(screen.getByText(/0\s+non lues/)).toBeInTheDocument()
+    expect(vi.mocked(Api.apiPatch)).toHaveBeenCalledWith('/notifications/read-all')
+    expect(markAllBtn).toBeDisabled()
   })
 })

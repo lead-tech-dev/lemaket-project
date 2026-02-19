@@ -5,11 +5,16 @@ import { renderWithProviders } from '../test/test-utils'
 
 vi.mock('../hooks/useAuth', () => ({
   useAuth: vi.fn(),
+  invalidateAuthCache: vi.fn(),
 }));
 
-vi.mock('../contexts/FeatureFlagContext', () => ({
-  useFeatureFlagsContext: vi.fn(),
-}));
+vi.mock('../contexts/FeatureFlagContext', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../contexts/FeatureFlagContext')>()
+  return {
+    ...actual,
+    useFeatureFlagsContext: vi.fn(),
+  }
+});
 
 import * as AuthMod from '../hooks/useAuth'
 import * as FFMod from '../contexts/FeatureFlagContext'
@@ -31,7 +36,7 @@ describe('Sidebar', () => {
 
     expect(screen.getByText('Tableau de bord')).toBeInTheDocument();
     expect(screen.getByText('Mes annonces')).toBeInTheDocument();
-    expect(screen.getByText('Messages')).toBeInTheDocument();
+    expect(screen.getByText('Mes commandes')).toBeInTheDocument();
     expect(screen.getByText('Favoris')).toBeInTheDocument();
   });
 

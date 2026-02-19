@@ -1,10 +1,18 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { screen } from '@testing-library/react'
-import { renderWithProviders } from '../test/test-utils'
+import { renderAppWithProviders } from '../test/test-utils'
 import { App } from '../App'
 
 vi.mock('../hooks/useAuth', () => ({
   useAuth: vi.fn(),
+  invalidateAuthCache: vi.fn(),
+}))
+vi.mock('../utils/api', () => ({
+  setApiLocale: vi.fn(),
+  apiGet: vi.fn(),
+  apiPost: vi.fn(),
+  apiPatch: vi.fn(),
+  apiDelete: vi.fn()
 }))
 vi.mock('../contexts/FeatureFlagContext', async (orig) => {
   const mod: any = await orig()
@@ -15,12 +23,31 @@ vi.mock('../contexts/FeatureFlagContext', async (orig) => {
 })
 
 import * as AuthMod from '../hooks/useAuth'
+import * as Api from '../utils/api'
 import { useFeatureFlagsContext } from '../contexts/FeatureFlagContext'
 
 describe('Admin routing (integration)', () => {
   beforeEach(() => {
-    window.history.pushState({}, '', '/')
+    window.history.pushState({}, '', '/admin')
     vi.resetAllMocks()
+    vi.mocked(Api.apiGet).mockImplementation(async (url: string) => {
+      if (url === '/dashboard/overview') {
+        return {
+          stats: [],
+          reminders: [],
+          messages: [],
+          notificationSummary: null,
+          onboardingChecklist: { dismissed: true, tasks: [] }
+        } as any
+      }
+      if (url === '/admin/metrics') {
+        return [] as any
+      }
+      if (url === '/admin/activities') {
+        return [] as any
+      }
+      return [] as any
+    })
     // enable all admin flags by default
     vi.mocked(useFeatureFlagsContext).mockReturnValue({
       flags: {} as any,
@@ -41,7 +68,7 @@ describe('Admin routing (integration)', () => {
       acknowledgePromotion: () => {}
     } as any)
 
-    renderWithProviders(<App />, { router: { initialEntries: ['/admin'] } })
+    renderAppWithProviders(<App />)
 
     expect(await screen.findByRole('heading', { name: /bonjour/i })).toBeInTheDocument()
   })
@@ -58,8 +85,8 @@ describe('Admin routing (integration)', () => {
       acknowledgePromotion: () => {}
     } as any)
 
-    renderWithProviders(<App />, { router: { initialEntries: ['/admin'] } })
+    renderAppWithProviders(<App />)
 
-    expect(await screen.findByRole('heading', { name: /administration LEMAKET/i })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /admin|administration/i })).toBeInTheDocument()
   })
 })

@@ -6,8 +6,10 @@ import { App } from '../App'
 
 vi.mock('../hooks/useAuth', () => ({
   useAuth: vi.fn(),
+  invalidateAuthCache: vi.fn(),
 }))
 vi.mock('../utils/api', () => ({
+  setApiLocale: vi.fn(),
   apiGet: vi.fn(),
   apiPost: vi.fn(),
   apiDelete: vi.fn(),
