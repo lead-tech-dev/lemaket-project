@@ -127,8 +127,13 @@ jobs:
         if: always()
         run: rm -f ./.tmp.dev.env
 
-      - name: Smoke test development
+      - name: Smoke test development (remote)
         if: ${{ steps.preflight.outputs.ready == 'true' }}
         env:
-          BASE_URL: ${{ vars.DEV_API_BASE_URL || 'http://localhost:3001' }}
-        run: bash ./scripts/smoke.sh "$BASE_URL"
+          DEV_SSH_HOST: ${{ secrets.DEV_SSH_HOST }}
+          DEV_SSH_USER: ${{ secrets.DEV_SSH_USER }}
+          DEV_BACKEND_PORT: ${{ vars.DEV_BACKEND_PORT || '3001' }}
+        run: |
+          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            "${DEV_SSH_USER}@${DEV_SSH_HOST}" \
+            "BASE_URL=http://localhost:${DEV_BACKEND_PORT} bash -s" < ./scripts/smoke.sh
