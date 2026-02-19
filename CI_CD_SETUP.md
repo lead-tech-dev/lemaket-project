@@ -28,8 +28,10 @@ an initial `.env` from `deploy/ovh/.env.prod.example` and generates a random
 
 ### Development
 - `DEV_APP_DIR` (default `/opt/sandaga-dev`)
-- `DEV_API_BASE_URL` (for smoke tests)
+- `DEV_API_BASE_URL` (for smoke tests, default `http://localhost:3001`)
 - `DEV_VITE_API_URL` (frontend build arg)
+- `DEV_BACKEND_PORT` (default `3001`)
+- `DEV_FRONTEND_PORT` (default `8081`)
 
 ### Production
 - `PROD_APP_DIR` (default `/opt/sandaga`)

@@ -9,6 +9,8 @@ set -euo pipefail
 BACKEND_IMAGE="${BACKEND_IMAGE:-}"
 FRONTEND_IMAGE="${FRONTEND_IMAGE:-}"
 DEV_ENV_FILE="${DEV_ENV_FILE:-}"
+DEV_BACKEND_PORT="${DEV_BACKEND_PORT:-3001}"
+DEV_FRONTEND_PORT="${DEV_FRONTEND_PORT:-8081}"
 
 if [[ -z "$BACKEND_IMAGE" || -z "$FRONTEND_IMAGE" ]]; then
   echo "BACKEND_IMAGE and FRONTEND_IMAGE are required." >&2
@@ -96,17 +98,22 @@ if [[ -n "${GHCR_USER:-}" && -n "${GHCR_TOKEN:-}" ]]; then
   echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USER}" --password-stdin
 fi
 
-if grep -q '^BACKEND_IMAGE=' .env; then
-  sed -i "s|^BACKEND_IMAGE=.*|BACKEND_IMAGE=${BACKEND_IMAGE}|" .env
-else
-  echo "BACKEND_IMAGE=${BACKEND_IMAGE}" >> .env
-fi
+upsert_env() {
+  local key="\$1"
+  local value="\$2"
+  if grep -q "^\${key}=" .env; then
+    sed -i "s|^\${key}=.*|\${key}=\${value}|" .env
+  else
+    echo "\${key}=\${value}" >> .env
+  fi
+}
 
-if grep -q '^FRONTEND_IMAGE=' .env; then
-  sed -i "s|^FRONTEND_IMAGE=.*|FRONTEND_IMAGE=${FRONTEND_IMAGE}|" .env
-else
-  echo "FRONTEND_IMAGE=${FRONTEND_IMAGE}" >> .env
-fi
+upsert_env BACKEND_IMAGE "${BACKEND_IMAGE}"
+upsert_env FRONTEND_IMAGE "${FRONTEND_IMAGE}"
+
+# Keep dev stack on dedicated host ports to avoid conflicts with production stack.
+upsert_env BACKEND_PORT "${DEV_BACKEND_PORT}"
+upsert_env FRONTEND_PORT "${DEV_FRONTEND_PORT}"
 
 docker compose -f docker-compose.deploy.yml pull backend frontend
 docker compose -f docker-compose.deploy.yml up -d --remove-orphans db minio minio-init backend frontend

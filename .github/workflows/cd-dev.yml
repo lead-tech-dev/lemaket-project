@@ -119,6 +119,8 @@ jobs:
           BACKEND_IMAGE: ${{ needs.build-and-push.outputs.backend_image }}
           FRONTEND_IMAGE: ${{ needs.build-and-push.outputs.frontend_image }}
           DEV_ENV_FILE: ${{ steps.dev_env.outputs.path }}
+          DEV_BACKEND_PORT: ${{ vars.DEV_BACKEND_PORT || '3001' }}
+          DEV_FRONTEND_PORT: ${{ vars.DEV_FRONTEND_PORT || '8081' }}
         run: bash ./scripts/deploy-dev.sh
 
       - name: Cleanup temp env file
@@ -128,5 +130,5 @@ jobs:
       - name: Smoke test development
         if: ${{ steps.preflight.outputs.ready == 'true' }}
         env:
-          BASE_URL: ${{ vars.DEV_API_BASE_URL || 'http://localhost:3000' }}
+          BASE_URL: ${{ vars.DEV_API_BASE_URL || 'http://localhost:3001' }}
         run: bash ./scripts/smoke.sh "$BASE_URL"
