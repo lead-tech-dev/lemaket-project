@@ -21,33 +21,51 @@ SSH_OPTS=(
 
 REMOTE="${DEV_SSH_USER}@${DEV_SSH_HOST}"
 
-ssh "${SSH_OPTS[@]}" "$REMOTE" <<EOF
+RESOLVED_DEV_APP_DIR="$(
+  ssh "${SSH_OPTS[@]}" "$REMOTE" "REQUESTED_APP_DIR='${DEV_APP_DIR}' bash -s" <<'EOF'
 set -euo pipefail
-APP_DIR='${DEV_APP_DIR}'
 
-if mkdir -p "\${APP_DIR}" 2>/dev/null; then
+prepare_dir() {
+  local dir="$1"
+  if mkdir -p "$dir" 2>/dev/null; then
+    return 0
+  fi
+  if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+    sudo mkdir -p "$dir"
+    sudo chown -R "$(id -u):$(id -g)" "$dir"
+    return 0
+  fi
+  return 1
+}
+
+requested="${REQUESTED_APP_DIR:-$HOME/sandaga-dev}"
+fallback="$HOME/sandaga-dev"
+
+if prepare_dir "$requested"; then
+  echo "$requested"
   exit 0
 fi
 
-if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
-  sudo mkdir -p "\${APP_DIR}"
-  sudo chown -R "\$(id -u):\$(id -g)" "\${APP_DIR}"
+if [[ "$requested" != "$fallback" ]] && prepare_dir "$fallback"; then
+  echo "Permission denied for $requested, fallback to $fallback." >&2
+  echo "$fallback"
   exit 0
 fi
 
-echo "Permission denied for \${APP_DIR}." >&2
-echo "Set DEV_APP_DIR to a writable path (example: \$HOME/sandaga-dev) or grant passwordless sudo for mkdir/chown." >&2
+echo "Permission denied for $requested and fallback $fallback." >&2
+echo "Set DEV_APP_DIR to a writable path or grant passwordless sudo for mkdir/chown." >&2
 exit 1
 EOF
+)"
 
-scp "${SSH_OPTS[@]}" "./docker-compose.deploy.yml" "${REMOTE}:${DEV_APP_DIR}/docker-compose.deploy.yml"
+scp "${SSH_OPTS[@]}" "./docker-compose.deploy.yml" "${REMOTE}:${RESOLVED_DEV_APP_DIR}/docker-compose.deploy.yml"
 
 ssh "${SSH_OPTS[@]}" "$REMOTE" <<EOF
 set -euo pipefail
-cd '${DEV_APP_DIR}'
+cd '${RESOLVED_DEV_APP_DIR}'
 
 if [[ ! -f .env ]]; then
-  echo ".env not found in ${DEV_APP_DIR}. Create it before deploy." >&2
+  echo ".env not found in ${RESOLVED_DEV_APP_DIR}. Create it before deploy." >&2
   exit 1
 fi
 

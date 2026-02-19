@@ -21,33 +21,51 @@ SSH_OPTS=(
 
 REMOTE="${PROD_SSH_USER}@${PROD_SSH_HOST}"
 
-ssh "${SSH_OPTS[@]}" "$REMOTE" <<EOF
+RESOLVED_PROD_APP_DIR="$(
+  ssh "${SSH_OPTS[@]}" "$REMOTE" "REQUESTED_APP_DIR='${PROD_APP_DIR}' bash -s" <<'EOF'
 set -euo pipefail
-APP_DIR='${PROD_APP_DIR}'
 
-if mkdir -p "\${APP_DIR}" 2>/dev/null; then
+prepare_dir() {
+  local dir="$1"
+  if mkdir -p "$dir" 2>/dev/null; then
+    return 0
+  fi
+  if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+    sudo mkdir -p "$dir"
+    sudo chown -R "$(id -u):$(id -g)" "$dir"
+    return 0
+  fi
+  return 1
+}
+
+requested="${REQUESTED_APP_DIR:-$HOME/sandaga}"
+fallback="$HOME/sandaga"
+
+if prepare_dir "$requested"; then
+  echo "$requested"
   exit 0
 fi
 
-if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
-  sudo mkdir -p "\${APP_DIR}"
-  sudo chown -R "\$(id -u):\$(id -g)" "\${APP_DIR}"
+if [[ "$requested" != "$fallback" ]] && prepare_dir "$fallback"; then
+  echo "Permission denied for $requested, fallback to $fallback." >&2
+  echo "$fallback"
   exit 0
 fi
 
-echo "Permission denied for \${APP_DIR}." >&2
-echo "Set PROD_APP_DIR to a writable path (example: \$HOME/sandaga) or grant passwordless sudo for mkdir/chown." >&2
+echo "Permission denied for $requested and fallback $fallback." >&2
+echo "Set PROD_APP_DIR to a writable path or grant passwordless sudo for mkdir/chown." >&2
 exit 1
 EOF
+)"
 
-scp "${SSH_OPTS[@]}" "./docker-compose.deploy.yml" "${REMOTE}:${PROD_APP_DIR}/docker-compose.deploy.yml"
+scp "${SSH_OPTS[@]}" "./docker-compose.deploy.yml" "${REMOTE}:${RESOLVED_PROD_APP_DIR}/docker-compose.deploy.yml"
 
 ssh "${SSH_OPTS[@]}" "$REMOTE" <<EOF
 set -euo pipefail
-cd '${PROD_APP_DIR}'
+cd '${RESOLVED_PROD_APP_DIR}'
 
 if [[ ! -f .env ]]; then
-  echo ".env not found in ${PROD_APP_DIR}. Create it before deploy." >&2
+  echo ".env not found in ${RESOLVED_PROD_APP_DIR}. Create it before deploy." >&2
   exit 1
 fi
 
@@ -68,7 +86,7 @@ else
 fi
 
 if [[ -x ./backup-postgres.sh ]]; then
-  APP_DIR='${PROD_APP_DIR}' ./backup-postgres.sh || true
+  APP_DIR='${RESOLVED_PROD_APP_DIR}' ./backup-postgres.sh || true
 fi
 
 docker compose -f docker-compose.deploy.yml pull backend frontend
