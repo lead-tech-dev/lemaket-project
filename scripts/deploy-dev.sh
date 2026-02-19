@@ -11,6 +11,8 @@ FRONTEND_IMAGE="${FRONTEND_IMAGE:-}"
 DEV_ENV_FILE="${DEV_ENV_FILE:-}"
 DEV_BACKEND_PORT="${DEV_BACKEND_PORT:-3001}"
 DEV_FRONTEND_PORT="${DEV_FRONTEND_PORT:-8081}"
+DEV_APP_PUBLIC_URL="${DEV_APP_PUBLIC_URL:-}"
+DEV_API_PUBLIC_URL="${DEV_API_PUBLIC_URL:-}"
 
 if [[ -z "$BACKEND_IMAGE" || -z "$FRONTEND_IMAGE" ]]; then
   echo "BACKEND_IMAGE and FRONTEND_IMAGE are required." >&2
@@ -114,6 +116,16 @@ upsert_env FRONTEND_IMAGE "${FRONTEND_IMAGE}"
 # Keep dev stack on dedicated host ports to avoid conflicts with production stack.
 upsert_env BACKEND_PORT "${DEV_BACKEND_PORT}"
 upsert_env FRONTEND_PORT "${DEV_FRONTEND_PORT}"
+
+# Align runtime public URLs (CORS, links) with dev domains when provided.
+if [[ -n "${DEV_APP_PUBLIC_URL}" ]]; then
+  upsert_env APP_PUBLIC_URL "${DEV_APP_PUBLIC_URL}"
+  upsert_env FRONTEND_URL "${DEV_APP_PUBLIC_URL}"
+fi
+
+if [[ -n "${DEV_API_PUBLIC_URL}" ]]; then
+  upsert_env API_PUBLIC_URL "${DEV_API_PUBLIC_URL}"
+fi
 
 docker compose -f docker-compose.deploy.yml pull backend frontend
 docker compose -f docker-compose.deploy.yml up -d --remove-orphans db minio minio-init backend frontend

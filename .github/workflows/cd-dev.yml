@@ -60,7 +60,7 @@ jobs:
             ${{ steps.meta.outputs.frontend_image }}
             ${{ steps.meta.outputs.frontend_stable }}
           build-args: |
-            VITE_API_URL=${{ vars.DEV_VITE_API_URL || 'http://localhost:3000' }}
+            VITE_API_URL=${{ vars.DEV_VITE_API_URL || 'https://api-dev.lemaket.com' }}
             MAPBOX_PUBLIC_KEY=${{ secrets.DEV_VITE_MAPBOX_TOKEN || '' }}
 
   deploy-dev:
@@ -121,6 +121,8 @@ jobs:
           DEV_ENV_FILE: ${{ steps.dev_env.outputs.path }}
           DEV_BACKEND_PORT: ${{ vars.DEV_BACKEND_PORT || '3001' }}
           DEV_FRONTEND_PORT: ${{ vars.DEV_FRONTEND_PORT || '8081' }}
+          DEV_APP_PUBLIC_URL: ${{ vars.DEV_APP_PUBLIC_URL || 'https://dev.lemaket.com' }}
+          DEV_API_PUBLIC_URL: ${{ vars.DEV_API_PUBLIC_URL || 'https://api-dev.lemaket.com' }}
         run: bash ./scripts/deploy-dev.sh
 
       - name: Cleanup temp env file

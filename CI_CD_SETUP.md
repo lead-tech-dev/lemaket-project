@@ -28,9 +28,11 @@ an initial `.env` from `deploy/ovh/.env.prod.example` and generates a random
 
 ### Development
 - `DEV_APP_DIR` (default `/opt/sandaga-dev`)
-- `DEV_VITE_API_URL` (frontend build arg)
+- `DEV_VITE_API_URL` (frontend build arg, default `https://api-dev.lemaket.com`)
 - `DEV_BACKEND_PORT` (default `3001`)
 - `DEV_FRONTEND_PORT` (default `8081`)
+- `DEV_APP_PUBLIC_URL` (default `https://dev.lemaket.com`)
+- `DEV_API_PUBLIC_URL` (default `https://api-dev.lemaket.com`)
 
 Note: development smoke tests in CI run on the VPS itself via SSH
 (`http://localhost:${DEV_BACKEND_PORT}`), so DNS for a public dev domain is not required.
