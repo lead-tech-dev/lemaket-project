@@ -96,6 +96,18 @@ jobs:
           echo "${{ secrets.DEV_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
 
+      - name: Prepare DEV .env file
+        if: ${{ steps.preflight.outputs.ready == 'true' }}
+        id: dev_env
+        env:
+          DEV_ENV_FILE_CONTENT: ${{ secrets.DEV_ENV_FILE }}
+        run: |
+          if [[ -n "$DEV_ENV_FILE_CONTENT" ]]; then
+            printf '%s\n' "$DEV_ENV_FILE_CONTENT" > ./.tmp.dev.env
+            chmod 600 ./.tmp.dev.env
+            echo "path=./.tmp.dev.env" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Deploy to development
         if: ${{ steps.preflight.outputs.ready == 'true' }}
         env:
@@ -106,7 +118,12 @@ jobs:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BACKEND_IMAGE: ${{ needs.build-and-push.outputs.backend_image }}
           FRONTEND_IMAGE: ${{ needs.build-and-push.outputs.frontend_image }}
+          DEV_ENV_FILE: ${{ steps.dev_env.outputs.path }}
         run: bash ./scripts/deploy-dev.sh
+
+      - name: Cleanup temp env file
+        if: always()
+        run: rm -f ./.tmp.dev.env
 
       - name: Smoke test development
         if: ${{ steps.preflight.outputs.ready == 'true' }}

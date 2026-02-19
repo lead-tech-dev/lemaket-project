@@ -8,6 +8,7 @@ set -euo pipefail
 
 BACKEND_IMAGE="${BACKEND_IMAGE:-}"
 FRONTEND_IMAGE="${FRONTEND_IMAGE:-}"
+DEV_ENV_FILE="${DEV_ENV_FILE:-}"
 
 if [[ -z "$BACKEND_IMAGE" || -z "$FRONTEND_IMAGE" ]]; then
   echo "BACKEND_IMAGE and FRONTEND_IMAGE are required." >&2
@@ -60,14 +61,24 @@ EOF
 
 scp "${SSH_OPTS[@]}" "./docker-compose.deploy.yml" "${REMOTE}:${RESOLVED_DEV_APP_DIR}/docker-compose.deploy.yml"
 
+if [[ -n "$DEV_ENV_FILE" ]]; then
+  if [[ ! -f "$DEV_ENV_FILE" ]]; then
+    echo "DEV_ENV_FILE points to a missing file: $DEV_ENV_FILE" >&2
+    exit 1
+  fi
+  scp "${SSH_OPTS[@]}" "$DEV_ENV_FILE" "${REMOTE}:${RESOLVED_DEV_APP_DIR}/.env"
+fi
+
 ssh "${SSH_OPTS[@]}" "$REMOTE" <<EOF
 set -euo pipefail
 cd '${RESOLVED_DEV_APP_DIR}'
 
 if [[ ! -f .env ]]; then
-  echo ".env not found in ${RESOLVED_DEV_APP_DIR}. Create it before deploy." >&2
+  echo ".env not found in ${RESOLVED_DEV_APP_DIR}. Create it before deploy or provide DEV_ENV_FILE." >&2
   exit 1
 fi
+
+chmod 600 .env || true
 
 if [[ -n "${GHCR_USER:-}" && -n "${GHCR_TOKEN:-}" ]]; then
   echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USER}" --password-stdin

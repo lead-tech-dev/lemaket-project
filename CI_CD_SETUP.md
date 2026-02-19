@@ -11,6 +11,7 @@
 - `DEV_SSH_HOST`
 - `DEV_SSH_USER`
 - `DEV_SSH_KEY`
+- `DEV_ENV_FILE` (optional, full remote `.env` content to auto-provision on deploy)
 - `DEV_VITE_MAPBOX_TOKEN` (optional)
 
 ### Production
