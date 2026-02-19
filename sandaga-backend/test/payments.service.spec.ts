@@ -3,12 +3,24 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { PaymentsService } from '../src/payments/payments.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Payment } from '../src/payments/payment.entity';
+import { PaymentEvent } from '../src/payments/payment-event.entity';
 import { PaymentMethodEntity } from '../src/payments/payment-method.entity';
+import { Subscription } from '../src/payments/subscription.entity';
+import { Listing } from '../src/listings/listing.entity';
+import { Promotion } from '../src/promotions/promotion.entity';
+import { Delivery } from '../src/deliveries/delivery.entity';
+import { WalletTransaction } from '../src/payments/wallet-transaction.entity';
 import { Repository } from 'typeorm';
 import { UserRole } from '../src/common/enums/user-role.enum';
 import { CreatePaymentMethodDto } from '../src/payments/dto/create-payment-method.dto';
 import { PaymentMethodType } from '../src/common/enums/payment-method-type.enum';
 import { NotFoundException } from '@nestjs/common';
+import { UsersService } from '../src/users/users.service';
+import { NotificationsService } from '../src/notifications/notifications.service';
+import { WalletsService } from '../src/payments/wallets.service';
+import { OrdersService } from '../src/orders/orders.service';
+import { MessagesService } from '../src/messages/messages.service';
+import { ConfigService } from '@nestjs/config';
 
 describe('PaymentsService', () => {
   let service: PaymentsService;
@@ -30,6 +42,42 @@ describe('PaymentsService', () => {
     remove: jest.fn(),
   };
 
+  const mockSimpleRepository = {
+    create: jest.fn(),
+    save: jest.fn(),
+    find: jest.fn(),
+    findOne: jest.fn(),
+    update: jest.fn(),
+    remove: jest.fn(),
+    findOneBy: jest.fn(),
+  };
+
+  const mockUsersService = {
+    listCouriersNearby: jest.fn().mockResolvedValue([]),
+  };
+
+  const mockNotificationsService = {
+    createNotification: jest.fn(),
+  };
+
+  const mockWalletsService = {
+    reserveEscrow: jest.fn(),
+    releaseEscrow: jest.fn(),
+  };
+
+  const mockOrdersService = {
+    findOne: jest.fn(),
+    markPaid: jest.fn(),
+  };
+
+  const mockMessagesService = {
+    sendTimelineEvent: jest.fn(),
+  };
+
+  const mockConfigService = {
+    get: jest.fn().mockReturnValue(undefined),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -39,8 +87,56 @@ describe('PaymentsService', () => {
           useValue: mockPaymentRepository,
         },
         {
+          provide: getRepositoryToken(PaymentEvent),
+          useValue: mockSimpleRepository,
+        },
+        {
           provide: getRepositoryToken(PaymentMethodEntity),
           useValue: mockPaymentMethodRepository,
+        },
+        {
+          provide: getRepositoryToken(Subscription),
+          useValue: mockSimpleRepository,
+        },
+        {
+          provide: getRepositoryToken(Listing),
+          useValue: mockSimpleRepository,
+        },
+        {
+          provide: getRepositoryToken(Promotion),
+          useValue: mockSimpleRepository,
+        },
+        {
+          provide: getRepositoryToken(Delivery),
+          useValue: mockSimpleRepository,
+        },
+        {
+          provide: getRepositoryToken(WalletTransaction),
+          useValue: mockSimpleRepository,
+        },
+        {
+          provide: UsersService,
+          useValue: mockUsersService,
+        },
+        {
+          provide: NotificationsService,
+          useValue: mockNotificationsService,
+        },
+        {
+          provide: WalletsService,
+          useValue: mockWalletsService,
+        },
+        {
+          provide: OrdersService,
+          useValue: mockOrdersService,
+        },
+        {
+          provide: MessagesService,
+          useValue: mockMessagesService,
+        },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
         },
       ],
     }).compile();

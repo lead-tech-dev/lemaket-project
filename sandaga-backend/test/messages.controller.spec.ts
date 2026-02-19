@@ -46,7 +46,7 @@ describe('MessagesController', () => {
     it('should call messagesService.listConversations with the correct user', async () => {
       const user = { id: '1', email: 'test@example.com', role: UserRole.USER };
       await controller.list(user);
-      expect(service.listConversations).toHaveBeenCalledWith(user);
+      expect(service.listConversations).toHaveBeenCalledWith(user, undefined, undefined);
     });
   });
 

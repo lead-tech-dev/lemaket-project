@@ -11,6 +11,12 @@ import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { StartConversationDto } from '../src/messages/dto/start-conversation.dto';
 import { Listing } from '../src/listings/listing.entity';
 import { User } from '../src/users/user.entity';
+import { MessageAttachment } from '../src/messages/message-attachment.entity';
+import { QuickReply } from '../src/messages/quick-reply.entity';
+import { MediaService } from '../src/media/media.service';
+import { ConfigService } from '@nestjs/config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { MessageNotificationService } from '../src/messages/message-notification.service';
 
 describe('MessagesService', () => {
   let service: MessagesService;
@@ -38,9 +44,42 @@ describe('MessagesService', () => {
     })),
   };
 
+  const mockAttachmentRepository = {
+    create: jest.fn(),
+    save: jest.fn(),
+    find: jest.fn(),
+  };
+
+  const mockQuickReplyRepository = {
+    create: jest.fn(),
+    save: jest.fn(),
+    find: jest.fn(),
+    findOne: jest.fn(),
+    remove: jest.fn(),
+  };
+
   const mockListingsService = {
     findOne: jest.fn(),
     recordMessage: jest.fn(),
+  };
+
+  const mockMediaService = {
+    uploadFile: jest.fn(),
+  };
+
+  const mockConfigService = {
+    get: jest.fn(),
+  };
+
+  const mockEventEmitter = {
+    on: jest.fn(),
+    off: jest.fn(),
+    emit: jest.fn(),
+  };
+
+  const mockMessageNotificationService = {
+    notifyNewMessage: jest.fn(),
+    notifyConversationStarted: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -56,8 +95,32 @@ describe('MessagesService', () => {
           useValue: mockMessageRepository,
         },
         {
+          provide: getRepositoryToken(MessageAttachment),
+          useValue: mockAttachmentRepository,
+        },
+        {
+          provide: getRepositoryToken(QuickReply),
+          useValue: mockQuickReplyRepository,
+        },
+        {
           provide: ListingsService,
           useValue: mockListingsService,
+        },
+        {
+          provide: MediaService,
+          useValue: mockMediaService,
+        },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
+        },
+        {
+          provide: EventEmitter2,
+          useValue: mockEventEmitter,
+        },
+        {
+          provide: MessageNotificationService,
+          useValue: mockMessageNotificationService,
         },
       ],
     }).compile();

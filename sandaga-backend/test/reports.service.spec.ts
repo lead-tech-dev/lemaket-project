@@ -8,6 +8,7 @@ import { ListingsService } from '../src/listings/listings.service';
 import { CreateReportDto } from '../src/reports/dto/create-report.dto';
 import { Listing } from '../src/listings/listing.entity';
 import { NotFoundException } from '@nestjs/common';
+import { User } from '../src/users/user.entity';
 
 describe('ReportsService', () => {
   let service: ReportsService;
@@ -25,6 +26,10 @@ describe('ReportsService', () => {
     findOne: jest.fn(),
   };
 
+  const mockUsersRepository = {
+    findOne: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -32,6 +37,10 @@ describe('ReportsService', () => {
         {
           provide: getRepositoryToken(Report),
           useValue: mockRepository,
+        },
+        {
+          provide: getRepositoryToken(User),
+          useValue: mockUsersRepository,
         },
         {
           provide: ListingsService,
@@ -80,7 +89,10 @@ describe('ReportsService', () => {
       const result = await service.findOne('1');
 
       expect(result).toEqual(report);
-      expect(mockRepository.findOne).toHaveBeenCalledWith({ where: { id: '1' }, relations: { listing: true, reporter: true } });
+      expect(mockRepository.findOne).toHaveBeenCalledWith({
+        where: { id: '1' },
+        relations: { listing: true, reporter: true, reportedUser: true },
+      });
     });
 
     it('should throw a NotFoundException if report is not found', async () => {

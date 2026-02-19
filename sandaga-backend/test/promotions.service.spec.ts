@@ -8,6 +8,7 @@ import { CreatePromotionDto } from '../src/promotions/dto/create-promotion.dto';
 import { PromotionType } from '../src/common/enums/promotion-type.enum';
 import { PromotionStatus } from '../src/common/enums/promotion-status.enum';
 import { NotFoundException } from '@nestjs/common';
+import { Listing } from '../src/listings/listing.entity';
 
 describe('PromotionsService', () => {
   let service: PromotionsService;
@@ -21,6 +22,11 @@ describe('PromotionsService', () => {
     remove: jest.fn(),
   };
 
+  const mockListingsRepository = {
+    findOne: jest.fn(),
+    save: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -28,6 +34,10 @@ describe('PromotionsService', () => {
         {
           provide: getRepositoryToken(Promotion),
           useValue: mockRepository,
+        },
+        {
+          provide: getRepositoryToken(Listing),
+          useValue: mockListingsRepository,
         },
       ],
     }).compile();

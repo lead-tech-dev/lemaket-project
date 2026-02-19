@@ -6,6 +6,12 @@ import { QueryFailedError, Repository } from 'typeorm';
 import { CreateUserDto } from '../src/users/dto/create-user.dto';
 import { UserRole } from '../src/common/enums/user-role.enum';
 import { ConflictException, NotFoundException } from '@nestjs/common';
+import { UserAddress } from '../src/users/user-address.entity';
+import { Listing } from '../src/listings/listing.entity';
+import { Favorite } from '../src/favorites/favorite.entity';
+import { UserFollow } from '../src/users/user-follow.entity';
+import { Review } from '../src/reviews/review.entity';
+import { Message } from '../src/messages/message.entity';
 
 describe('UsersService', () => {
   let service: UsersService;
@@ -20,12 +26,23 @@ describe('UsersService', () => {
     merge: jest.fn(),
     remove: jest.fn(),
     update: jest.fn(),
+    exist: jest.fn().mockResolvedValue(false),
     count: jest.fn(),
     createQueryBuilder: jest.fn(() => ({
       addSelect: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
       getOne: jest.fn(),
     })),
+  };
+
+  const mockSimpleRepository = {
+    find: jest.fn(),
+    findOne: jest.fn(),
+    findOneBy: jest.fn(),
+    save: jest.fn(),
+    create: jest.fn(),
+    count: jest.fn(),
+    createQueryBuilder: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -36,6 +53,12 @@ describe('UsersService', () => {
           provide: getRepositoryToken(User),
           useValue: mockRepository,
         },
+        { provide: getRepositoryToken(UserAddress), useValue: mockSimpleRepository },
+        { provide: getRepositoryToken(Listing), useValue: mockSimpleRepository },
+        { provide: getRepositoryToken(Favorite), useValue: mockSimpleRepository },
+        { provide: getRepositoryToken(UserFollow), useValue: mockSimpleRepository },
+        { provide: getRepositoryToken(Review), useValue: mockSimpleRepository },
+        { provide: getRepositoryToken(Message), useValue: mockSimpleRepository },
       ],
     }).compile();
 

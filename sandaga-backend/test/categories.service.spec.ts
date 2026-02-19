@@ -79,7 +79,10 @@ describe('CategoriesService', () => {
       const result = await service.findOne('1');
 
       expect(result).toEqual(category);
-      expect(mockRepository.findOne).toHaveBeenCalledWith({ where: { id: '1' } });
+      expect(mockRepository.findOne).toHaveBeenCalledWith({
+        where: { id: '1' },
+        relations: ['parent', 'children'],
+      });
     });
 
     it('should throw a NotFoundException if category is not found', async () => {

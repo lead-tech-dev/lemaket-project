@@ -14,8 +14,8 @@ describe('CategoriesController', () => {
   let adminService: AdminService;
 
   const mockCategoriesService = {
-    findActive: jest.fn(),
-    findAll: jest.fn(),
+    findActive: jest.fn().mockResolvedValue([]),
+    findAll: jest.fn().mockResolvedValue([]),
     findBySlug: jest.fn(),
     create: jest.fn().mockResolvedValue({ id: '1', name: 'Cat' }),
     update: jest.fn().mockResolvedValue({ id: '1', name: 'Cat' }),

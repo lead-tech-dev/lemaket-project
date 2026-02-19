@@ -9,6 +9,7 @@ import { CreateListingDto } from '../src/listings/dto/create-listing.dto';
 import { UpdateListingDto } from '../src/listings/dto/update-listing.dto';
 import { FilterListingsDto } from '../src/listings/dto/filter-listings.dto';
 import { ListingStatus } from '../src/common/enums/listing-status.enum';
+import { MediaService } from '../src/media/media.service';
 
 describe('ListingsController', () => {
   let controller: ListingsController;
@@ -29,6 +30,10 @@ describe('ListingsController', () => {
     updateStatus: jest.fn(),
   };
 
+  const mockMediaService = {
+    uploadFile: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ListingsController],
@@ -36,6 +41,10 @@ describe('ListingsController', () => {
         {
           provide: ListingsService,
           useValue: mockListingsService,
+        },
+        {
+          provide: MediaService,
+          useValue: mockMediaService,
         },
       ],
     })

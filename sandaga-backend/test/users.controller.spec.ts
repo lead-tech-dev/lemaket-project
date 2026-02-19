@@ -10,6 +10,7 @@ import { UpdateSettingsDto } from '../src/users/dto/update-settings.dto';
 import { ChangePasswordDto } from '../src/users/dto/change-password.dto';
 import { UpdateUserDto } from '../src/users/dto/update-user.dto';
 import { AdminService } from '../src/admin/admin.service';
+import { MediaService } from '../src/media/media.service';
 
 describe('UsersController', () => {
   let controller: UsersController;
@@ -31,6 +32,10 @@ describe('UsersController', () => {
     recordLog: jest.fn().mockResolvedValue(undefined),
   };
 
+  const mockMediaService = {
+    uploadFile: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [UsersController],
@@ -42,6 +47,10 @@ describe('UsersController', () => {
         {
           provide: AdminService,
           useValue: mockAdminService,
+        },
+        {
+          provide: MediaService,
+          useValue: mockMediaService,
         },
       ],
     })

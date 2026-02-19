@@ -12,6 +12,9 @@ import { User } from '../src/users/user.entity';
 import { Category } from '../src/categories/category.entity';
 import { UserRole } from '../src/common/enums/user-role.enum';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { FormStep } from '../src/forms/entities/form-step.entity';
+import { SearchLogsService } from '../src/search-logs/search-logs.service';
+import { NotificationsService } from '../src/notifications/notifications.service';
 
 describe('ListingsService', () => {
   let service: ListingsService;
@@ -42,12 +45,24 @@ describe('ListingsService', () => {
     find: jest.fn(),
   };
 
+  const mockFormStepRepository = {
+    find: jest.fn(),
+  };
+
   const mockCategoriesService = {
     findOne: jest.fn(),
   };
 
   const mockUsersService = {
     findOne: jest.fn(),
+  };
+
+  const mockSearchLogsService = {
+    record: jest.fn(),
+  };
+
+  const mockNotificationsService = {
+    createNotification: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -63,12 +78,24 @@ describe('ListingsService', () => {
           useValue: mockListingImageRepository,
         },
         {
+          provide: getRepositoryToken(FormStep),
+          useValue: mockFormStepRepository,
+        },
+        {
           provide: CategoriesService,
           useValue: mockCategoriesService,
         },
         {
           provide: UsersService,
           useValue: mockUsersService,
+        },
+        {
+          provide: SearchLogsService,
+          useValue: mockSearchLogsService,
+        },
+        {
+          provide: NotificationsService,
+          useValue: mockNotificationsService,
         },
       ],
     }).compile();
@@ -90,16 +117,29 @@ describe('ListingsService', () => {
         title: 'Test Listing',
         description: 'Test Description',
         price: { amount: 100, currency: 'USD', newItemPrice: null },
-        location: { city: 'Test City', address: 'Test Location' },
+        location: { city: 'Test City', address: 'Test Location', lat: 3.86, lng: 11.52 },
         contact: { email: 'user@test.com', phone: '000', phoneHidden: false, noSalesmen: false },
         attributes: {},
         meta: {}
       };
       const user = new User();
       user.id = '1';
+      user.firstName = 'Test';
+      user.lastName = 'User';
       const category = new Category();
       category.id = '1';
+      category.name = 'Test Category';
+      category.slug = 'test-category';
       const listing = new Listing();
+      listing.id = 'listing-1';
+      listing.title = createListingDto.title;
+      listing.description = createListingDto.description;
+      listing.price = 100;
+      listing.currency = 'USD';
+      listing.category = category;
+      listing.owner = user;
+      listing.images = [];
+      listing.formData = {};
 
       mockUsersService.findOne.mockResolvedValue(user);
       mockCategoriesService.findOne.mockResolvedValue(category);
@@ -109,7 +149,13 @@ describe('ListingsService', () => {
 
       const result = await service.create(createListingDto, { id: '1', email: 'test@example.com', role: UserRole.USER });
 
-      expect(result).toEqual(listing);
+      expect(result).toEqual(
+        expect.objectContaining({
+          id: 'listing-1',
+          title: 'Test Listing',
+        }),
+      );
+      expect(result).toHaveProperty('category.id', '1');
       expect(mockUsersService.findOne).toHaveBeenCalledWith('1');
       expect(mockCategoriesService.findOne).toHaveBeenCalledWith('1');
       expect(mockListingRepository.create).toHaveBeenCalledWith(expect.any(Object));

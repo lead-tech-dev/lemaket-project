@@ -92,7 +92,9 @@ describe('AuthService', () => {
       expect(result).toHaveProperty('accessToken', 'test-token');
       expect(result).toHaveProperty('user', user);
       expect(usersService.findByEmail).toHaveBeenCalledWith(registerDto.email);
-      expect(usersService.create).toHaveBeenCalledWith(registerDto);
+      expect(usersService.create).toHaveBeenCalledWith(
+        expect.objectContaining(registerDto),
+      );
     });
 
     it('should throw a ConflictException if email is already registered', async () => {
