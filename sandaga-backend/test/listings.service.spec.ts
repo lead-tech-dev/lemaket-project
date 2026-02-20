@@ -4,12 +4,12 @@ import { ListingsService } from '../src/listings/listings.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Listing } from '../src/listings/listing.entity';
 import { ListingImage } from '../src/listings/listing-image.entity';
+import { Category } from '../src/categories/category.entity';
 import { CategoriesService } from '../src/categories/categories.service';
 import { UsersService } from '../src/users/users.service';
 import { Repository } from 'typeorm';
 import { CreateListingDto } from '../src/listings/dto/create-listing.dto';
 import { User } from '../src/users/user.entity';
-import { Category } from '../src/categories/category.entity';
 import { UserRole } from '../src/common/enums/user-role.enum';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { FormStep } from '../src/forms/entities/form-step.entity';
@@ -19,8 +19,12 @@ import { NotificationsService } from '../src/notifications/notifications.service
 describe('ListingsService', () => {
   let service: ListingsService;
   let repository: Repository<Listing>;
+  const treeRepositoryMock = {
+    findDescendants: jest.fn(),
+  };
   const queryBuilderMock = {
     leftJoinAndSelect: jest.fn().mockReturnThis(),
+    where: jest.fn().mockReturnThis(),
     orderBy: jest.fn().mockReturnThis(),
     addOrderBy: jest.fn().mockReturnThis(),
     andWhere: jest.fn().mockReturnThis(),
@@ -37,7 +41,20 @@ describe('ListingsService', () => {
     increment: jest.fn(),
     find: jest.fn(),
     count: jest.fn(),
+    manager: {
+      getTreeRepository: jest.fn(() => treeRepositoryMock),
+    },
     createQueryBuilder: jest.fn(() => queryBuilderMock),
+  };
+
+  const categoryQueryBuilderMock = {
+    where: jest.fn().mockReturnThis(),
+    orWhere: jest.fn().mockReturnThis(),
+    getOne: jest.fn(),
+  };
+
+  const mockCategoryRepository = {
+    createQueryBuilder: jest.fn(() => categoryQueryBuilderMock),
   };
 
   const mockListingImageRepository = {
@@ -70,6 +87,8 @@ describe('ListingsService', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     queryBuilderMock.getManyAndCount.mockResolvedValue([[], 0]);
+    categoryQueryBuilderMock.getOne.mockResolvedValue(null);
+    treeRepositoryMock.findDescendants.mockResolvedValue([]);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -81,6 +100,10 @@ describe('ListingsService', () => {
         {
           provide: getRepositoryToken(ListingImage),
           useValue: mockListingImageRepository,
+        },
+        {
+          provide: getRepositoryToken(Category),
+          useValue: mockCategoryRepository,
         },
         {
           provide: getRepositoryToken(FormStep),
@@ -189,6 +212,25 @@ describe('ListingsService', () => {
   });
 
   describe('findAll', () => {
+    it('includes descendants when filtering by parent category slug', async () => {
+      categoryQueryBuilderMock.getOne.mockResolvedValue({
+        id: 'cat-parent',
+        slug: 'vehicles',
+      } as Category);
+      treeRepositoryMock.findDescendants.mockResolvedValue([
+        { id: 'cat-parent' } as Category,
+        { id: 'cat-child-1' } as Category,
+        { id: 'cat-child-2' } as Category,
+      ]);
+
+      await service.findAll({ categorySlug: 'vehicles' } as any);
+
+      expect(queryBuilderMock.andWhere).toHaveBeenCalledWith(
+        'category.id IN (:...categoryScopeIds)',
+        { categoryScopeIds: ['cat-parent', 'cat-child-1', 'cat-child-2'] }
+      );
+    });
+
     it('filters city against city/address/label', async () => {
       await service.findAll({ city: 'Douala' } as any);
 
@@ -208,6 +250,30 @@ describe('ListingsService', () => {
           lng: 9.7679,
           radiusKm: 25
         })
+      );
+    });
+  });
+
+  describe('listPublishedByOwner', () => {
+    it('includes descendants when storefront filters by parent category slug', async () => {
+      categoryQueryBuilderMock.getOne.mockResolvedValue({
+        id: 'cat-parent',
+        slug: 'services',
+      } as Category);
+      treeRepositoryMock.findDescendants.mockResolvedValue([
+        { id: 'cat-parent' } as Category,
+        { id: 'cat-child-a' } as Category,
+      ]);
+
+      await service.listPublishedByOwner('owner-1', {
+        categorySlug: 'services',
+        page: 1,
+        limit: 12,
+      });
+
+      expect(queryBuilderMock.andWhere).toHaveBeenCalledWith(
+        'category.id IN (:...categoryScopeIds)',
+        { categoryScopeIds: ['cat-parent', 'cat-child-a'] }
       );
     });
   });

@@ -8,6 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository, SelectQueryBuilder } from 'typeorm';
 import { Listing } from './listing.entity';
 import { ListingImage } from './listing-image.entity';
+import { Category } from '../categories/category.entity';
 import { CreateListingDto } from './dto/create-listing.dto';
 import { UpdateListingDto } from './dto/update-listing.dto';
 import {
@@ -45,6 +46,8 @@ export class ListingsService {
     private readonly listingsRepository: Repository<Listing>,
     @InjectRepository(ListingImage)
     private readonly listingImagesRepository: Repository<ListingImage>,
+    @InjectRepository(Category)
+    private readonly categoriesRepository: Repository<Category>,
     @InjectRepository(FormStep)
     private readonly formStepRepository: Repository<FormStep>,
     private readonly categoriesService: CategoriesService,
@@ -606,6 +609,18 @@ export class ListingsService {
   ): Promise<PaginatedResult<Listing>> {
     const page = filter.page ?? 1;
     const limit = filter.limit ?? 20;
+    const categoryScopeIds = filter.categorySlug
+      ? await this.resolveCategoryScopeIds(filter.categorySlug)
+      : null;
+
+    if (filter.categorySlug && (!categoryScopeIds || categoryScopeIds.length === 0)) {
+      return {
+        data: [],
+        total: 0,
+        page,
+        limit
+      };
+    }
 
     const query = this.listingsRepository
       .createQueryBuilder('listing')
@@ -620,9 +635,9 @@ export class ListingsService {
       );
     }
 
-    if (filter.categorySlug) {
-      query.andWhere('category.slug = :categorySlug', {
-        categorySlug: filter.categorySlug
+    if (categoryScopeIds && categoryScopeIds.length > 0) {
+      query.andWhere('category.id IN (:...categoryScopeIds)', {
+        categoryScopeIds
       });
     }
 
@@ -785,6 +800,18 @@ export class ListingsService {
   ): Promise<PaginatedResult<ListingResponseDTO>> {
     const page = options.page ?? 1;
     const limit = options.limit ?? 12;
+    const categoryScopeIds = options.categorySlug
+      ? await this.resolveCategoryScopeIds(options.categorySlug)
+      : null;
+
+    if (options.categorySlug && (!categoryScopeIds || categoryScopeIds.length === 0)) {
+      return {
+        data: [],
+        total: 0,
+        page,
+        limit
+      };
+    }
 
     const query = this.listingsRepository
       .createQueryBuilder('listing')
@@ -794,9 +821,9 @@ export class ListingsService {
       .where('listing.owner_id = :ownerId', { ownerId })
       .andWhere('listing.status = :status', { status: ListingStatus.PUBLISHED });
 
-    if (options.categorySlug) {
-      query.andWhere('category.slug = :categorySlug', {
-        categorySlug: options.categorySlug
+    if (categoryScopeIds && categoryScopeIds.length > 0) {
+      query.andWhere('category.id IN (:...categoryScopeIds)', {
+        categoryScopeIds
       });
     }
 
@@ -1178,6 +1205,33 @@ export class ListingsService {
       default:
         query.addOrderBy(defaultField, 'DESC');
     }
+  }
+
+  private async resolveCategoryScopeIds(categoryFilter: string): Promise<string[]> {
+    const normalizedFilter = categoryFilter.trim();
+    if (!normalizedFilter) {
+      return [];
+    }
+
+    const rootCategory = await this.categoriesRepository
+      .createQueryBuilder('category')
+      .where('LOWER(category.slug) = LOWER(:filter)', { filter: normalizedFilter })
+      .orWhere('category.id = :filter', { filter: normalizedFilter })
+      .getOne();
+
+    if (!rootCategory) {
+      return [];
+    }
+
+    const treeRepository = this.listingsRepository.manager.getTreeRepository(Category);
+    const descendants = await treeRepository.findDescendants(rootCategory);
+    const categoryIds = new Set<string>([rootCategory.id]);
+
+    descendants.forEach(category => {
+      categoryIds.add(category.id);
+    });
+
+    return Array.from(categoryIds);
   }
 
   async incrementViews(id: string): Promise<void> {
