@@ -562,31 +562,36 @@ export default function SearchResults(){
   }, [categories])
 
   const childrenByParent = useMemo(() => {
-    const map = new Map<string, Array<{ id: string; name: string; slug: string }>>()
+    const map = new Map<string, Map<string, { id: string; name: string; slug: string }>>()
+
+    const addChild = (parentId: string, child: { id: string; name: string; slug: string }) => {
+      if (!map.has(parentId)) {
+        map.set(parentId, new Map())
+      }
+      map.get(parentId)!.set(child.id, child)
+    }
+
     categories.forEach(category => {
       const parentId = category.parentId ?? null
       if (parentId) {
-        if (!map.has(parentId)) {
-          map.set(parentId, [])
-        }
-        map.get(parentId)!.push({ id: category.id, name: category.name, slug: category.slug })
+        addChild(parentId, { id: category.id, name: category.name, slug: category.slug })
       }
+
       const children = category.children ?? []
-      if (children.length) {
-        const existing = map.get(category.id) ?? []
-        const additions = children.map(child => ({ id: child.id, name: child.name, slug: child.slug }))
-        additions.forEach(child => {
-          if (!existing.some(entry => entry.id === child.id)) {
-            existing.push(child)
-          }
-        })
-        map.set(category.id, existing)
-      }
+      children.forEach(child => {
+        addChild(category.id, { id: child.id, name: child.name, slug: child.slug })
+      })
     })
-    map.forEach(children =>
-      children.sort((a, b) => a.name.localeCompare(b.name, sortLocale, { sensitivity: 'base' }))
-    )
-    return map
+
+    const normalized = new Map<string, Array<{ id: string; name: string; slug: string }>>()
+    map.forEach((childrenMap, parentId) => {
+      const children = Array.from(childrenMap.values()).sort((a, b) =>
+        a.name.localeCompare(b.name, sortLocale, { sensitivity: 'base' })
+      )
+      normalized.set(parentId, children)
+    })
+
+    return normalized
   }, [categories, sortLocale])
 
   const categoryBySlug = useMemo(() => {

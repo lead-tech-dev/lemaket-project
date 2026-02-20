@@ -3,6 +3,7 @@ import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import SearchResults from './SearchResults'
 import { renderWithProviders } from '../../test/test-utils'
+import type { Category } from '../../types/category'
 
 vi.mock('../../layouts/MainLayout', () => ({
   default: ({ children }: { children: React.ReactNode }) => <div data-testid="main-layout">{children}</div>
@@ -145,5 +146,55 @@ describe('SearchResults', () => {
     })
 
     expect(screen.getByRole('button', { name: '25 km' })).toBeInTheDocument()
+  })
+
+  it('renders each sub-category once in the filters drawer', async () => {
+    const user = userEvent.setup()
+    const vehicleCategory: Category = {
+      id: 'cat-vehicles',
+      name: 'Véhicules',
+      slug: 'vehicules',
+      description: null,
+      icon: null,
+      color: null,
+      gradient: null,
+      isActive: true,
+      position: 1
+    }
+    const carsCategory: Category = {
+      id: 'cat-cars',
+      name: 'Voitures',
+      slug: 'voitures',
+      description: null,
+      icon: null,
+      color: null,
+      gradient: null,
+      isActive: true,
+      position: 2,
+      parentId: 'cat-vehicles'
+    }
+
+    vi.mocked(CategoriesMod.useCategories).mockReturnValue({
+      categories: [
+        {
+          ...vehicleCategory,
+          children: [carsCategory]
+        },
+        carsCategory
+      ],
+      isLoading: false,
+      error: null,
+      refresh: vi.fn()
+    } as any)
+
+    renderWithProviders(<SearchResults />, {
+      useRouter: true,
+      router: { initialEntries: ['/search?category=vehicules'] }
+    })
+
+    await user.click(await screen.findByRole('button', { name: /filtres/i }))
+    await user.click(screen.getByRole('button', { name: /sous-catégorie/i }))
+
+    expect(screen.getAllByRole('button', { name: 'Voitures' })).toHaveLength(1)
   })
 })
