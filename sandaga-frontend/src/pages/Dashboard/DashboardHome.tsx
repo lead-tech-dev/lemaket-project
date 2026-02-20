@@ -335,7 +335,7 @@ export default function DashboardHome() {
   const renderNotificationBody = (summary: DashboardNotificationSummary) => {
     if (!summary.recent.length) {
       return (
-        <p style={{ color: '#6c757d' }}>
+        <p className="notification-center__empty">
           {t('dashboard.home.notifications.empty')}
         </p>
       )
@@ -344,34 +344,40 @@ export default function DashboardHome() {
     return (
       <div className="notification-center__list">
         {summary.recent.map(notification => (
-          <div
+          <article
             key={notification.id}
             className={`notification-center__item${
               notification.isRead ? '' : ' notification-center__item--unread'
             }`}
           >
-            <div>
-              <strong>{resolveNotificationCategoryLabel(notification.category, t)}</strong>
+            <div className="notification-center__content">
+              <div className="notification-center__meta">
+                <span className="notification-center__category">
+                  {resolveNotificationCategoryLabel(notification.category, t)}
+                </span>
+                <time className="notification-center__time">
+                  {new Date(notification.created_at).toLocaleString(dateLocale)}
+                </time>
+              </div>
               <p className="notification-center__title">{notification.title}</p>
               {notification.body ? (
                 <p className="notification-center__body">{notification.body}</p>
               ) : null}
-              <time className="notification-center__time">
-                {new Date(notification.created_at).toLocaleString(dateLocale)}
-              </time>
             </div>
-            {!notification.isRead ? (
-              <Button
-                variant="ghost"
-                onClick={() => handleMarkNotification(notification.id)}
-                disabled={markingNotificationId === notification.id}
-              >
-                {t('dashboard.home.notifications.markRead')}
-              </Button>
-            ) : (
-              <span className="notification-center__status">{t('dashboard.home.notifications.read')}</span>
-            )}
-          </div>
+            <div className="notification-center__actions">
+              {!notification.isRead ? (
+                <Button
+                  variant="ghost"
+                  onClick={() => handleMarkNotification(notification.id)}
+                  disabled={markingNotificationId === notification.id}
+                >
+                  {t('dashboard.home.notifications.markRead')}
+                </Button>
+              ) : (
+                <span className="notification-center__status">{t('dashboard.home.notifications.read')}</span>
+              )}
+            </div>
+          </article>
         ))}
       </div>
     )
@@ -494,22 +500,28 @@ export default function DashboardHome() {
                 </Button>
               </div>
             </div>
-            <div className="notification-center__summary">
-              {notificationSummary.categories.map(category => (
-                <div key={category.category} className="notification-center__summary-item">
-                  <span className="notification-center__summary-label">
-                    {resolveNotificationCategoryLabel(category.category, t)}
-                  </span>
-                  <strong>{category.unread}</strong>
-                  <span>
-                    {t('dashboard.home.notifications.total', {
-                      count: new Intl.NumberFormat(numberLocale).format(category.total)
-                    })}
-                  </span>
+            <div className="notification-center">
+              {notificationSummary.categories.length ? (
+                <div className="notification-center__summary">
+                  {notificationSummary.categories.map(category => (
+                    <div key={category.category} className="notification-center__summary-item">
+                      <span className="notification-center__summary-label">
+                        {resolveNotificationCategoryLabel(category.category, t)}
+                      </span>
+                      <strong className="notification-center__summary-unread">
+                        {new Intl.NumberFormat(numberLocale).format(category.unread)}
+                      </strong>
+                      <span className="notification-center__summary-total">
+                        {t('dashboard.home.notifications.total', {
+                          count: new Intl.NumberFormat(numberLocale).format(category.total)
+                        })}
+                      </span>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              ) : null}
+              {renderNotificationBody(notificationSummary)}
             </div>
-            {renderNotificationBody(notificationSummary)}
           </section>
         ) : null}
 
