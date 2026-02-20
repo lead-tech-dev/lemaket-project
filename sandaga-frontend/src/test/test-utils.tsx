@@ -11,7 +11,14 @@ export type RenderOptions = {
 }
 
 function Providers({ children, router, useRouter = false }: PropsWithChildren<{ router?: MemoryRouterProps; useRouter?: boolean }>) {
-  const routerProps: MemoryRouterProps = router ?? { initialEntries: ['/'] }
+  const routerProps: MemoryRouterProps = {
+    ...(router ?? { initialEntries: ['/'] }),
+    future: {
+      ...(router?.future ?? {}),
+      v7_startTransition: true,
+      v7_relativeSplatPath: true,
+    },
+  }
   const content = useRouter ? (
     <MemoryRouter {...routerProps}>{children}</MemoryRouter>
   ) : (

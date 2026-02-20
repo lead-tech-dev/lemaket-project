@@ -127,7 +127,12 @@ function ProtectedRoute({ element, requirePro, requireAdmin, featureFlag }: Prot
 
 export function AppRouter() {
   return (
-    <BrowserRouter>
+    <BrowserRouter
+      future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true,
+      }}
+    >
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/listing/:id" element={<ListingDetail />} />
