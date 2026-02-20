@@ -1077,9 +1077,10 @@ export default function SearchResults(){
     const nextValue = locationQuery.trim()
     const params = new URLSearchParams(searchParamsString)
     const currentLocation = (params.get('l') ?? '').trim()
-    const hasGeoSelection = params.has('lat') || params.has('lng')
+    const normalizedNext = nextValue.toLocaleLowerCase()
+    const normalizedCurrent = currentLocation.toLocaleLowerCase()
 
-    if (nextValue === currentLocation && !hasGeoSelection) {
+    if (normalizedNext === normalizedCurrent) {
       setLocationOpen(false)
       return
     }

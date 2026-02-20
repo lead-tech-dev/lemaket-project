@@ -125,4 +125,25 @@ describe('SearchResults', () => {
       )
     })
   })
+
+  it('keeps location selection and updates query when selecting a radius', async () => {
+    const user = userEvent.setup()
+
+    renderWithProviders(<SearchResults />, {
+      useRouter: true,
+      router: { initialEntries: ['/search?l=Douala&lat=4.0511&lng=9.7679'] }
+    })
+
+    const radiusTenButton = await screen.findByRole('button', { name: '10 km' })
+    await user.click(radiusTenButton)
+
+    await waitFor(() => {
+      expect(vi.mocked(Api.apiGet)).toHaveBeenCalledWith(
+        expect.stringContaining('radiusKm=10'),
+        expect.any(Object)
+      )
+    })
+
+    expect(screen.getByRole('button', { name: '25 km' })).toBeInTheDocument()
+  })
 })
