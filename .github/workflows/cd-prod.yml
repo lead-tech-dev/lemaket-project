@@ -98,6 +98,15 @@ jobs:
             ${{ steps.meta.outputs.backend_image }}
             ${{ steps.meta.outputs.backend_latest }}
 
+      - name: Validate prod Mapbox token
+        env:
+          PROD_MAPBOX_PUBLIC_KEY: ${{ secrets.PROD_VITE_MAPBOX_TOKEN || vars.PROD_VITE_MAPBOX_TOKEN || '' }}
+        run: |
+          if [[ -z "$PROD_MAPBOX_PUBLIC_KEY" ]]; then
+            echo "Missing PROD_VITE_MAPBOX_TOKEN. Set it in GitHub Secrets or Repository Variables." >&2
+            exit 1
+          fi
+
       - name: Build and push frontend
         uses: docker/build-push-action@v6
         with:
@@ -108,7 +117,7 @@ jobs:
             ${{ steps.meta.outputs.frontend_latest }}
           build-args: |
             VITE_API_URL=${{ vars.PROD_VITE_API_URL || 'https://api.lemaket.com' }}
-            MAPBOX_PUBLIC_KEY=${{ secrets.PROD_VITE_MAPBOX_TOKEN || '' }}
+            MAPBOX_PUBLIC_KEY=${{ secrets.PROD_VITE_MAPBOX_TOKEN || vars.PROD_VITE_MAPBOX_TOKEN || '' }}
 
   deploy-production:
     runs-on: ubuntu-latest
