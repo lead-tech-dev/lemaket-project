@@ -25,6 +25,14 @@
   flex-wrap:wrap;
   gap:calc($spacing*2);
 }
+.dashboard-header__actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:calc($spacing*1.2);
+}
+.dashboard-header__primary-action{
+  white-space:nowrap;
+}
 
 .dashboard-stats{
   display:grid;
@@ -60,6 +68,13 @@
   justify-content:space-between;
   align-items:center;
   gap:calc($spacing*2);
+}
+.dashboard-section__head-actions{
+  display:flex;
+  align-items:center;
+  gap:calc($spacing*1);
+  flex-wrap:wrap;
+  justify-content:flex-end;
 }
 
 .dashboard-table{
@@ -142,6 +157,24 @@
 
 .message-item__title{font-weight:600;}
 .message-item__snippet{color:var(--color-muted);}
+.message-item__meta{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  align-items:flex-end;
+}
+.message-item__actions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
+.message-list__more{
+  margin-top:16px;
+  display:flex;
+  justify-content:center;
+}
 
 .storefront-media{
   display:flex;
@@ -216,10 +249,61 @@
 }
 
 @media (max-width: 768px){
-  .message-item{grid-template-columns: 1fr; align-items:flex-start;}
+  .dashboard-page{
+    gap:calc($spacing*2.5);
+  }
+  .dashboard-header{
+    align-items:flex-start;
+  }
+  .dashboard-header__actions{
+    width:100%;
+  }
+  .dashboard-header__actions .btn,
+  .dashboard-header__primary-action{
+    width:100%;
+    justify-content:center;
+  }
+  .dashboard-stats{
+    grid-template-columns:1fr;
+  }
+  .dashboard-section{
+    padding:calc($spacing*2.2);
+    gap:calc($spacing*2);
+  }
+  .dashboard-section__head{
+    flex-direction:column;
+    align-items:flex-start;
+    gap:calc($spacing*1);
+  }
+  .dashboard-section__head-actions{
+    width:100%;
+    justify-content:flex-start;
+  }
+  .message-item{
+    grid-template-columns: 1fr;
+    align-items:flex-start;
+    gap:calc($spacing*1.2);
+  }
+  .message-item__meta{
+    width:100%;
+    align-items:flex-start;
+    gap:calc($spacing*0.75);
+  }
+  .message-item__actions{
+    width:100%;
+    justify-content:flex-start;
+  }
+  .message-item__actions .btn{
+    flex:1 1 160px;
+  }
 }
 
 @media (max-width: 1080px){
   .dashboard-shell{grid-template-columns:1fr;}
   .dashboard-shell__content{gap:calc($spacing*3);}
+  .dashboard-table{
+    display:block;
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+  }
 }

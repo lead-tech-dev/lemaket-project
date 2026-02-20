@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom';
 import Header from './Header';
 import { I18nProvider } from '../contexts/I18nContext';
@@ -172,4 +173,24 @@ describe('Header', () => {
     const messagesLink = screen.getByRole('link', { name: /Messages/i });
     expect(within(messagesLink).getByText('5')).toBeInTheDocument();
   });
+
+  it('opens and closes the mobile drawer menu', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <MemoryRouter>
+        <I18nProvider>
+          <Header />
+        </I18nProvider>
+      </MemoryRouter>
+    )
+
+    await user.click(screen.getByRole('button', { name: /ouvrir le menu|open menu/i }))
+
+    const dialog = screen.getByRole('dialog', { name: /menu/i })
+    expect(within(dialog).getByRole('link', { name: /toutes les catégories|all categories/i })).toBeInTheDocument()
+
+    await user.click(within(dialog).getByRole('button', { name: /fermer le menu|close menu/i }))
+    expect(screen.queryByRole('dialog', { name: /menu/i })).not.toBeInTheDocument()
+  })
 });

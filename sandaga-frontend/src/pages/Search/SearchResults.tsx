@@ -1915,7 +1915,12 @@ export default function SearchResults(){
                 </svg>
                 {t('search.filters.button')}
               </Button>
-              <Button variant="outline" onClick={handleCreateAlert} disabled={isCreatingAlert}>
+              <Button
+                variant="outline"
+                className="search-page__alert-button"
+                onClick={handleCreateAlert}
+                disabled={isCreatingAlert}
+              >
                 {isCreatingAlert ? t('search.alert.saving') : t('search.alert.create')}
               </Button>
             </div>

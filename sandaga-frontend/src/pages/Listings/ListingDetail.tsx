@@ -543,6 +543,16 @@ export default function ListingDetail() {
       deliveryInfo.escrowStatus !== 'released' &&
       deliveryInfo.escrowStatus !== 'refunded'
   )
+  const handleBuyNow = () => {
+    if (!canBuy || isBuyerPurchaseInProgress) {
+      return
+    }
+    if (!isAuthenticated) {
+      navigate('/login')
+      return
+    }
+    navigate(`/listing/${listingId}/checkout`)
+  }
   const isFollowingSeller = listing?.owner?.id ? isFollowing(listing.owner.id) : false
   const handleFollowSeller = async () => {
     if (!listing?.owner?.id) return
@@ -1193,16 +1203,7 @@ export default function ListingDetail() {
                   {canBuy ? (
                     <Button
                       disabled={isBuyerPurchaseInProgress}
-                      onClick={() => {
-                        if (isBuyerPurchaseInProgress) {
-                          return
-                        }
-                        if (!isAuthenticated) {
-                          navigate('/login')
-                          return
-                        }
-                        navigate(`/listing/${listingId}/checkout`)
-                      }}
+                      onClick={handleBuyNow}
                     >
                       {isBuyerPurchaseInProgress ? 'En cours' : 'Acheter'}
                     </Button>
@@ -1346,6 +1347,29 @@ export default function ListingDetail() {
                 {t('listings.detail.actions.report')}
               </Button>
             </aside>
+
+            {canBuy || !isSeller ? (
+              <div className="listing-mobile-actions">
+                {canBuy ? (
+                  <Button
+                    className="listing-mobile-actions__buy"
+                    disabled={isBuyerPurchaseInProgress}
+                    onClick={handleBuyNow}
+                  >
+                    {isBuyerPurchaseInProgress ? 'En cours' : 'Acheter'}
+                  </Button>
+                ) : null}
+                {!isSeller ? (
+                  <Button
+                    variant={canBuy ? 'outline' : 'primary'}
+                    className="listing-mobile-actions__contact"
+                    onClick={() => setShowContactModal(true)}
+                  >
+                    {t('listings.detail.actions.contact')}
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
           </>
         ) : null}
       </div>

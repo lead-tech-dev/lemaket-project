@@ -107,5 +107,33 @@
 }
 
 @media (max-width: 960px){
+  .static-hero{
+    padding:calc($spacing*3.5);
+  }
+  .static-content{
+    padding:calc($spacing*3);
+    gap:calc($spacing*2.5);
+  }
   .contact-grid{grid-template-columns:1fr;}
+}
+
+@media (max-width: 720px){
+  .static-hero{
+    padding:calc($spacing*2.8);
+    gap:calc($spacing*1.4);
+  }
+  .static-content{
+    padding:calc($spacing*2.2);
+    gap:calc($spacing*2);
+  }
+  .static-grid{
+    grid-template-columns:1fr;
+    gap:calc($spacing*1.5);
+  }
+  .faq-item,
+  .terms-list li,
+  .policy-list li,
+  .contact-card{
+    padding:calc($spacing*2);
+  }
 }

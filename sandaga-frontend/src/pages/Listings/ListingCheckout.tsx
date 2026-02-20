@@ -413,7 +413,7 @@ export default function ListingCheckout() {
 
         <div className="listing-checkout__grid">
           <div className="listing-checkout__column">
-            <section className="checkout-card">
+            <section className="checkout-card checkout-card--handover">
               <div className="checkout-card__header">
                 <h2>Mode de remise</h2>
                 <span>
@@ -445,7 +445,7 @@ export default function ListingCheckout() {
             </section>
 
             {availableHandoverModes.includes('delivery') ? (
-              <section className="checkout-card">
+              <section className="checkout-card checkout-card--courier">
                 <div className="checkout-card__header">
                   <h2>Trouver un livreur</h2>
                   <span>
@@ -511,7 +511,7 @@ export default function ListingCheckout() {
               </section>
             ) : null}
 
-            <section className="checkout-card">
+            <section className="checkout-card checkout-card--form">
               <div className="checkout-card__header">
                 <h2>Informations personnelles</h2>
                 <span>
@@ -649,7 +649,11 @@ export default function ListingCheckout() {
                   ) : null}
                 </FormField>
                 <div className="checkout-form__actions">
-                  <Button onClick={handleSubmit} disabled={!canSubmit || isSubmitting}>
+                  <Button
+                    className="checkout-submit-btn"
+                    onClick={handleSubmit}
+                    disabled={!canSubmit || isSubmitting}
+                  >
                     {isSubmitting ? 'Traitement...' : 'Payer en sécurisé'}
                   </Button>
                 </div>
@@ -724,6 +728,20 @@ export default function ListingCheckout() {
               </div>
             </div>
           </aside>
+        </div>
+
+        <div className="listing-checkout__mobile-submit">
+          <div className="listing-checkout__mobile-total">
+            <span>Total</span>
+            <strong>{Number.isFinite(totalPrice) ? formatMoney(totalPrice, currency) : '--'}</strong>
+          </div>
+          <Button
+            className="listing-checkout__mobile-submit-btn"
+            onClick={handleSubmit}
+            disabled={!canSubmit || isSubmitting}
+          >
+            {isSubmitting ? 'Traitement...' : 'Payer en sécurisé'}
+          </Button>
         </div>
       </div>
     </MainLayout>

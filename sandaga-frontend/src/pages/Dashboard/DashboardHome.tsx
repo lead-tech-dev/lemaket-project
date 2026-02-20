@@ -386,6 +386,7 @@ export default function DashboardHome() {
             <p>{t('dashboard.home.subtitle')}</p>
           </div>
           <Button
+            className="dashboard-header__primary-action"
             onClick={() => {
               navigate('/listings/new')
             }}
@@ -468,7 +469,7 @@ export default function DashboardHome() {
           <section className="dashboard-section">
             <div className="dashboard-section__head">
               <h2>{t('dashboard.home.notifications.title')}</h2>
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <div className="dashboard-section__head-actions">
                 <span className="badge badge--info">
                   {notificationSummary.totalUnread === 1
                     ? t('dashboard.home.notifications.unreadSingle', {

@@ -695,7 +695,7 @@ export default function Messages() {
               {unreadNotice ? ` ${unreadNotice}` : ''}
             </p>
           </div>
-          <div style={{ display: 'flex', gap: '12px' }}>
+          <div className="dashboard-header__actions">
             <Button variant="outline" onClick={handleManageQuickReplies}>
               {t('dashboard.messages.quickReply.manage')}
             </Button>
@@ -785,18 +785,11 @@ export default function Messages() {
                     <span className="message-item__snippet">
                       {conv.lastMessagePreview || t('dashboard.messages.previewFallback')}
                     </span>
-                    <div
-                      style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '12px',
-                        alignItems: 'flex-end'
-                      }}
-                    >
+                    <div className="message-item__meta">
                       <span className="message-item__snippet">
                         {formatRelativeDate(conv.lastMessageAt, t, numberLocale)}
                       </span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div className="message-item__actions">
                         {unreadCountForUser > 0 ? (
                           <span style={{ fontWeight: 600 }}>
                             {unreadCountForUser === 1
@@ -823,7 +816,7 @@ export default function Messages() {
           ) : null}
 
           {nextCursor ? (
-            <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'center' }}>
+            <div className="message-list__more">
               <Button variant="outline" onClick={handleLoadMore} disabled={isLoadingMore}>
                 {isLoadingMore ? t('dashboard.messages.loadingMore') : t('dashboard.messages.loadMore')}
               </Button>

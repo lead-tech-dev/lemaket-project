@@ -1,4 +1,4 @@
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { SwitchTheme } from './ui/SwitchTheme'
@@ -12,6 +12,7 @@ import { HomeTrendingSearch } from '../types/home'
 import omaketIcon from '../assets/icons/omaket-icon.svg'
 
 export default function Header(){
+  const location = useLocation()
   const navigate = useNavigate()
   const { user, isPro, isAdmin } = useAuth()
   const unreadTotal = useMessageNotifications()
@@ -23,10 +24,14 @@ export default function Header(){
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchValue, setSearchValue] = useState('')
   const [searchFocused, setSearchFocused] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [mobileExpandedCategory, setMobileExpandedCategory] = useState<string | null>(null)
   const headerRef = useRef<HTMLElement | null>(null)
   const searchBarRef = useRef<HTMLDivElement | null>(null)
   const searchToggleRef = useRef<HTMLButtonElement | null>(null)
   const searchInputRef = useRef<HTMLInputElement | null>(null)
+  const mobileMenuToggleRef = useRef<HTMLButtonElement | null>(null)
+  const mobileMenuPanelRef = useRef<HTMLDivElement | null>(null)
   const unreadLabel =
     unreadTotal === 1
       ? t('header.unread.single', { count: unreadTotal })
@@ -55,6 +60,41 @@ const navLinks = useMemo(() => {
 
   const primaryNavLinks = navLinks.slice(0, 8)
   const overflowNavLinks = navLinks.slice(8)
+
+  const isSearchLinkActive = useCallback((to: string) => {
+    const [targetPath, targetQuery = ''] = to.split('?')
+    if (location.pathname !== targetPath) {
+      return false
+    }
+    const targetCategory = new URLSearchParams(targetQuery).get('category')
+    const currentCategory = new URLSearchParams(location.search).get('category')
+    if (targetCategory) {
+      return currentCategory === targetCategory
+    }
+    return !currentCategory
+  }, [location.pathname, location.search])
+
+  const isMobileLinkActive = useCallback((to: string) => {
+    if (to === '/') {
+      return location.pathname === '/'
+    }
+    if (to.startsWith('/search')) {
+      return isSearchLinkActive(to)
+    }
+    if (to === '/dashboard') {
+      return location.pathname.startsWith('/dashboard')
+    }
+    return location.pathname === to || location.pathname.startsWith(`${to}/`)
+  }, [isSearchLinkActive, location.pathname])
+
+  const activeMobileCategoryLabel = useMemo(() => {
+    for (const link of navLinks) {
+      if (isMobileLinkActive(link.to) || link.children.some(child => isMobileLinkActive(child.to))) {
+        return link.label
+      }
+    }
+    return null
+  }, [isMobileLinkActive, navLinks])
 
   const RECENT_SEARCHES_KEY = 'lemaket.recentSearches'
   const MAX_RECENT_SEARCHES = 6
@@ -99,6 +139,123 @@ const navLinks = useMemo(() => {
   const clearRecentSearches = useCallback(() => {
     storeRecentSearches([])
   }, [storeRecentSearches])
+
+  const closeMobileMenu = useCallback(() => {
+    setMobileMenuOpen(false)
+    setMobileExpandedCategory(null)
+  }, [])
+
+  const toggleMobileMenu = useCallback(() => {
+    setMobileMenuOpen(previous => {
+      const next = !previous
+      if (next) {
+        setSearchOpen(false)
+        setMobileExpandedCategory(activeMobileCategoryLabel)
+      }
+      return next
+    })
+  }, [activeMobileCategoryLabel])
+
+  useEffect(() => {
+    setMobileMenuOpen(false)
+    setMobileExpandedCategory(null)
+  }, [location.hash, location.pathname, location.search])
+
+  useEffect(() => {
+    if (!mobileMenuOpen) {
+      return
+    }
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [mobileMenuOpen])
+
+  useEffect(() => {
+    if (!mobileMenuOpen) {
+      mobileMenuToggleRef.current?.focus()
+      return
+    }
+
+    const panel = mobileMenuPanelRef.current
+    if (!panel) {
+      return
+    }
+
+    const focusableSelector = [
+      'a[href]',
+      'button:not([disabled])',
+      'input:not([disabled])',
+      'select:not([disabled])',
+      'textarea:not([disabled])',
+      '[tabindex]:not([tabindex="-1"])'
+    ].join(',')
+
+    const focusableElements = Array.from(
+      panel.querySelectorAll<HTMLElement>(focusableSelector)
+    ).filter(element => !element.hasAttribute('disabled'))
+
+    focusableElements[0]?.focus()
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab') {
+        return
+      }
+      if (!focusableElements.length) {
+        event.preventDefault()
+        return
+      }
+
+      const first = focusableElements[0]
+      const last = focusableElements[focusableElements.length - 1]
+      const active = document.activeElement
+
+      if (event.shiftKey && active === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+
+    panel.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      panel.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [mobileMenuOpen])
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth > 960) {
+        setMobileMenuOpen(false)
+      }
+    }
+
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  useEffect(() => {
+    if (!mobileMenuOpen) {
+      return
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setMobileMenuOpen(false)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [mobileMenuOpen])
 
   useEffect(() => {
     if (searchOpen) {
@@ -246,6 +403,19 @@ const navLinks = useMemo(() => {
           </Link>
           <span className="lbc-header__tag">{t('header.tagline')}</span>
         </div>
+        <button
+          type="button"
+          className={`lbc-header__menu-toggle${mobileMenuOpen ? ' is-open' : ''}`}
+          aria-expanded={mobileMenuOpen}
+          aria-controls="header-mobile-menu"
+          aria-label={mobileMenuOpen ? t('header.mobile.close') : t('header.mobile.open')}
+          onClick={toggleMobileMenu}
+          ref={mobileMenuToggleRef}
+        >
+          <span className="lbc-header__menu-line" aria-hidden="true" />
+          <span className="lbc-header__menu-line" aria-hidden="true" />
+          <span className="lbc-header__menu-line" aria-hidden="true" />
+        </button>
 
         <div className="lbc-header__actions">
           {messagingEnabled && isPro ? (
@@ -468,6 +638,205 @@ const navLinks = useMemo(() => {
           ) : null}
         </div>
       </div>
+      {mobileMenuOpen ? (
+        <div className="lbc-header__mobile-drawer" role="presentation">
+          <button
+            type="button"
+            className="lbc-header__mobile-backdrop"
+            aria-label={t('header.mobile.close')}
+            onClick={closeMobileMenu}
+          />
+          <div
+            id="header-mobile-menu"
+            className="lbc-header__mobile-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-label={t('header.mobile.menu')}
+            ref={mobileMenuPanelRef}
+          >
+            <div className="lbc-header__mobile-header">
+              <strong>{t('header.mobile.menu')}</strong>
+              <button
+                type="button"
+                className="lbc-header__mobile-close"
+                aria-label={t('header.mobile.close')}
+                onClick={closeMobileMenu}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="lbc-header__mobile-body">
+              <section className="lbc-header__mobile-section">
+                <span className="lbc-header__mobile-section-title">{t('header.mobile.actions')}</span>
+                {messagingEnabled && isPro ? (
+                  <Link
+                    to="/dashboard/messages"
+                    className={`lbc-header__mobile-link${isMobileLinkActive('/dashboard/messages') ? ' is-active' : ''}`}
+                    aria-current={isMobileLinkActive('/dashboard/messages') ? 'page' : undefined}
+                    onClick={closeMobileMenu}
+                  >
+                    <span aria-hidden>💬</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {t('header.messages')}
+                      {unreadTotal ? (
+                        <span
+                          className="lbc-header__badge lbc-header__badge--alert"
+                          aria-label={unreadLabel}
+                        >
+                          {unreadTotal > 99 ? '99+' : unreadTotal}
+                        </span>
+                      ) : null}
+                    </span>
+                  </Link>
+                ) : null}
+                <Link
+                  to="/search"
+                  className={`lbc-header__mobile-link${isMobileLinkActive('/search') ? ' is-active' : ''}`}
+                  aria-current={isMobileLinkActive('/search') ? 'page' : undefined}
+                  onClick={closeMobileMenu}
+                >
+                  <span aria-hidden>🔎</span>
+                  <span>{t('header.search')}</span>
+                </Link>
+                <Link
+                  to="/dashboard/favorites"
+                  className={`lbc-header__mobile-link${isMobileLinkActive('/dashboard/favorites') ? ' is-active' : ''}`}
+                  aria-current={isMobileLinkActive('/dashboard/favorites') ? 'page' : undefined}
+                  onClick={closeMobileMenu}
+                >
+                  <span aria-hidden>⭐</span>
+                  <span>{t('header.favorites')}</span>
+                </Link>
+                {user ? (
+                  <Link
+                    to="/dashboard"
+                    className={`lbc-header__mobile-link${isMobileLinkActive('/dashboard') ? ' is-active' : ''}`}
+                    aria-current={isMobileLinkActive('/dashboard') ? 'page' : undefined}
+                    onClick={closeMobileMenu}
+                  >
+                    <span aria-hidden>👤</span>
+                    <span>
+                      {user.firstName}
+                      {isAdmin ? (
+                        <span className="lbc-header__badge">{t('header.badge.admin')}</span>
+                      ) : isPro ? (
+                        <span className="lbc-header__badge">{t('header.badge.pro')}</span>
+                      ) : null}
+                    </span>
+                  </Link>
+                ) : (
+                  <Link
+                    to="/login"
+                    className={`lbc-header__mobile-link${isMobileLinkActive('/login') ? ' is-active' : ''}`}
+                    aria-current={isMobileLinkActive('/login') ? 'page' : undefined}
+                    onClick={closeMobileMenu}
+                  >
+                    <span aria-hidden>👤</span>
+                    <span>{t('header.login')}</span>
+                  </Link>
+                )}
+                <Link
+                  to="/listings/new"
+                  className="btn btn--primary lbc-header__mobile-post"
+                  aria-current={isMobileLinkActive('/listings/new') ? 'page' : undefined}
+                  onClick={closeMobileMenu}
+                >
+                  {t('header.postListing')}
+                </Link>
+                {proPortalEnabled && isPro ? (
+                  <Link
+                    to="/dashboard/pro"
+                    className={`lbc-header__mobile-link${isMobileLinkActive('/dashboard/pro') ? ' is-active' : ''}`}
+                    aria-current={isMobileLinkActive('/dashboard/pro') ? 'page' : undefined}
+                    onClick={closeMobileMenu}
+                  >
+                    <span aria-hidden>📈</span>
+                    <span>{t('header.proSpace')}</span>
+                  </Link>
+                ) : null}
+                <div className="lbc-header__mobile-preferences">
+                  <LocaleSwitcher />
+                  <SwitchTheme />
+                </div>
+              </section>
+              <nav className="lbc-header__mobile-section" aria-label={t('header.mobile.navigation')}>
+                <span className="lbc-header__mobile-section-title">{t('header.mobile.navigation')}</span>
+                <Link
+                  to="/"
+                  className={`lbc-header__mobile-link lbc-header__mobile-link--category${isMobileLinkActive('/') ? ' is-active' : ''}`}
+                  aria-current={isMobileLinkActive('/') ? 'page' : undefined}
+                  onClick={closeMobileMenu}
+                >
+                  {t('header.mobile.home')}
+                </Link>
+                {navLinks.map(link => {
+                  const hasActiveChild = link.children.some(child => isMobileLinkActive(child.to))
+                  const parentIsActive = isMobileLinkActive(link.to) || hasActiveChild
+                  if (!link.children.length) {
+                    return (
+                      <div key={link.label} className="lbc-header__mobile-nav-item">
+                        <Link
+                          to={link.to}
+                          className={`lbc-header__mobile-link lbc-header__mobile-link--category${parentIsActive ? ' is-active' : ''}`}
+                          aria-current={parentIsActive ? 'page' : undefined}
+                          onClick={closeMobileMenu}
+                        >
+                          {link.label}
+                        </Link>
+                      </div>
+                    )
+                  }
+
+                  return (
+                    <div key={link.label} className="lbc-header__mobile-nav-item">
+                      <button
+                        type="button"
+                        className={`lbc-header__mobile-link lbc-header__mobile-link--category lbc-header__mobile-accordion-trigger${parentIsActive ? ' is-active' : ''}`}
+                        aria-expanded={mobileExpandedCategory === link.label}
+                        onClick={() => setMobileExpandedCategory(previous => previous === link.label ? null : link.label)}
+                      >
+                        <span>{link.label}</span>
+                        <span className="lbc-header__mobile-chevron" aria-hidden>▾</span>
+                      </button>
+                      <div className={`lbc-header__mobile-subnav-wrap${mobileExpandedCategory === link.label ? ' is-open' : ''}`}>
+                        <div className="lbc-header__mobile-subnav">
+                          <Link
+                            to={link.to}
+                            className={`lbc-header__mobile-sublink lbc-header__mobile-sublink--all${isMobileLinkActive(link.to) ? ' is-active' : ''}`}
+                            aria-current={isMobileLinkActive(link.to) ? 'page' : undefined}
+                            onClick={closeMobileMenu}
+                          >
+                            {t('header.mobile.viewCategory', { name: link.label })}
+                          </Link>
+                          {link.children.map(child => (
+                            <Link
+                              key={child.label}
+                              to={child.to}
+                              className={`lbc-header__mobile-sublink${isMobileLinkActive(child.to) ? ' is-active' : ''}`}
+                              aria-current={isMobileLinkActive(child.to) ? 'page' : undefined}
+                              onClick={closeMobileMenu}
+                            >
+                              {child.label}
+                            </Link>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+                <Link
+                  to="/search"
+                  className={`lbc-header__mobile-link lbc-header__mobile-link--category${isMobileLinkActive('/search') ? ' is-active' : ''}`}
+                  aria-current={isMobileLinkActive('/search') ? 'page' : undefined}
+                  onClick={closeMobileMenu}
+                >
+                  {t('header.allCategories')}
+                </Link>
+              </nav>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </header>
   )
 }
