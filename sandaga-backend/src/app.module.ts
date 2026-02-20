@@ -30,6 +30,7 @@ import { AlertsModule } from './alerts/alerts.module';
 import { StorefrontsModule } from './storefronts/storefronts.module';
 import { DeliveriesModule } from './deliveries/deliveries.module';
 import { OrdersModule } from './orders/orders.module';
+import { MonitoringModule } from './monitoring/monitoring.module';
 
 @Module({
   imports: [
@@ -71,7 +72,8 @@ import { OrdersModule } from './orders/orders.module';
     AlertsModule,
     StorefrontsModule,
     DeliveriesModule,
-    OrdersModule
+    OrdersModule,
+    MonitoringModule
   ],
   controllers: [AppController],
   providers: [AppService]

@@ -9,15 +9,33 @@ spec:
   groups:
     - name: sandaga.http
       rules:
+        - alert: SandagaApiProdDownWarning
+          expr: probe_success{namespace="monitoring",env="prod",service="api"} == 0
+          for: 1m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Sandaga prod API unavailable"
+            description: "https://api.lemaket.com/health fails for more than 1 minute."
         - alert: SandagaApiDevDown
           expr: probe_success{namespace="monitoring",env="dev",service="api"} == 0
-          for: 2m
+          for: 5m
           labels:
             severity: critical
             team: platform
           annotations:
             summary: "Sandaga dev API is down"
-            description: "https://api-dev.lemaket.com/health fails for more than 2 minutes."
+            description: "https://api-dev.lemaket.com/health fails for more than 5 minutes."
+        - alert: SandagaApiDevDownWarning
+          expr: probe_success{namespace="monitoring",env="dev",service="api"} == 0
+          for: 3m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Sandaga dev API unavailable"
+            description: "https://api-dev.lemaket.com/health fails for more than 3 minutes."
         - alert: SandagaApiProdDown
           expr: probe_success{namespace="monitoring",env="prod",service="api"} == 0
           for: 2m
@@ -27,18 +45,135 @@ spec:
           annotations:
             summary: "Sandaga prod API is down"
             description: "https://api.lemaket.com/health fails for more than 2 minutes."
+        - alert: SandagaApiProbeLatencyHigh
+          expr: probe_duration_seconds{namespace="monitoring",service="api"} > 1
+          for: 10m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "API health probe latency is high"
+            description: "Health probe duration is above 1s for more than 10 minutes."
+        - alert: SandagaApiProbeLatencyCritical
+          expr: probe_duration_seconds{namespace="monitoring",service="api"} > 2
+          for: 10m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "API health probe latency is critical"
+            description: "Health probe duration is above 2s for more than 10 minutes."
+        - alert: SandagaApiProd5xxRateWarning
+          expr: (sum(rate(sandaga_http_requests_total{env="prod",route!="/metrics",status_code=~"5.."}[5m])) / clamp_min(sum(rate(sandaga_http_requests_total{env="prod",route!="/metrics"}[5m])), 0.001)) > 0.02
+          for: 10m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Prod API 5xx rate is high"
+            description: "5xx rate is above 2% over 5 minutes for more than 10 minutes."
+        - alert: SandagaApiProd5xxRateCritical
+          expr: (sum(rate(sandaga_http_requests_total{env="prod",route!="/metrics",status_code=~"5.."}[5m])) / clamp_min(sum(rate(sandaga_http_requests_total{env="prod",route!="/metrics"}[5m])), 0.001)) > 0.05
+          for: 10m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "Prod API 5xx rate is critical"
+            description: "5xx rate is above 5% over 5 minutes for more than 10 minutes."
+        - alert: SandagaApiProdLatencyP95Warning
+          expr: histogram_quantile(0.95, sum by (le) (rate(sandaga_http_request_duration_seconds_bucket{env="prod",route!="/metrics"}[5m]))) > 0.5
+          for: 10m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Prod API p95 latency is high"
+            description: "p95 request latency is above 500ms for more than 10 minutes."
+        - alert: SandagaApiProdLatencyP95Critical
+          expr: histogram_quantile(0.95, sum by (le) (rate(sandaga_http_request_duration_seconds_bucket{env="prod",route!="/metrics"}[5m]))) > 1
+          for: 10m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "Prod API p95 latency is critical"
+            description: "p95 request latency is above 1s for more than 10 minutes."
+        - alert: SandagaApiProdLatencyP99Warning
+          expr: histogram_quantile(0.99, sum by (le) (rate(sandaga_http_request_duration_seconds_bucket{env="prod",route!="/metrics"}[5m]))) > 1.2
+          for: 10m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Prod API p99 latency is high"
+            description: "p99 request latency is above 1.2s for more than 10 minutes."
+        - alert: SandagaApiProdLatencyP99Critical
+          expr: histogram_quantile(0.99, sum by (le) (rate(sandaga_http_request_duration_seconds_bucket{env="prod",route!="/metrics"}[5m]))) > 2
+          for: 10m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "Prod API p99 latency is critical"
+            description: "p99 request latency is above 2s for more than 10 minutes."
 
     - name: sandaga.k8s
       rules:
+        - alert: SandagaBackendCrashLoopWarning
+          expr: max by (namespace, pod) (kube_pod_container_status_waiting_reason{namespace=~"sandaga-dev|sandaga-prod",reason="CrashLoopBackOff"}) > 0
+          for: 2m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Backend pod crashloop (warning)"
+            description: "A backend pod is in CrashLoopBackOff for more than 2 minutes."
         - alert: SandagaBackendCrashLoop
           expr: max by (namespace, pod) (kube_pod_container_status_waiting_reason{namespace=~"sandaga-dev|sandaga-prod",reason="CrashLoopBackOff"}) > 0
+          for: 5m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "Backend pod crashloop"
+            description: "A backend pod is in CrashLoopBackOff for more than 5 minutes."
+        - alert: SandagaBackendImagePullFailure
+          expr: max by (namespace, pod) (kube_pod_container_status_waiting_reason{namespace=~"sandaga-dev|sandaga-prod",reason=~"ImagePullBackOff|ErrImagePull"}) > 0
+          for: 5m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "Backend image pull failure"
+            description: "A backend pod cannot pull its image for more than 5 minutes."
+        - alert: SandagaBackendRestartsWarning
+          expr: sum by (namespace) (increase(kube_pod_container_status_restarts_total{namespace=~"sandaga-dev|sandaga-prod",container="backend"}[15m])) >= 2
           for: 5m
           labels:
             severity: warning
             team: platform
           annotations:
-            summary: "Backend pod crashloop"
-            description: "A backend pod is in CrashLoopBackOff for more than 5 minutes."
+            summary: "Backend restarts detected"
+            description: "Backend pods restarted at least 2 times in 15 minutes."
+        - alert: SandagaBackendRestartsCritical
+          expr: sum by (namespace) (increase(kube_pod_container_status_restarts_total{namespace=~"sandaga-dev|sandaga-prod",container="backend"}[15m])) >= 5
+          for: 5m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "Backend restarts are critical"
+            description: "Backend pods restarted at least 5 times in 15 minutes."
+        - alert: SandagaPodsPendingTooLong
+          expr: max by (namespace, pod) (kube_pod_status_phase{namespace=~"sandaga-dev|sandaga-prod",phase="Pending"}) > 0
+          for: 10m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Pods pending too long"
+            description: "At least one pod is Pending for more than 10 minutes."
 
     - name: sandaga.node
       rules:
@@ -51,3 +186,66 @@ spec:
           annotations:
             summary: "Node disk usage high"
             description: "Root filesystem usage is above 85% for more than 10 minutes."
+        - alert: NodeDiskUsageCritical
+          expr: 100 - ((node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay"} * 100) / node_filesystem_size_bytes{mountpoint="/",fstype!~"tmpfs|overlay"}) > 95
+          for: 5m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "Node disk usage critical"
+            description: "Root filesystem usage is above 95% for more than 5 minutes."
+        - alert: NodeInodesUsageHigh
+          expr: 100 - ((node_filesystem_files_free{mountpoint="/",fstype!~"tmpfs|overlay"} * 100) / node_filesystem_files{mountpoint="/",fstype!~"tmpfs|overlay"}) > 80
+          for: 10m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Node inode usage high"
+            description: "Root filesystem inode usage is above 80% for more than 10 minutes."
+        - alert: NodeInodesUsageCritical
+          expr: 100 - ((node_filesystem_files_free{mountpoint="/",fstype!~"tmpfs|overlay"} * 100) / node_filesystem_files{mountpoint="/",fstype!~"tmpfs|overlay"}) > 90
+          for: 10m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "Node inode usage critical"
+            description: "Root filesystem inode usage is above 90% for more than 10 minutes."
+        - alert: NodeCpuUsageHigh
+          expr: (100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)) > 80
+          for: 10m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Node CPU usage high"
+            description: "Node CPU usage is above 80% for more than 10 minutes."
+        - alert: NodeCpuUsageCritical
+          expr: (100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)) > 90
+          for: 10m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "Node CPU usage critical"
+            description: "Node CPU usage is above 90% for more than 10 minutes."
+        - alert: NodeMemoryUsageHigh
+          expr: (100 * (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes))) > 85
+          for: 10m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Node memory usage high"
+            description: "Node memory usage is above 85% for more than 10 minutes."
+        - alert: NodeMemoryUsageCritical
+          expr: (100 * (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes))) > 95
+          for: 10m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "Node memory usage critical"
+            description: "Node memory usage is above 95% for more than 10 minutes."

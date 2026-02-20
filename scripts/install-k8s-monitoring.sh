@@ -64,8 +64,10 @@ install_charts() {
 
 apply_monitoring_manifests() {
   "${KCTL[@]}" apply -f deploy/k8s/monitoring/probes.yaml
+  "${KCTL[@]}" apply -f deploy/k8s/monitoring/service-monitors.yaml
   "${KCTL[@]}" apply -f deploy/k8s/monitoring/rules.yaml
   "${KCTL[@]}" apply -f deploy/k8s/monitoring/grafana-dashboard-sandaga-overview.yaml
+  "${KCTL[@]}" apply -f deploy/k8s/monitoring/grafana-dashboard-sandaga-api-slo.yaml
 }
 
 print_summary() {

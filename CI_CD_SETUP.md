@@ -136,8 +136,10 @@ EOF
   - `deploy/k8s/monitoring/values-loki.yaml`
   - `deploy/k8s/monitoring/values-promtail.yaml`
   - `deploy/k8s/monitoring/probes.yaml`
+  - `deploy/k8s/monitoring/service-monitors.yaml`
   - `deploy/k8s/monitoring/rules.yaml`
   - `deploy/k8s/monitoring/grafana-dashboard-sandaga-overview.yaml`
+  - `deploy/k8s/monitoring/grafana-dashboard-sandaga-api-slo.yaml`
   - `deploy/k8s/monitoring/alertmanager-config.yaml`
 
 Install:
@@ -157,6 +159,22 @@ Quick checks:
 sudo -n k3s kubectl -n monitoring get pods
 sudo -n k3s kubectl -n monitoring get svc
 ```
+
+Manual apply for new SLO metrics pipeline:
+```bash
+sudo -n k3s kubectl apply -f deploy/k8s/monitoring/service-monitors.yaml
+sudo -n k3s kubectl apply -f deploy/k8s/monitoring/rules.yaml
+sudo -n k3s kubectl apply -f deploy/k8s/monitoring/grafana-dashboard-sandaga-api-slo.yaml
+```
+
+Grafana integration:
+- Go to `Alerting -> Alert rules` to see rule groups:
+  - `sandaga.http`
+  - `sandaga.k8s`
+  - `sandaga.node`
+- Go to `Dashboards` and open:
+  - `Sandaga Overview`
+  - `Sandaga API SLO`
 
 Default NodePorts:
 - Grafana: `32300`
