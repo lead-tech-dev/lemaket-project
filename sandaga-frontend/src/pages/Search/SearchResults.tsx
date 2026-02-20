@@ -1894,35 +1894,37 @@ export default function SearchResults(){
                   <span>{t('search.view.grid')}</span>
                 </button>
               </div>
-              <Button
-                type="button"
-                variant="ghost"
-                className="search-page__filters-toggle"
-                onClick={() => {
-                  setDrawerView('main')
-                  setFiltersOpen(true)
-                }}
-                aria-expanded={filtersOpen}
-                aria-controls="search-filters-drawer"
-              >
-                <svg aria-hidden="true" viewBox="0 0 24 24">
-                  <path
-                    d="M4 6h16M7 12h10M10 18h4"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                  />
-                </svg>
-                {t('search.filters.button')}
-              </Button>
-              <Button
-                variant="outline"
-                className="search-page__alert-button"
-                onClick={handleCreateAlert}
-                disabled={isCreatingAlert}
-              >
-                {isCreatingAlert ? t('search.alert.saving') : t('search.alert.create')}
-              </Button>
+              <div className="search-page__quick-actions">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="search-page__filters-toggle"
+                  onClick={() => {
+                    setDrawerView('main')
+                    setFiltersOpen(true)
+                  }}
+                  aria-expanded={filtersOpen}
+                  aria-controls="search-filters-drawer"
+                >
+                  <svg aria-hidden="true" viewBox="0 0 24 24">
+                    <path
+                      d="M4 6h16M7 12h10M10 18h4"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                  {t('search.filters.button')}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="search-page__alert-button"
+                  onClick={handleCreateAlert}
+                  disabled={isCreatingAlert}
+                >
+                  {isCreatingAlert ? t('search.alert.saving') : t('search.alert.create')}
+                </Button>
+              </div>
             </div>
           </div>
           <div className="search-page__header-content">

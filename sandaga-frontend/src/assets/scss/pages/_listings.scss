@@ -784,6 +784,12 @@
   flex:0 0 auto;
   flex-wrap:wrap;
 }
+.search-page__quick-actions{
+  display:inline-flex;
+  align-items:center;
+  gap:calc($spacing*1);
+  flex-wrap:wrap;
+}
 .search-view-toggle{
   display:inline-flex;
   align-items:center;
@@ -1322,14 +1328,35 @@
   }
   .search-page__header-buttons{
     width:100%;
-    justify-content:flex-start;
+    display:grid;
+    justify-content:stretch;
     gap:calc($spacing*1);
+  }
+  .search-view-toggle{
+    width:100%;
+  }
+  .search-view-toggle .search-view-toggle__btn{
+    flex:1;
+    justify-content:center;
+    min-width:0;
+  }
+  .search-page__quick-actions{
+    width:100%;
+    display:grid;
+    grid-template-columns:repeat(2, minmax(0, 1fr));
+    gap:calc($spacing*1);
+  }
+  .search-page__quick-actions .btn{
+    width:100%;
+    justify-content:center;
+    min-width:0;
+    white-space:nowrap;
   }
   .search-page__header-buttons .btn{
     min-height:42px;
   }
   .search-page__alert-button{
-    margin-left:auto;
+    margin-left:0;
   }
   .search-page__header-content{
     order:-1;
@@ -1372,15 +1399,34 @@
     border:1px solid rgba(15,35,63,.08);
     border-radius:calc($radius);
     padding:calc($spacing*.75);
-    overflow-x:auto;
-    flex-wrap:nowrap;
+    display:grid;
+    gap:calc($spacing*.75);
   }
   .search-view-toggle{
-    flex-shrink:0;
+    display:grid;
+    grid-template-columns:repeat(2, minmax(0, 1fr));
+    width:100%;
+    border-radius:calc($radius*.9);
+    padding:calc($spacing*.4);
   }
-  .search-page__filters-toggle,
-  .search-page__alert-button{
-    flex-shrink:0;
+  .search-view-toggle__btn{
+    justify-content:center;
+    min-width:0;
+    padding:calc($spacing*.8) calc($spacing*.95);
+    font-size:.9rem;
+  }
+  .search-page__quick-actions{
+    width:100%;
+    display:grid;
+    grid-template-columns:repeat(2, minmax(0, 1fr));
+    gap:calc($spacing*.75);
+  }
+  .search-page__quick-actions .btn{
+    justify-content:center;
+    width:100%;
+    min-width:0;
+    padding-inline:calc($spacing*.95);
+    font-size:.9rem;
   }
   .search-page__alert-button{
     margin-left:0;
@@ -1392,6 +1438,12 @@
     grid-template-columns:1fr;
   }
   .listings-grid{
+    grid-template-columns:1fr;
+  }
+}
+
+@media (max-width: 420px){
+  .search-page__quick-actions{
     grid-template-columns:1fr;
   }
 }
