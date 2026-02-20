@@ -1836,7 +1836,11 @@ export default function SearchResults(){
                     }
                   }}
                   onFocus={() => setLocationOpen(true)}
-                  onBlur={() => {
+                  onBlur={event => {
+                    const nextTarget = event.relatedTarget as Node | null
+                    if (nextTarget && locationWrapperRef.current?.contains(nextTarget)) {
+                      return
+                    }
                     if (!locationQuery.trim()) {
                       return
                     }
@@ -1876,6 +1880,7 @@ export default function SearchResults(){
                         key={suggestion.id}
                         type="button"
                         className="search-location__item"
+                        onMouseDown={event => event.preventDefault()}
                         onClick={() => handleLocationSelect(suggestion)}
                       >
                         <span className="search-location__marker" aria-hidden="true">
