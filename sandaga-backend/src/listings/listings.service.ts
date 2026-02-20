@@ -1213,11 +1213,19 @@ export class ListingsService {
       return [];
     }
 
-    const rootCategory = await this.categoriesRepository
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      normalizedFilter
+    );
+
+    const query = this.categoriesRepository
       .createQueryBuilder('category')
-      .where('LOWER(category.slug) = LOWER(:filter)', { filter: normalizedFilter })
-      .orWhere('category.id = :filter', { filter: normalizedFilter })
-      .getOne();
+      .where('LOWER(category.slug) = LOWER(:filter)', { filter: normalizedFilter });
+
+    if (isUuid) {
+      query.orWhere('category.id = :categoryId', { categoryId: normalizedFilter });
+    }
+
+    const rootCategory = await query.getOne();
 
     if (!rootCategory) {
       return [];
