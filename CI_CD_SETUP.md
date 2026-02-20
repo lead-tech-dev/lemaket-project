@@ -66,6 +66,67 @@ Note: production smoke tests in CI run on the VPS itself via SSH
 bash ./scripts/smoke.sh http://localhost:3000
 ```
 
+## Data Sync Helper
+- Script: `scripts/k8s-data-sync.sh`
+- Run on VPS (or any host with kubectl access to this cluster).
+- Modes:
+  - `subset`: sync from dev to prod only these tables:
+    - `categories`
+    - admin users (`users` where `role='admin'`)
+    - `form_steps`
+    - `form_fields`
+  - `all`: restore full dump into dev, then run `subset`
+
+Examples:
+```bash
+bash ./scripts/k8s-data-sync.sh --mode subset
+```
+
+```bash
+bash ./scripts/k8s-data-sync.sh --mode all --dev-dump /path/sandaga-full.dump
+```
+
+## Monitoring Helper
+- Script: `scripts/k8s-monitor.sh`
+- Checks:
+  - `https://api-dev.lemaket.com/health`
+  - `https://api.lemaket.com/health`
+  - backend pod state in `sandaga-dev` and `sandaga-prod`
+  - backend error-like logs (`--since=15m`)
+  - disk usage on `/`
+- Exit code:
+  - `0` when no critical issue
+  - `1` when at least one failure is detected
+- Optional webhook alert:
+  - set `ALERT_WEBHOOK_URL` (Slack/Discord compatible payload)
+  - set `ALERT_ON_WARN=true` to notify warnings too
+
+Run manually:
+```bash
+bash ./scripts/k8s-monitor.sh
+```
+
+Recommended cron (every 5 minutes):
+```bash
+mkdir -p /home/deploy/ops
+cp scripts/k8s-monitor.sh /home/deploy/ops/k8s-monitor.sh
+chmod +x /home/deploy/ops/k8s-monitor.sh
+```
+
+```bash
+cat >/home/deploy/ops/monitor.env <<'EOF'
+ALERT_WEBHOOK_URL=
+ALERT_ON_WARN=false
+DISK_WARN_PERCENT=85
+DISK_CRIT_PERCENT=95
+LOG_SINCE=15m
+EOF
+```
+
+```bash
+(crontab -l 2>/dev/null; echo "*/5 * * * * . /home/deploy/ops/monitor.env; /home/deploy/ops/k8s-monitor.sh >> /home/deploy/ops/monitor.log 2>&1") | crontab -
+```
+
 ## OVH deployment runbook
 - See `deploy/ovh/OVH_DEPLOY_PLAN.md`
 - Env template: `deploy/ovh/.env.prod.example`
