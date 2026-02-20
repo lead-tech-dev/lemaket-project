@@ -21,16 +21,16 @@ SSH_OPTS=(
 )
 
 REMOTE="${PROD_SSH_USER}@${PROD_SSH_HOST}"
-REMOTE_DIR="$HOME/sandaga-k8s-prod"
+REMOTE_DIR=".sandaga-k8s-prod"
 
-ssh "${SSH_OPTS[@]}" "$REMOTE" "mkdir -p '$REMOTE_DIR'"
-scp "${SSH_OPTS[@]}" "$K8S_MANIFEST_PATH" "$REMOTE:$REMOTE_DIR/apps.yaml"
+ssh "${SSH_OPTS[@]}" "$REMOTE" "mkdir -p \"\$HOME/${REMOTE_DIR}\""
+scp "${SSH_OPTS[@]}" "$K8S_MANIFEST_PATH" "$REMOTE:${REMOTE_DIR}/apps.yaml"
 
 ssh "${SSH_OPTS[@]}" "$REMOTE" <<EOF
 set -euo pipefail
 
 kubectl get namespace "${K8S_NAMESPACE}" >/dev/null 2>&1 || kubectl create namespace "${K8S_NAMESPACE}"
-kubectl -n "${K8S_NAMESPACE}" apply -f "${REMOTE_DIR}/apps.yaml"
+kubectl -n "${K8S_NAMESPACE}" apply -f "\$HOME/${REMOTE_DIR}/apps.yaml"
 
 if [[ -n "${GHCR_USER:-}" && -n "${GHCR_TOKEN:-}" ]]; then
   kubectl -n "${K8S_NAMESPACE}" create secret docker-registry ghcr-creds \
