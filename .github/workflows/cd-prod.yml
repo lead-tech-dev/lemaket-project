@@ -96,44 +96,26 @@ jobs:
           echo "${{ secrets.PROD_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
 
-      - name: Prepare PROD .env file
-        if: ${{ steps.preflight.outputs.ready == 'true' }}
-        id: prod_env
-        env:
-          PROD_ENV_FILE_CONTENT: ${{ secrets.PROD_ENV_FILE }}
-        run: |
-          if [[ -n "$PROD_ENV_FILE_CONTENT" ]]; then
-            printf '%s\n' "$PROD_ENV_FILE_CONTENT" > ./.tmp.prod.env
-            chmod 600 ./.tmp.prod.env
-            echo "path=./.tmp.prod.env" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Deploy to production
         if: ${{ steps.preflight.outputs.ready == 'true' }}
         env:
           PROD_SSH_HOST: ${{ secrets.PROD_SSH_HOST }}
           PROD_SSH_USER: ${{ secrets.PROD_SSH_USER }}
-          PROD_APP_DIR: ${{ vars.PROD_APP_DIR || format('/home/{0}/sandaga', secrets.PROD_SSH_USER) }}
           GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BACKEND_IMAGE: ${{ needs.build-and-push.outputs.backend_image }}
           FRONTEND_IMAGE: ${{ needs.build-and-push.outputs.frontend_image }}
-          PROD_ENV_FILE: ${{ steps.prod_env.outputs.path }}
-          PROD_APP_PUBLIC_URL: ${{ vars.PROD_APP_PUBLIC_URL || 'https://lemaket.com' }}
-          PROD_API_PUBLIC_URL: ${{ vars.PROD_API_PUBLIC_URL || 'https://api.lemaket.com' }}
-        run: bash ./scripts/deploy-prod.sh
-
-      - name: Cleanup temp env file
-        if: always()
-        run: rm -f ./.tmp.prod.env
+          K8S_NAMESPACE: ${{ vars.PROD_K8S_NAMESPACE || 'sandaga-prod' }}
+          K8S_MANIFEST_PATH: deploy/k8s/prod/apps.yaml
+        run: bash ./scripts/deploy-k8s-prod.sh
 
       - name: Smoke test production (remote)
         if: ${{ steps.preflight.outputs.ready == 'true' }}
         env:
           PROD_SSH_HOST: ${{ secrets.PROD_SSH_HOST }}
           PROD_SSH_USER: ${{ secrets.PROD_SSH_USER }}
-          PROD_BACKEND_PORT: ${{ vars.PROD_BACKEND_PORT || '3000' }}
+          PROD_K8S_BACKEND_NODEPORT: ${{ vars.PROD_K8S_BACKEND_NODEPORT || '32100' }}
         run: |
           ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
             "${PROD_SSH_USER}@${PROD_SSH_HOST}" \
-            "BASE_URL=http://localhost:${PROD_BACKEND_PORT} bash -s" < ./scripts/smoke.sh
+            "BASE_URL=http://localhost:${PROD_K8S_BACKEND_NODEPORT} bash -s" < ./scripts/smoke.sh

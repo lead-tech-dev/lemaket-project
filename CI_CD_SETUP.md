@@ -2,8 +2,8 @@
 
 ## Workflows
 - `ci.yml`: build + tests backend/frontend + docker build + integration flow tests.
-- `cd-dev.yml`: build/push images to GHCR, deploy to development server on `develop`.
-- `cd-prod.yml`: build/push images to GHCR, deploy to production server on `main`.
+- `cd-dev.yml`: build/push images to GHCR, deploy to Kubernetes (`sandaga-dev`) on `develop`.
+- `cd-prod.yml`: build/push images to GHCR, deploy to Kubernetes (`sandaga-prod`) on `main`.
 
 ## Required GitHub Secrets
 
@@ -11,60 +11,51 @@
 - `DEV_SSH_HOST`
 - `DEV_SSH_USER`
 - `DEV_SSH_KEY`
-- `DEV_ENV_FILE` (optional, full remote `.env` content to auto-provision on deploy)
 - `DEV_VITE_MAPBOX_TOKEN` (optional)
-
-If `DEV_ENV_FILE` is not set and remote `.env` is missing, `deploy-dev.sh` bootstraps
-an initial `.env` from `deploy/ovh/.env.prod.example` and generates a random
-`JWT_SECRET`. You should review and update that file on the server after first deploy.
 
 ### Production
 - `PROD_SSH_HOST`
 - `PROD_SSH_USER`
 - `PROD_SSH_KEY`
-- `PROD_ENV_FILE` (optional, full remote `.env` content to auto-provision on deploy)
 - `PROD_VITE_MAPBOX_TOKEN` (optional)
 
 ## Required GitHub Variables
 
 ### Development
-- `DEV_APP_DIR` (default `/opt/sandaga-dev`)
 - `DEV_VITE_API_URL` (frontend build arg, default `https://api-dev.lemaket.com`)
-- `DEV_BACKEND_PORT` (default `3001`)
-- `DEV_FRONTEND_PORT` (default `8081`)
-- `DEV_APP_PUBLIC_URL` (default `https://dev.lemaket.com`)
-- `DEV_API_PUBLIC_URL` (default `https://api-dev.lemaket.com`)
+- `DEV_K8S_NAMESPACE` (default `sandaga-dev`)
+- `DEV_K8S_BACKEND_NODEPORT` (default `32001`)
 
 Note: development smoke tests in CI run on the VPS itself via SSH
-(`http://localhost:${DEV_BACKEND_PORT}`), so DNS for a public dev domain is not required.
+(`http://localhost:${DEV_K8S_BACKEND_NODEPORT}`), so DNS for a public dev domain is not required.
 
 ### Production
-- `PROD_APP_DIR` (default `/opt/sandaga`)
 - `PROD_VITE_API_URL` (frontend build arg, default `https://api.lemaket.com`)
-- `PROD_BACKEND_PORT` (default `3000`)
-- `PROD_APP_PUBLIC_URL` (default `https://lemaket.com`)
-- `PROD_API_PUBLIC_URL` (default `https://api.lemaket.com`)
+- `PROD_K8S_NAMESPACE` (default `sandaga-prod`)
+- `PROD_K8S_BACKEND_NODEPORT` (default `32100`)
 
 Note: production smoke tests in CI run on the VPS itself via SSH
-(`http://localhost:${PROD_BACKEND_PORT}`), so DNS propagation does not block deploy validation.
+(`http://localhost:${PROD_K8S_BACKEND_NODEPORT}`), so DNS propagation does not block deploy validation.
 
 ## Remote server prerequisites
-- Docker + Docker Compose installed.
-- A `.env` file present in `${DEV_APP_DIR}` / `${PROD_APP_DIR}` with app secrets:
-  - DB credentials
-  - `JWT_SECRET`
-  - storage settings
-  - payment settings
-  - optional `PLATFORM_WALLET_USER_ID`
-- Open ports:
-  - API: `3000` (or `BACKEND_PORT`)
-  - Frontend: `80` (or `FRONTEND_PORT`)
+- k3s/Kubernetes installed and `kubectl` available for SSH user.
+- Namespaces exist (or let scripts create them):
+  - `sandaga-dev`
+  - `sandaga-prod`
+- Secret present in each namespace:
+  - `sandaga-dev-env` in `sandaga-dev`
+  - `sandaga-prod-env` in `sandaga-prod`
+- Existing PostgreSQL/MinIO services reachable from app pods.
+- NodePorts open locally on VPS:
+  - dev: backend `32001`, frontend `32081`
+  - prod: backend `32100`, frontend `32180`
 
-## Deploy compose file
-- `docker-compose.deploy.yml` is copied by deploy scripts to remote target dir.
-- Images are injected with:
-  - `BACKEND_IMAGE`
-  - `FRONTEND_IMAGE`
+## Kubernetes manifests
+- Development app manifest: `deploy/k8s/dev/apps.yaml`
+- Production app manifest: `deploy/k8s/prod/apps.yaml`
+- Deploy scripts:
+  - `scripts/deploy-k8s-dev.sh`
+  - `scripts/deploy-k8s-prod.sh`
 
 ## GitHub Environments
 - `development`
