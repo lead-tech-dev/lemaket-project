@@ -75,6 +75,18 @@
   font-size: 0.95rem;
 }
 
+.user-public__fact-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-accent);
+  flex-shrink: 0;
+}
+
+.user-public__fact-icon svg {
+  display: block;
+}
+
 .user-public__actions {
   display: flex;
   align-items: center;

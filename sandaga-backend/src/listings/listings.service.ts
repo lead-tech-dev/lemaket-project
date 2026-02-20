@@ -633,9 +633,16 @@ export class ListingsService {
     }
 
     if (filter.city) {
-      query.andWhere(`listing.location->>'city' ILIKE :city`, {
-        city: `%${filter.city}%`
-      });
+      query.andWhere(
+        `(
+          COALESCE(listing.location->>'city', '') ILIKE :city
+          OR COALESCE(listing.location->>'address', '') ILIKE :city
+          OR COALESCE(listing.location->>'label', '') ILIKE :city
+        )`,
+        {
+          city: `%${filter.city}%`
+        }
+      );
     }
 
     if (filter.status) {
@@ -672,26 +679,40 @@ export class ListingsService {
       filter.radiusKm !== undefined &&
       filter.radiusKm > 0
     ) {
-      query.andWhere(`(listing.location->>'lat') IS NOT NULL AND (listing.location->>'lng') IS NOT NULL`);
-      query.andWhere(
-        `(
-          111.045 * DEGREES(
-            ACOS(
-              LEAST(
-                1.0,
-                COS(RADIANS(:lat)) * COS(RADIANS(CAST(listing.location->>'lat' AS DOUBLE PRECISION)))
-                * COS(RADIANS(CAST(listing.location->>'lng' AS DOUBLE PRECISION)) - RADIANS(:lng))
-                + SIN(RADIANS(:lat)) * SIN(RADIANS(CAST(listing.location->>'lat' AS DOUBLE PRECISION)))
-              )
+      const radiusCondition = `(
+        111.045 * DEGREES(
+          ACOS(
+            LEAST(
+              1.0,
+              COS(RADIANS(:lat)) * COS(RADIANS(CAST(listing.location->>'lat' AS DOUBLE PRECISION)))
+              * COS(RADIANS(CAST(listing.location->>'lng' AS DOUBLE PRECISION)) - RADIANS(:lng))
+              + SIN(RADIANS(:lat)) * SIN(RADIANS(CAST(listing.location->>'lat' AS DOUBLE PRECISION)))
             )
           )
-        ) <= :radiusKm`,
-        {
+        )
+      ) <= :radiusKm`;
+
+      if (filter.city) {
+        query.andWhere(
+          `(
+            ((listing.location->>'lat') IS NOT NULL AND (listing.location->>'lng') IS NOT NULL AND ${radiusCondition})
+            OR (listing.location->>'lat') IS NULL
+            OR (listing.location->>'lng') IS NULL
+          )`,
+          {
+            lat: filter.lat,
+            lng: filter.lng,
+            radiusKm: filter.radiusKm
+          }
+        );
+      } else {
+        query.andWhere(`(listing.location->>'lat') IS NOT NULL AND (listing.location->>'lng') IS NOT NULL`);
+        query.andWhere(radiusCondition, {
           lat: filter.lat,
           lng: filter.lng,
           radiusKm: filter.radiusKm
-        }
-      );
+        });
+      }
     }
 
     if (filter.isFeatured !== undefined) {

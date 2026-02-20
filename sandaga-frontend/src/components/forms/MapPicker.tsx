@@ -5,6 +5,7 @@ type MapboxMarker = import('mapbox-gl').Marker
 import { useFormContext } from 'react-hook-form'
 import { FormField } from '../ui/FormField'
 import { Input } from '../ui/Input'
+import { LocationPinIcon } from '../ui/LocationPinIcon'
 import type { FormField as CategoryFormField } from '../../types/category'
 import { useI18n } from '../../contexts/I18nContext'
 
@@ -654,7 +655,9 @@ export function MapPicker({ latitude, longitude, address, locationField, basePat
                   onFocus={() => setHoveredSuggestionId(suggestion.id)}
                   onBlur={() => setHoveredSuggestionId(null)}
                 >
-                  <div style={suggestionIconStyle}>📍</div>
+                  <div style={suggestionIconStyle}>
+                    <LocationPinIcon />
+                  </div>
                   <div style={suggestionTextStyle}>
                     <span style={suggestionLabelStyle} title={primary}>
                       {primary}

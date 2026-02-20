@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { screen } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import SearchResults from './SearchResults'
 import { renderWithProviders } from '../../test/test-utils'
@@ -104,5 +104,25 @@ describe('SearchResults', () => {
       expect.stringContaining('/listings?'),
       expect.any(Object)
     )
+  })
+
+  it('applies manual location search on Enter', async () => {
+    const user = userEvent.setup()
+
+    renderWithProviders(<SearchResults />, {
+      useRouter: true,
+      router: { initialEntries: ['/search'] }
+    })
+
+    const locationInput = await screen.findByPlaceholderText(/ville|city/i)
+    await user.clear(locationInput)
+    await user.type(locationInput, 'Douala{enter}')
+
+    await waitFor(() => {
+      expect(vi.mocked(Api.apiGet)).toHaveBeenCalledWith(
+        expect.stringContaining('city=Douala'),
+        expect.any(Object)
+      )
+    })
   })
 })

@@ -19,6 +19,15 @@ import { NotificationsService } from '../src/notifications/notifications.service
 describe('ListingsService', () => {
   let service: ListingsService;
   let repository: Repository<Listing>;
+  const queryBuilderMock = {
+    leftJoinAndSelect: jest.fn().mockReturnThis(),
+    orderBy: jest.fn().mockReturnThis(),
+    addOrderBy: jest.fn().mockReturnThis(),
+    andWhere: jest.fn().mockReturnThis(),
+    skip: jest.fn().mockReturnThis(),
+    take: jest.fn().mockReturnThis(),
+    getManyAndCount: jest.fn(),
+  };
 
   const mockListingRepository = {
     create: jest.fn(),
@@ -28,14 +37,7 @@ describe('ListingsService', () => {
     increment: jest.fn(),
     find: jest.fn(),
     count: jest.fn(),
-    createQueryBuilder: jest.fn(() => ({
-      leftJoinAndSelect: jest.fn().mockReturnThis(),
-      orderBy: jest.fn().mockReturnThis(),
-      andWhere: jest.fn().mockReturnThis(),
-      skip: jest.fn().mockReturnThis(),
-      take: jest.fn().mockReturnThis(),
-      getManyAndCount: jest.fn(),
-    })),
+    createQueryBuilder: jest.fn(() => queryBuilderMock),
   };
 
   const mockListingImageRepository = {
@@ -66,6 +68,9 @@ describe('ListingsService', () => {
   };
 
   beforeEach(async () => {
+    jest.clearAllMocks();
+    queryBuilderMock.getManyAndCount.mockResolvedValue([[], 0]);
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ListingsService,
@@ -179,6 +184,30 @@ describe('ListingsService', () => {
 
       await expect(service.findOne('1')).rejects.toThrow(
         new NotFoundException('Listing not found.'),
+      );
+    });
+  });
+
+  describe('findAll', () => {
+    it('filters city against city/address/label', async () => {
+      await service.findAll({ city: 'Douala' } as any);
+
+      expect(queryBuilderMock.andWhere).toHaveBeenCalledWith(
+        expect.stringContaining(`COALESCE(listing.location->>'address', '') ILIKE :city`),
+        { city: '%Douala%' }
+      );
+    });
+
+    it('keeps city matches without coordinates when radius filter is enabled', async () => {
+      await service.findAll({ city: 'Douala', lat: 4.0511, lng: 9.7679, radiusKm: 25 } as any);
+
+      expect(queryBuilderMock.andWhere).toHaveBeenCalledWith(
+        expect.stringContaining(`OR (listing.location->>'lat') IS NULL`),
+        expect.objectContaining({
+          lat: 4.0511,
+          lng: 9.7679,
+          radiusKm: 25
+        })
       );
     });
   });

@@ -16,6 +16,7 @@ import { resolveMediaUrl } from '../../utils/media'
 import { formatListingLocation } from '../../utils/location'
 import { useAuth } from '../../hooks/useAuth'
 import { useFollowedSellers } from '../../hooks/useFollowedSellers'
+import { LocationPinIcon } from '../../components/ui/LocationPinIcon'
 
 const LISTINGS_LIMIT = 12
 const REVIEWS_LIMIT = 6
@@ -370,7 +371,9 @@ export default function StorefrontPage() {
                 <div className="storefront-about__layout">
                   <div className="storefront-about__facts">
                     <div className="storefront-about__fact">
-                      <span className="storefront-about__icon" aria-hidden>📍</span>
+                      <span className="storefront-about__icon" aria-hidden>
+                        <LocationPinIcon />
+                      </span>
                       <div>
                         <span className="storefront-about__label">{t('storefront.about.location')}</span>
                         <strong className="storefront-about__value">

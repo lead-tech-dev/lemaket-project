@@ -26,6 +26,7 @@ import { ROOT_LISTING_FIELDS } from '../../constants/listingForm'
 import { formatListingLocation } from '../../utils/location'
 import { useFollowedSellers } from '../../hooks/useFollowedSellers'
 import { useAuth } from '../../hooks/useAuth'
+import { LocationPinIcon } from '../../components/ui/LocationPinIcon'
 
 const DEFAULT_PAGE_SIZE = 20
 const ATTRIBUTE_PARAM_PREFIX = 'attr_'
@@ -1061,6 +1062,31 @@ export default function SearchResults(){
     setLocationError(null)
   }
 
+  const commitManualLocation = () => {
+    const nextValue = locationQuery.trim()
+    const params = new URLSearchParams(searchParamsString)
+    const currentLocation = (params.get('l') ?? '').trim()
+    const hasGeoSelection = params.has('lat') || params.has('lng')
+
+    if (nextValue === currentLocation && !hasGeoSelection) {
+      setLocationOpen(false)
+      return
+    }
+
+    if (nextValue) {
+      params.set('l', nextValue)
+    } else {
+      params.delete('l')
+    }
+    params.delete('lat')
+    params.delete('lng')
+    params.delete('page')
+    setPreference('page', 1)
+    setSearchParams(params)
+    setLocationOpen(false)
+    setLocationError(null)
+  }
+
   const handleLocationSelect = (suggestion: LocationSuggestion) => {
     const params = new URLSearchParams(searchParamsString)
     const cityValue = suggestion.city ?? suggestion.label
@@ -1793,7 +1819,9 @@ export default function SearchResults(){
           <div className="search-page__header-actions">
             <div className="search-page__location">
               <div className="search-location" ref={locationWrapperRef}>
-                <span className="search-location__icon" aria-hidden="true">📍</span>
+                <span className="search-location__icon" aria-hidden="true">
+                  <LocationPinIcon />
+                </span>
                 <Input
                   id="search-location-input"
                   ref={locationInputRef}
@@ -1808,6 +1836,18 @@ export default function SearchResults(){
                     }
                   }}
                   onFocus={() => setLocationOpen(true)}
+                  onBlur={() => {
+                    if (!locationQuery.trim()) {
+                      return
+                    }
+                    commitManualLocation()
+                  }}
+                  onKeyDown={event => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault()
+                      commitManualLocation()
+                    }
+                  }}
                 />
                 {locationQuery ? (
                   <button
@@ -1838,7 +1878,9 @@ export default function SearchResults(){
                         className="search-location__item"
                         onClick={() => handleLocationSelect(suggestion)}
                       >
-                        <span className="search-location__marker" aria-hidden="true">📍</span>
+                        <span className="search-location__marker" aria-hidden="true">
+                          <LocationPinIcon />
+                        </span>
                         <span className="search-location__text">
                           <span className="search-location__label">{suggestion.label}</span>
                           {suggestion.context ? (

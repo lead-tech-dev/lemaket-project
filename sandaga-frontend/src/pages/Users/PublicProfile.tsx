@@ -13,6 +13,7 @@ import { resolveMediaUrl } from '../../utils/media'
 import { formatListingLocation } from '../../utils/location'
 import type { Listing } from '../../types/listing'
 import type { Paginated } from '../../types/pagination'
+import { LocationPinIcon } from '../../components/ui/LocationPinIcon'
 
 type PublicUserProfile = {
   id: string
@@ -429,7 +430,12 @@ export default function PublicUserProfile() {
                   <ul className="user-public__facts">
                     <li>👥 {numberFormatter.format(profile.proFollowsCount ?? 0)} Pro suivis</li>
                     <li>📅 Membre depuis {formatMemberSinceDate(profile.createdAt, locale)}</li>
-                    <li>📍 {profile.location ?? '—'}</li>
+                    <li>
+                      <span className="user-public__fact-icon" aria-hidden>
+                        <LocationPinIcon />
+                      </span>
+                      {profile.location ?? '—'}
+                    </li>
                     <li>⏱ {formatLastActive(profile.lastLoginAt, locale)}</li>
                   </ul>
                 </div>
