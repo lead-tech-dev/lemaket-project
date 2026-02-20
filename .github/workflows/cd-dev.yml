@@ -100,10 +100,10 @@ jobs:
 
       - name: Validate dev Mapbox token
         env:
-          DEV_MAPBOX_PUBLIC_KEY: ${{ secrets.DEV_VITE_MAPBOX_TOKEN || vars.DEV_VITE_MAPBOX_TOKEN || '' }}
+          DEV_MAPBOX_PUBLIC_KEY: ${{ secrets.DEV_VITE_MAPBOX_TOKEN || vars.DEV_VITE_MAPBOX_TOKEN || secrets.VITE_MAPBOX_TOKEN || vars.VITE_MAPBOX_TOKEN || '' }}
         run: |
           if [[ -z "$DEV_MAPBOX_PUBLIC_KEY" ]]; then
-            echo "Missing DEV_VITE_MAPBOX_TOKEN. Set it in GitHub Secrets or Repository Variables." >&2
+            echo "Missing Mapbox token. Define DEV_VITE_MAPBOX_TOKEN (preferred) or VITE_MAPBOX_TOKEN in GitHub Secrets/Variables." >&2
             exit 1
           fi
 
@@ -117,7 +117,7 @@ jobs:
             ${{ steps.meta.outputs.frontend_stable }}
           build-args: |
             VITE_API_URL=${{ vars.DEV_VITE_API_URL || 'https://api-dev.lemaket.com' }}
-            MAPBOX_PUBLIC_KEY=${{ secrets.DEV_VITE_MAPBOX_TOKEN || vars.DEV_VITE_MAPBOX_TOKEN || '' }}
+            MAPBOX_PUBLIC_KEY=${{ secrets.DEV_VITE_MAPBOX_TOKEN || vars.DEV_VITE_MAPBOX_TOKEN || secrets.VITE_MAPBOX_TOKEN || vars.VITE_MAPBOX_TOKEN || '' }}
 
   deploy-dev:
     runs-on: ubuntu-latest

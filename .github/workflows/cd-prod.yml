@@ -100,10 +100,10 @@ jobs:
 
       - name: Validate prod Mapbox token
         env:
-          PROD_MAPBOX_PUBLIC_KEY: ${{ secrets.PROD_VITE_MAPBOX_TOKEN || vars.PROD_VITE_MAPBOX_TOKEN || '' }}
+          PROD_MAPBOX_PUBLIC_KEY: ${{ secrets.PROD_VITE_MAPBOX_TOKEN || vars.PROD_VITE_MAPBOX_TOKEN || secrets.VITE_MAPBOX_TOKEN || vars.VITE_MAPBOX_TOKEN || '' }}
         run: |
           if [[ -z "$PROD_MAPBOX_PUBLIC_KEY" ]]; then
-            echo "Missing PROD_VITE_MAPBOX_TOKEN. Set it in GitHub Secrets or Repository Variables." >&2
+            echo "Missing Mapbox token. Define PROD_VITE_MAPBOX_TOKEN (preferred) or VITE_MAPBOX_TOKEN in GitHub Secrets/Variables." >&2
             exit 1
           fi
 
@@ -117,7 +117,7 @@ jobs:
             ${{ steps.meta.outputs.frontend_latest }}
           build-args: |
             VITE_API_URL=${{ vars.PROD_VITE_API_URL || 'https://api.lemaket.com' }}
-            MAPBOX_PUBLIC_KEY=${{ secrets.PROD_VITE_MAPBOX_TOKEN || vars.PROD_VITE_MAPBOX_TOKEN || '' }}
+            MAPBOX_PUBLIC_KEY=${{ secrets.PROD_VITE_MAPBOX_TOKEN || vars.PROD_VITE_MAPBOX_TOKEN || secrets.VITE_MAPBOX_TOKEN || vars.VITE_MAPBOX_TOKEN || '' }}
 
   deploy-production:
     runs-on: ubuntu-latest
