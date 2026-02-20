@@ -55,6 +55,7 @@ describe('ListingsService', () => {
 
   const mockCategoryRepository = {
     createQueryBuilder: jest.fn(() => categoryQueryBuilderMock),
+    find: jest.fn(),
   };
 
   const mockListingImageRepository = {
@@ -89,6 +90,7 @@ describe('ListingsService', () => {
     queryBuilderMock.getManyAndCount.mockResolvedValue([[], 0]);
     categoryQueryBuilderMock.getOne.mockResolvedValue(null);
     treeRepositoryMock.findDescendants.mockResolvedValue([]);
+    mockCategoryRepository.find.mockResolvedValue([]);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -228,6 +230,28 @@ describe('ListingsService', () => {
       expect(queryBuilderMock.andWhere).toHaveBeenCalledWith(
         'category.id IN (:...categoryScopeIds)',
         { categoryScopeIds: ['cat-parent', 'cat-child-1', 'cat-child-2'] }
+      );
+    });
+
+    it('falls back to parent relation when descendants tree is incomplete', async () => {
+      categoryQueryBuilderMock.getOne.mockResolvedValue({
+        id: 'cat-parent',
+        slug: 'vehicules',
+      } as Category);
+      treeRepositoryMock.findDescendants.mockResolvedValue([
+        { id: 'cat-parent' } as Category,
+      ]);
+      mockCategoryRepository.find.mockResolvedValue([
+        { id: 'cat-parent', parent: null } as unknown as Category,
+        { id: 'cat-child-a', parent: { id: 'cat-parent' } } as unknown as Category,
+        { id: 'cat-child-b', parent: { id: 'cat-parent' } } as unknown as Category,
+      ]);
+
+      await service.findAll({ categorySlug: 'vehicules' } as any);
+
+      expect(queryBuilderMock.andWhere).toHaveBeenCalledWith(
+        'category.id IN (:...categoryScopeIds)',
+        { categoryScopeIds: ['cat-parent', 'cat-child-a', 'cat-child-b'] }
       );
     });
 

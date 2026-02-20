@@ -1233,12 +1233,31 @@ export class ListingsService {
 
     const treeRepository = this.listingsRepository.manager.getTreeRepository(Category);
     const descendants = await treeRepository.findDescendants(rootCategory);
-    const categoryIds = new Set<string>([rootCategory.id]);
 
+    // Fallback when closure-table data is stale/missing: walk via parent relations.
+    if (descendants.length <= 1) {
+      const categories = await this.categoriesRepository.find({ relations: ['parent'] });
+      const categoryIds = new Set<string>([rootCategory.id]);
+      const queue: string[] = [rootCategory.id];
+
+      while (queue.length > 0) {
+        const currentId = queue.shift()!;
+        categories.forEach(category => {
+          const parentId = category.parent?.id;
+          if (parentId === currentId && !categoryIds.has(category.id)) {
+            categoryIds.add(category.id);
+            queue.push(category.id);
+          }
+        });
+      }
+
+      return Array.from(categoryIds);
+    }
+
+    const categoryIds = new Set<string>([rootCategory.id]);
     descendants.forEach(category => {
       categoryIds.add(category.id);
     });
-
     return Array.from(categoryIds);
   }
 
