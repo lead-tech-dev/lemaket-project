@@ -1,0 +1,53 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: sandaga-monitoring-rules
+  namespace: monitoring
+  labels:
+    release: monitoring
+spec:
+  groups:
+    - name: sandaga.http
+      rules:
+        - alert: SandagaApiDevDown
+          expr: probe_success{namespace="monitoring",env="dev",service="api"} == 0
+          for: 2m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "Sandaga dev API is down"
+            description: "https://api-dev.lemaket.com/health fails for more than 2 minutes."
+        - alert: SandagaApiProdDown
+          expr: probe_success{namespace="monitoring",env="prod",service="api"} == 0
+          for: 2m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "Sandaga prod API is down"
+            description: "https://api.lemaket.com/health fails for more than 2 minutes."
+
+    - name: sandaga.k8s
+      rules:
+        - alert: SandagaBackendCrashLoop
+          expr: max by (namespace, pod) (kube_pod_container_status_waiting_reason{namespace=~"sandaga-dev|sandaga-prod",reason="CrashLoopBackOff"}) > 0
+          for: 5m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Backend pod crashloop"
+            description: "A backend pod is in CrashLoopBackOff for more than 5 minutes."
+
+    - name: sandaga.node
+      rules:
+        - alert: NodeDiskUsageHigh
+          expr: 100 - ((node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay"} * 100) / node_filesystem_size_bytes{mountpoint="/",fstype!~"tmpfs|overlay"}) > 85
+          for: 10m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Node disk usage high"
+            description: "Root filesystem usage is above 85% for more than 10 minutes."

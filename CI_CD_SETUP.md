@@ -127,6 +127,42 @@ EOF
 (crontab -l 2>/dev/null; echo "*/5 * * * * . /home/deploy/ops/monitor.env; /home/deploy/ops/k8s-monitor.sh >> /home/deploy/ops/monitor.log 2>&1") | crontab -
 ```
 
+## Pro Monitoring Stack (Prometheus + Grafana + Loki + Alertmanager)
+- Install script: `scripts/install-k8s-monitoring.sh`
+- Optional alert webhook script: `scripts/configure-k8s-alert-webhook.sh`
+- Kubernetes resources:
+  - `deploy/k8s/monitoring/values-kube-prometheus-stack.yaml`
+  - `deploy/k8s/monitoring/values-blackbox.yaml`
+  - `deploy/k8s/monitoring/values-loki.yaml`
+  - `deploy/k8s/monitoring/values-promtail.yaml`
+  - `deploy/k8s/monitoring/probes.yaml`
+  - `deploy/k8s/monitoring/rules.yaml`
+  - `deploy/k8s/monitoring/grafana-dashboard-sandaga-overview.yaml`
+  - `deploy/k8s/monitoring/alertmanager-config.yaml`
+
+Install:
+```bash
+chmod +x scripts/install-k8s-monitoring.sh
+bash ./scripts/install-k8s-monitoring.sh
+```
+
+Optional webhook alerts:
+```bash
+chmod +x scripts/configure-k8s-alert-webhook.sh
+ALERT_WEBHOOK_URL="https://<your-webhook>" bash ./scripts/configure-k8s-alert-webhook.sh
+```
+
+Quick checks:
+```bash
+sudo -n k3s kubectl -n monitoring get pods
+sudo -n k3s kubectl -n monitoring get svc
+```
+
+Default NodePorts:
+- Grafana: `32300`
+- Prometheus: `32301`
+- Alertmanager: `32303`
+
 ## OVH deployment runbook
 - See `deploy/ovh/OVH_DEPLOY_PLAN.md`
 - Env template: `deploy/ovh/.env.prod.example`

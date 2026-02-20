@@ -1,0 +1,41 @@
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: sandaga-api-dev-probe
+  namespace: monitoring
+  labels:
+    release: monitoring
+    app.kubernetes.io/name: sandaga-api-dev-probe
+spec:
+  interval: 30s
+  module: http_2xx
+  prober:
+    url: blackbox-prometheus-blackbox-exporter.monitoring.svc.cluster.local:9115
+  targets:
+    staticConfig:
+      labels:
+        env: dev
+        service: api
+      static:
+        - https://api-dev.lemaket.com/health
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: sandaga-api-prod-probe
+  namespace: monitoring
+  labels:
+    release: monitoring
+    app.kubernetes.io/name: sandaga-api-prod-probe
+spec:
+  interval: 30s
+  module: http_2xx
+  prober:
+    url: blackbox-prometheus-blackbox-exporter.monitoring.svc.cluster.local:9115
+  targets:
+    staticConfig:
+      labels:
+        env: prod
+        service: api
+      static:
+        - https://api.lemaket.com/health

@@ -1,0 +1,47 @@
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: sandaga-alerts-webhook
+  namespace: monitoring
+  labels:
+    release: monitoring
+spec:
+  route:
+    groupBy:
+      - alertname
+      - severity
+      - namespace
+    groupWait: 30s
+    groupInterval: 5m
+    repeatInterval: 2h
+    receiver: webhook-default
+    routes:
+      - receiver: webhook-critical
+        matchers:
+          - name: severity
+            value: critical
+            matchType: "="
+      - receiver: webhook-warning
+        matchers:
+          - name: severity
+            value: warning
+            matchType: "="
+  receivers:
+    - name: webhook-default
+      webhookConfigs:
+        - sendResolved: true
+          urlSecret:
+            name: monitoring-webhook
+            key: url
+    - name: webhook-critical
+      webhookConfigs:
+        - sendResolved: true
+          urlSecret:
+            name: monitoring-webhook
+            key: url
+    - name: webhook-warning
+      webhookConfigs:
+        - sendResolved: true
+          urlSecret:
+            name: monitoring-webhook
+            key: url
