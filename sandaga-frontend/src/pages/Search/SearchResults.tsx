@@ -40,6 +40,15 @@ type LocationSuggestion = {
   zipcode?: string
 }
 
+const extractCityFromSuggestion = (suggestion: LocationSuggestion) => {
+  const fromCity = suggestion.city?.trim()
+  if (fromCity) {
+    return fromCity
+  }
+  const fromLabel = suggestion.label.split(',')[0]?.trim()
+  return fromLabel || suggestion.label.trim()
+}
+
 const parseAttributeFiltersFromParams = (params: URLSearchParams) => {
   const filters: Record<string, unknown> = {}
   const keys = Array.from(new Set(params.keys()))
@@ -347,8 +356,10 @@ export default function SearchResults(){
               .join(' · ') ?? null,
           coordinates: feature.center,
           city:
-            feature.context?.find((ctx: any) => typeof ctx.id === 'string' && ctx.id.startsWith('place'))
-              ?.text ?? undefined,
+            (typeof feature.text === 'string' && feature.text.trim()
+              ? feature.text.trim()
+              : feature.context?.find((ctx: any) => typeof ctx.id === 'string' && ctx.id.startsWith('place'))
+                  ?.text) ?? undefined,
           zipcode:
             feature.context?.find((ctx: any) => typeof ctx.id === 'string' && ctx.id.startsWith('postcode'))
               ?.text ?? undefined
@@ -1089,7 +1100,7 @@ export default function SearchResults(){
 
   const handleLocationSelect = (suggestion: LocationSuggestion) => {
     const params = new URLSearchParams(searchParamsString)
-    const cityValue = suggestion.city ?? suggestion.label
+    const cityValue = extractCityFromSuggestion(suggestion)
     if (cityValue) {
       params.set('l', cityValue)
     } else {
