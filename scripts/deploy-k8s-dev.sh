@@ -29,28 +29,37 @@ scp "${SSH_OPTS[@]}" "$K8S_MANIFEST_PATH" "$REMOTE:${REMOTE_DIR}/apps.yaml"
 ssh "${SSH_OPTS[@]}" "$REMOTE" <<EOF
 set -euo pipefail
 
-kubectl get namespace "${K8S_NAMESPACE}" >/dev/null 2>&1 || kubectl create namespace "${K8S_NAMESPACE}"
-kubectl -n "${K8S_NAMESPACE}" apply -f "\$HOME/${REMOTE_DIR}/apps.yaml"
+if kubectl version --client >/dev/null 2>&1 && kubectl get namespace default >/dev/null 2>&1; then
+  KCTL=(kubectl)
+elif sudo -n k3s kubectl version --client >/dev/null 2>&1; then
+  KCTL=(sudo -n k3s kubectl)
+else
+  echo "No Kubernetes access. Configure kubectl for ${DEV_SSH_USER} or allow passwordless: sudo k3s kubectl" >&2
+  exit 1
+fi
+
+"\${KCTL[@]}" get namespace "${K8S_NAMESPACE}" >/dev/null 2>&1 || "\${KCTL[@]}" create namespace "${K8S_NAMESPACE}"
+"\${KCTL[@]}" -n "${K8S_NAMESPACE}" apply -f "\$HOME/${REMOTE_DIR}/apps.yaml"
 
 if [[ -n "${GHCR_USER:-}" && -n "${GHCR_TOKEN:-}" ]]; then
-  kubectl -n "${K8S_NAMESPACE}" create secret docker-registry ghcr-creds \
+  "\${KCTL[@]}" -n "${K8S_NAMESPACE}" create secret docker-registry ghcr-creds \
     --docker-server=ghcr.io \
     --docker-username="${GHCR_USER}" \
     --docker-password="${GHCR_TOKEN}" \
-    --dry-run=client -o yaml | kubectl apply -f -
+    --dry-run=client -o yaml | "\${KCTL[@]}" apply -f -
 fi
 
-kubectl -n "${K8S_NAMESPACE}" set image deployment/sandaga-backend backend="${BACKEND_IMAGE}"
-kubectl -n "${K8S_NAMESPACE}" set image deployment/sandaga-frontend frontend="${FRONTEND_IMAGE}"
+"\${KCTL[@]}" -n "${K8S_NAMESPACE}" set image deployment/sandaga-backend backend="${BACKEND_IMAGE}"
+"\${KCTL[@]}" -n "${K8S_NAMESPACE}" set image deployment/sandaga-frontend frontend="${FRONTEND_IMAGE}"
 
-kubectl -n "${K8S_NAMESPACE}" patch deployment sandaga-backend --type merge -p '{"spec":{"template":{"spec":{"imagePullSecrets":[{"name":"ghcr-creds"}]}}}}' || true
-kubectl -n "${K8S_NAMESPACE}" patch deployment sandaga-frontend --type merge -p '{"spec":{"template":{"spec":{"imagePullSecrets":[{"name":"ghcr-creds"}]}}}}' || true
-kubectl -n "${K8S_NAMESPACE}" patch deployment sandaga-backend --type merge -p '{"spec":{"template":{"spec":{"containers":[{"name":"backend","imagePullPolicy":"IfNotPresent"}]}}}}' || true
-kubectl -n "${K8S_NAMESPACE}" patch deployment sandaga-frontend --type merge -p '{"spec":{"template":{"spec":{"containers":[{"name":"frontend","imagePullPolicy":"IfNotPresent"}]}}}}' || true
+"\${KCTL[@]}" -n "${K8S_NAMESPACE}" patch deployment sandaga-backend --type merge -p '{"spec":{"template":{"spec":{"imagePullSecrets":[{"name":"ghcr-creds"}]}}}}' || true
+"\${KCTL[@]}" -n "${K8S_NAMESPACE}" patch deployment sandaga-frontend --type merge -p '{"spec":{"template":{"spec":{"imagePullSecrets":[{"name":"ghcr-creds"}]}}}}' || true
+"\${KCTL[@]}" -n "${K8S_NAMESPACE}" patch deployment sandaga-backend --type merge -p '{"spec":{"template":{"spec":{"containers":[{"name":"backend","imagePullPolicy":"IfNotPresent"}]}}}}' || true
+"\${KCTL[@]}" -n "${K8S_NAMESPACE}" patch deployment sandaga-frontend --type merge -p '{"spec":{"template":{"spec":{"containers":[{"name":"frontend","imagePullPolicy":"IfNotPresent"}]}}}}' || true
 
-kubectl -n "${K8S_NAMESPACE}" rollout status deployment/sandaga-backend --timeout=300s
-kubectl -n "${K8S_NAMESPACE}" rollout status deployment/sandaga-frontend --timeout=300s
-kubectl -n "${K8S_NAMESPACE}" get pods -o wide
+"\${KCTL[@]}" -n "${K8S_NAMESPACE}" rollout status deployment/sandaga-backend --timeout=300s
+"\${KCTL[@]}" -n "${K8S_NAMESPACE}" rollout status deployment/sandaga-frontend --timeout=300s
+"\${KCTL[@]}" -n "${K8S_NAMESPACE}" get pods -o wide
 EOF
 
 echo "Kubernetes dev deploy completed."
