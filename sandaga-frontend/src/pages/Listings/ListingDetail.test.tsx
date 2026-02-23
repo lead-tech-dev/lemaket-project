@@ -118,6 +118,8 @@ describe('ListingDetail', () => {
     expect(await screen.findByRole('heading', { name: /super annonce/i })).toBeInTheDocument()
     expect(screen.getByText('formatée')).toBeInTheDocument()
     expect(screen.getByText('Point 1')).toBeInTheDocument()
+    expect(screen.getByText('Zone publique')).toBeInTheDocument()
+    expect(screen.getByText('10000 Dakar')).toBeInTheDocument()
 
     const buyButtons = await screen.findAllByRole('button', { name: /acheter/i })
     await user.click(buyButtons[0])

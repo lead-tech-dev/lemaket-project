@@ -469,6 +469,12 @@
   margin-top:calc($spacing*2);
 }
 
+.listing-details__section--key-info{
+  border-top:1px solid rgba(148,163,184,.35);
+  padding-top:calc($spacing*2);
+  margin-top:calc($spacing*2);
+}
+
 .listing-details__price{
   margin:2px 0 0;
   font-size:1.3rem;
@@ -509,6 +515,57 @@
   strong{font-weight:700;}
   em{font-style:italic;}
 }
+
+.listing-details__section--handover{
+  gap:calc($spacing*1.25);
+}
+
+.listing-handover{
+  display:grid;
+  gap:calc($spacing*1.6);
+}
+
+.listing-handover__mode{
+  display:grid;
+  gap:calc($spacing*.9);
+}
+
+.listing-handover__mode h4{
+  margin:0;
+  font-size:1.12rem;
+  font-weight:800;
+  color:rgba(15,23,42,.98);
+}
+
+.listing-handover__mode p{
+  margin:0;
+  font-size:1rem;
+  line-height:1.55;
+  color:rgba(15,23,42,.9);
+}
+
+.listing-handover__helper{
+  color:rgba(15,23,42,.72);
+}
+
+.listing-handover__badge{
+  align-self:flex-start;
+  display:inline-flex;
+  align-items:center;
+  gap:calc($spacing*.55);
+  padding:calc($spacing*.45) calc($spacing*.95);
+  border-radius:999px;
+  background:rgba(37,99,235,.11);
+  color:rgba(30,64,175,.96);
+  font-size:.9rem;
+  font-weight:700;
+}
+
+.listing-handover__badge-icon{
+  line-height:1;
+  font-size:.82rem;
+}
+
 .listing-details__section ul{
   margin:0;
   padding-left:calc($spacing*2.5);
@@ -553,6 +610,37 @@
   border:1px solid rgba(148,163,184,.25);
   box-shadow:0 22px 44px rgba(15,23,42,.18);
   background:linear-gradient(135deg, rgba(37,99,235,.12), rgba(14,165,233,.1));
+}
+
+.listing-location{
+  display:grid;
+  gap:calc($spacing*1.1);
+}
+
+.listing-location__row{
+  display:grid;
+  gap:calc($spacing*.35);
+}
+
+.listing-location__label{
+  font-size:.72rem;
+  font-weight:700;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  color:var(--color-muted);
+}
+
+.listing-location__value{
+  font-size:1rem;
+  line-height:1.45;
+  color:rgba(15,23,42,.92);
+}
+
+.listing-location__privacy{
+  margin:0;
+  font-size:.92rem;
+  line-height:1.5;
+  color:rgba(15,23,42,.72);
 }
 
 .listing-form{

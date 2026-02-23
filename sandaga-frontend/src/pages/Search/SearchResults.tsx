@@ -40,6 +40,8 @@ type LocationSuggestion = {
   zipcode?: string
 }
 
+const MAPBOX_LOCATION_TYPES = 'neighborhood,locality,place,district,address,postcode'
+
 const extractCityFromSuggestion = (suggestion: LocationSuggestion) => {
   const fromCity = suggestion.city?.trim()
   if (fromCity) {
@@ -339,7 +341,7 @@ export default function SearchResults(){
         const response = await fetch(
           `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
             queryValue
-          )}.json?access_token=${mapboxToken}&autocomplete=true&limit=6&country=cm`,
+          )}.json?access_token=${mapboxToken}&autocomplete=true&limit=6&country=cm&types=${MAPBOX_LOCATION_TYPES}&language=${locale}`,
           { signal: controller.signal }
         )
         if (!response.ok) {
@@ -355,11 +357,28 @@ export default function SearchResults(){
               .filter(Boolean)
               .join(' · ') ?? null,
           coordinates: feature.center,
-          city:
-            (typeof feature.text === 'string' && feature.text.trim()
-              ? feature.text.trim()
-              : feature.context?.find((ctx: any) => typeof ctx.id === 'string' && ctx.id.startsWith('place'))
-                  ?.text) ?? undefined,
+          city: (() => {
+            const placeFromContext =
+              feature.context?.find(
+                (ctx: any) =>
+                  typeof ctx.id === 'string' &&
+                  (ctx.id.startsWith('place') || ctx.id.startsWith('locality'))
+              )?.text ?? undefined
+            if (placeFromContext) {
+              return placeFromContext
+            }
+            const featureText =
+              typeof feature.text === 'string' && feature.text.trim()
+                ? feature.text.trim()
+                : undefined
+            const placeTypes = Array.isArray(feature.place_type)
+              ? feature.place_type.map((entry: unknown) => String(entry))
+              : []
+            if (featureText && (placeTypes.includes('place') || placeTypes.includes('locality'))) {
+              return featureText
+            }
+            return undefined
+          })(),
           zipcode:
             feature.context?.find((ctx: any) => typeof ctx.id === 'string' && ctx.id.startsWith('postcode'))
               ?.text ?? undefined
@@ -382,7 +401,7 @@ export default function SearchResults(){
         locationAbortRef.current.abort()
       }
     }
-  }, [locationOpen, locationQuery, t])
+  }, [locationOpen, locationQuery, locale, t])
 
   const apiQueryString = useMemo(() => {
     const rawParams = new URLSearchParams(searchParamsString)
