@@ -9,6 +9,12 @@ import { useCategories } from '../hooks/useCategories'
 import { useI18n } from '../contexts/I18nContext'
 import omaketIcon from '../assets/icons/omaket-icon.svg'
 
+type RecentSearchItem = {
+  label: string
+  subtitle: string
+  to: string
+}
+
 export default function Header(){
   const location = useLocation()
   const navigate = useNavigate()
@@ -95,6 +101,114 @@ const navLinks = useMemo(() => {
   }, [isMobileLinkActive, navLinks])
 
   const MAX_SUGGESTIONS = 7
+  const RECENT_SEARCHES_KEY = 'lemaket.recentSearches.v2'
+  const MAX_RECENT_SEARCHES = 6
+  const [recentSearches, setRecentSearches] = useState<RecentSearchItem[]>([])
+
+  const categoryLabelBySlug = useMemo(() => {
+    const map = new Map<string, string>()
+    categories.forEach(category => {
+      map.set(category.slug, category.name)
+      ;(category.children ?? []).forEach(child => {
+        map.set(child.slug, child.name)
+      })
+    })
+    return map
+  }, [categories])
+
+  const buildRecentSearchItem = useCallback(
+    (to: string, fallbackLabel?: string): RecentSearchItem => {
+      const queryString = to.includes('?') ? to.split('?')[1] ?? '' : ''
+      const params = new URLSearchParams(queryString)
+      const term = params.get('q')?.trim() ?? ''
+      const categorySlug = params.get('category')?.trim() ?? ''
+      const city = params.get('l')?.trim() ?? ''
+      const radius = params.get('radius')?.trim() ?? params.get('radiusKm')?.trim() ?? ''
+
+      let label = fallbackLabel?.trim() ?? ''
+      if (!label) {
+        if (term) {
+          label = term
+        } else if (categorySlug) {
+          label = categoryLabelBySlug.get(categorySlug) ?? t('header.allCategories')
+        } else {
+          label = t('header.allCategories')
+        }
+      }
+
+      let subtitle = t('header.search.recentEverywhere')
+      if (city && radius) {
+        subtitle = t('header.search.recentAroundWithRadius', {
+          location: city,
+          radius
+        })
+      } else if (city) {
+        subtitle = t('header.search.recentAround', { location: city })
+      }
+
+      return { label, subtitle, to }
+    },
+    [categoryLabelBySlug, t]
+  )
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(RECENT_SEARCHES_KEY)
+      if (!raw) {
+        return
+      }
+      const parsed = JSON.parse(raw)
+      if (!Array.isArray(parsed)) {
+        return
+      }
+      const normalized = parsed
+        .filter((item): item is RecentSearchItem =>
+          Boolean(
+            item &&
+            typeof item === 'object' &&
+            typeof item.label === 'string' &&
+            typeof item.subtitle === 'string' &&
+            typeof item.to === 'string'
+          )
+        )
+        .slice(0, MAX_RECENT_SEARCHES)
+      setRecentSearches(normalized)
+    } catch {
+      setRecentSearches([])
+    }
+  }, [])
+
+  const persistRecentSearches = useCallback((items: RecentSearchItem[]) => {
+    setRecentSearches(items)
+    try {
+      window.localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(items))
+    } catch {
+      // ignore storage errors
+    }
+  }, [])
+
+  const addRecentSearch = useCallback(
+    (to: string, fallbackLabel?: string) => {
+      if (!to || to === '/search') {
+        return
+      }
+      const item = buildRecentSearchItem(to, fallbackLabel)
+      const next = [item, ...recentSearches.filter(entry => entry.to !== to)].slice(
+        0,
+        MAX_RECENT_SEARCHES
+      )
+      persistRecentSearches(next)
+    },
+    [buildRecentSearchItem, persistRecentSearches, recentSearches]
+  )
+
+  const removeRecentSearch = useCallback(
+    (to: string) => {
+      const next = recentSearches.filter(item => item.to !== to)
+      persistRecentSearches(next)
+    },
+    [persistRecentSearches, recentSearches]
+  )
 
   const closeMobileMenu = useCallback(() => {
     setMobileMenuOpen(false)
@@ -282,7 +396,9 @@ const navLinks = useMemo(() => {
 
   const handleSearchSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    navigate(buildSearchUrl(searchValue))
+    const target = buildSearchUrl(searchValue)
+    addRecentSearch(target, searchValue.trim())
+    navigate(target)
     setSearchOpen(false)
   }
 
@@ -333,8 +449,13 @@ const navLinks = useMemo(() => {
 
   const showPanel = searchOpen
 
-  const handleCategorySuggestionClick = (categorySlug: string) => {
-    navigate(buildSearchUrl(searchValue, categorySlug))
+  const handleCategorySuggestionClick = (
+    categorySlug: string,
+    categoryLabel: string
+  ) => {
+    const target = buildSearchUrl(searchValue, categorySlug)
+    addRecentSearch(target, searchValue.trim() || categoryLabel)
+    navigate(target)
     setSearchOpen(false)
   }
 
@@ -453,42 +574,78 @@ const navLinks = useMemo(() => {
           </form>
           {showPanel ? (
             <div className="lbc-header__search-panel lbc-header__search-panel--modern">
-              <label className="lbc-search-panel__toggle">
-                <input
-                  type="checkbox"
-                  checked={searchTitleOnly}
-                  onChange={event => setSearchTitleOnly(event.target.checked)}
-                />
-                <span>{t('header.search.titleOnly')}</span>
-              </label>
+              {normalizedQuery ? (
+                <>
+                  <label className="lbc-search-panel__toggle">
+                    <input
+                      type="checkbox"
+                      checked={searchTitleOnly}
+                      onChange={event => setSearchTitleOnly(event.target.checked)}
+                    />
+                    <span>{t('header.search.titleOnly')}</span>
+                  </label>
 
-              <div className="lbc-search-panel__divider" />
+                  <div className="lbc-search-panel__divider" />
 
-              <div className="lbc-search-panel__section">
-                <span className="lbc-search-panel__title">{t('header.search.suggestions')}</span>
+                  <div className="lbc-search-panel__section">
+                    <span className="lbc-search-panel__title">{t('header.search.suggestions')}</span>
 
-                {!normalizedQuery ? (
-                  <p className="lbc-search-panel__empty">{t('header.search.typeToSuggest')}</p>
-                ) : categorySuggestions.length ? (
-                  categorySuggestions.map(item => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      className="lbc-search-panel__item lbc-search-panel__item--query"
-                      onClick={() => handleCategorySuggestionClick(item.slug)}
-                    >
-                      <span className="lbc-search-panel__icon" aria-hidden>⌕</span>
-                      <span className="lbc-search-panel__label">
-                        <strong>{searchValue.trim()}</strong>
-                        <span className="lbc-search-panel__in">{t('header.search.in')}</span>
-                        <em>{item.label}</em>
-                      </span>
-                    </button>
-                  ))
-                ) : (
-                  <p className="lbc-search-panel__empty">{t('header.search.empty')}</p>
-                )}
-              </div>
+                    {categorySuggestions.length ? (
+                      categorySuggestions.map(item => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          className="lbc-search-panel__item lbc-search-panel__item--query"
+                          onClick={() => handleCategorySuggestionClick(item.slug, item.label)}
+                        >
+                          <span className="lbc-search-panel__icon" aria-hidden>⌕</span>
+                          <span className="lbc-search-panel__label">
+                            <strong>{searchValue.trim()}</strong>
+                            <span className="lbc-search-panel__in">{t('header.search.in')}</span>
+                            <em>{item.label}</em>
+                          </span>
+                        </button>
+                      ))
+                    ) : (
+                      <p className="lbc-search-panel__empty">{t('header.search.empty')}</p>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div className="lbc-search-panel__section">
+                  <span className="lbc-search-panel__title">{t('header.search.recent')}</span>
+                  {recentSearches.length ? (
+                    recentSearches.map(item => (
+                      <div key={item.to} className="lbc-search-panel__item-wrap">
+                        <button
+                          type="button"
+                          className="lbc-search-panel__item lbc-search-panel__item--recent"
+                          onClick={() => {
+                            navigate(item.to)
+                            setSearchOpen(false)
+                          }}
+                        >
+                          <span className="lbc-search-panel__icon" aria-hidden>◷</span>
+                          <span className="lbc-search-panel__label lbc-search-panel__label--stacked">
+                            <strong>{item.label}</strong>
+                            <small>{item.subtitle}</small>
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          className="lbc-search-panel__remove"
+                          aria-label={t('header.search.removeRecent')}
+                          onClick={() => removeRecentSearch(item.to)}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="lbc-search-panel__empty">{t('header.search.noRecent')}</p>
+                  )}
+                </div>
+              )}
             </div>
           ) : null}
         </div>
