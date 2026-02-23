@@ -98,9 +98,7 @@ export class HomeService {
       services: localeStrings.services,
       sellerSplit,
       testimonials,
-      trendingSearches: trendingSearches.length
-        ? trendingSearches
-        : localeStrings.trendingSearches,
+      trendingSearches,
       generatedAt: new Date().toISOString()
     };
   }
@@ -302,12 +300,9 @@ export class HomeService {
     return testimonials.length ? testimonials : fallback;
   }
 
-  async getTrendingSearches(locale: HomeLocale = 'fr'): Promise<HomeTrendingSearch[]> {
+  async getTrendingSearches(_locale: HomeLocale = 'fr'): Promise<HomeTrendingSearch[]> {
     const loggedTrends = await this.searchLogsService.getTrendingSearches().catch(() => []);
-    if (loggedTrends.length) {
-      return loggedTrends;
-    }
-    return getHomeTranslations(locale).trendingSearches;
+    return loggedTrends;
   }
 
   async getStorefronts(limit = 6): Promise<HomeStorefrontCard[]> {

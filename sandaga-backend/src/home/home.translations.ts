@@ -1,7 +1,6 @@
 import {
   HomeServiceCard,
-  HomeTestimonial,
-  HomeTrendingSearch
+  HomeTestimonial
 } from './home.types';
 
 export type HomeLocale = 'fr' | 'en';
@@ -41,7 +40,6 @@ export type HomeLocaleStrings = {
   hero: HeroStrings;
   services: HomeServiceCard[];
   testimonials: HomeTestimonial[];
-  trendingSearches: HomeTrendingSearch[];
   ribbons: RibbonStrings;
 };
 
@@ -121,38 +119,6 @@ const HOME_TRANSLATIONS: Record<HomeLocale, HomeLocaleStrings> = {
         avatarUrl: null
       }
     ],
-    trendingSearches: [
-      {
-        id: 'trend-immobilier',
-        label: 'Appartements avec balcon',
-        query: 'appartement balcon',
-        resultCount: 1860
-      },
-      {
-        id: 'trend-voitures',
-        label: 'SUV d’occasion',
-        query: 'SUV',
-        resultCount: 1420
-      },
-      {
-        id: 'trend-emploi',
-        label: 'Jobs développeur JS',
-        query: 'développeur javascript',
-        resultCount: 980
-      },
-      {
-        id: 'trend-mode',
-        label: 'Sneakers édition limitée',
-        query: 'sneakers',
-        resultCount: 760
-      },
-      {
-        id: 'trend-services',
-        label: 'Cours particuliers en ligne',
-        query: 'cours particuliers',
-        resultCount: 540
-      }
-    ],
     ribbons: {
       boosted: 'Boostée',
       pro: 'Pro',
@@ -230,38 +196,6 @@ const HOME_TRANSLATIONS: Record<HomeLocale, HomeLocaleStrings> = {
         author: 'Ousmane, tech seller',
         location: 'Bafoussam, Cameroon',
         avatarUrl: null
-      }
-    ],
-    trendingSearches: [
-      {
-        id: 'trend-immobilier',
-        label: 'Apartments with balconies',
-        query: 'balcony apartment',
-        resultCount: 1860
-      },
-      {
-        id: 'trend-voitures',
-        label: 'Second-hand SUVs',
-        query: 'SUV',
-        resultCount: 1420
-      },
-      {
-        id: 'trend-emploi',
-        label: 'JavaScript developer jobs',
-        query: 'javascript developer',
-        resultCount: 980
-      },
-      {
-        id: 'trend-mode',
-        label: 'Limited edition sneakers',
-        query: 'limited sneakers',
-        resultCount: 760
-      },
-      {
-        id: 'trend-services',
-        label: 'Online private lessons',
-        query: 'online tutoring',
-        resultCount: 540
       }
     ],
     ribbons: {
