@@ -218,7 +218,7 @@ export default function Settings(){
   const hasPendingDeactivation =
     showDeactivateModal && Boolean(deactivateReason.trim())
   const payoutMissing =
-    isPro && (!settings.payoutMobileNetwork || !settings.payoutMobileNumber.trim())
+    !settings.payoutMobileNetwork || !settings.payoutMobileNumber.trim()
   const [courierSaving, setCourierSaving] = useState(false)
   const [courierGeocoding, setCourierGeocoding] = useState(false)
   const [courierDocUploading, setCourierDocUploading] = useState(false)
@@ -1069,63 +1069,63 @@ export default function Settings(){
           ) : null}
         </section>
 
-        {isPro ? (
-          <section className="dashboard-section" id="payout-settings">
-            <h2>{t('dashboard.settings.sections.payout')}</h2>
-            <p className="dashboard-section__description">
-              {t('dashboard.settings.payout.description')}
-            </p>
-            {payoutMissing ? (
-              <div className="card" style={{ padding: '16px', borderColor: '#f59e0b' }}>
-                <strong>{t('dashboard.settings.payout.requiredTitle')}</strong>
-                <p className="form-field__hint" style={{ marginTop: '6px' }}>
-                  {t('dashboard.settings.payout.requiredMessage')}
-                </p>
-              </div>
-            ) : null}
-            <form className="settings-form settings-form--stack" onSubmit={handlePayoutSubmit}>
-              <FormField label={t('dashboard.settings.payout.network.label')}>
-                <Select
-                  options={payoutNetworkOptions}
-                  value={settings.payoutMobileNetwork || ''}
-                  onChange={value =>
-                    setSettings(prev => ({
-                      ...prev,
-                      payoutMobileNetwork: (value?.toString?.() ?? '') as SettingsState['payoutMobileNetwork']
-                    }))
-                  }
-                />
-              </FormField>
-              <FormField label={t('dashboard.settings.payout.number.label')}>
-                <Input
-                  value={settings.payoutMobileNumber}
-                  onChange={event =>
-                    setSettings(prev => ({
-                      ...prev,
-                      payoutMobileNumber: event.target.value
-                    }))
-                  }
-                  placeholder={t('dashboard.settings.payout.number.placeholder')}
-                />
-              </FormField>
-              <FormField label={t('dashboard.settings.payout.name.label')}>
-                <Input
-                  value={settings.payoutMobileName}
-                  onChange={event =>
-                    setSettings(prev => ({
-                      ...prev,
-                      payoutMobileName: event.target.value
-                    }))
-                  }
-                  placeholder={t('dashboard.settings.payout.name.placeholder')}
-                />
-              </FormField>
-              <Button type="submit" variant="outline" disabled={payoutSaving}>
-                {payoutSaving ? t('dashboard.settings.payout.saving') : t('actions.save')}
-              </Button>
-            </form>
-          </section>
-        ) : null}
+        <section className="dashboard-section" id="payout-settings">
+          <h2>{t('dashboard.settings.sections.payout')}</h2>
+          <p className="dashboard-section__description">
+            {t('dashboard.settings.payout.description')}
+          </p>
+          {payoutMissing ? (
+            <div className="card" style={{ padding: '16px', borderColor: '#f59e0b' }}>
+              <strong>{t('dashboard.settings.payout.requiredTitle')}</strong>
+              <p className="form-field__hint" style={{ marginTop: '6px' }}>
+                {t('dashboard.settings.payout.requiredMessage')}
+              </p>
+            </div>
+          ) : null}
+          <form className="settings-form settings-form--stack" onSubmit={handlePayoutSubmit}>
+            <FormField label={t('dashboard.settings.payout.network.label')}>
+              <Select
+                options={payoutNetworkOptions}
+                value={settings.payoutMobileNetwork || ''}
+                onChange={value =>
+                  setSettings(prev => ({
+                    ...prev,
+                    payoutMobileNetwork: (value?.toString?.() ?? '') as SettingsState['payoutMobileNetwork']
+                  }))
+                }
+              />
+            </FormField>
+            <FormField label={t('dashboard.settings.payout.number.label')}>
+              <Input
+                value={settings.payoutMobileNumber}
+                onChange={event =>
+                  setSettings(prev => ({
+                    ...prev,
+                    payoutMobileNumber: event.target.value
+                  }))
+                }
+                placeholder={t('dashboard.settings.payout.number.placeholder')}
+              />
+            </FormField>
+            <FormField label={t('dashboard.settings.payout.name.label')}>
+              <Input
+                value={settings.payoutMobileName}
+                onChange={event =>
+                  setSettings(prev => ({
+                    ...prev,
+                    payoutMobileName: event.target.value
+                  }))
+                }
+                placeholder={t('dashboard.settings.payout.name.placeholder')}
+              />
+            </FormField>
+            <Button type="submit" variant="outline" disabled={payoutSaving}>
+              {payoutSaving
+                ? t('dashboard.settings.payout.saving')
+                : t('dashboard.settings.payout.saveAction')}
+            </Button>
+          </form>
+        </section>
 
         <section className="dashboard-section">
           <div className="dashboard-section__head">
