@@ -471,6 +471,16 @@ const navLinks = useMemo(() => {
         </div>
         <button
           type="button"
+          className="lbc-header__search-mobile-toggle"
+          onClick={() => setSearchOpen(prev => !prev)}
+          aria-expanded={searchOpen}
+          aria-controls="header-search-input"
+          aria-label={t('header.search')}
+        >
+          <span aria-hidden="true">🔎</span>
+        </button>
+        <button
+          type="button"
           className={`lbc-header__menu-toggle${mobileMenuOpen ? ' is-open' : ''}`}
           aria-expanded={mobileMenuOpen}
           aria-controls="header-mobile-menu"
@@ -742,15 +752,6 @@ const navLinks = useMemo(() => {
                     </span>
                   </Link>
                 ) : null}
-                <Link
-                  to="/search"
-                  className={`lbc-header__mobile-link${isMobileLinkActive('/search') ? ' is-active' : ''}`}
-                  aria-current={isMobileLinkActive('/search') ? 'page' : undefined}
-                  onClick={closeMobileMenu}
-                >
-                  <span aria-hidden>🔎</span>
-                  <span>{t('header.search')}</span>
-                </Link>
                 <Link
                   to="/dashboard/favorites"
                   className={`lbc-header__mobile-link${isMobileLinkActive('/dashboard/favorites') ? ' is-active' : ''}`}
