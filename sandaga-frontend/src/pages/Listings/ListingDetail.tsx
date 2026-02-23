@@ -19,6 +19,7 @@ type MapboxMarker = import('mapbox-gl').Marker
 import 'mapbox-gl/dist/mapbox-gl.css'
 
 const STREET_SEGMENT_PATTERN = /\b(rue|avenue|av\.?|boulevard|bd\.?|street|st\.?|road|rd\.?|route|impasse|allee|lotissement)\b/i
+const COUNTRY_SEGMENT_PATTERN = /^(cameroon|cameroun)$/i
 
 function normalizeLocationToken(value: string): string {
   return value
@@ -36,8 +37,69 @@ function splitLocationParts(value: string): string[] {
     .filter(Boolean)
 }
 
+function dedupeLocationParts(parts: string[]): string[] {
+  const seen = new Set<string>()
+  return parts.filter(part => {
+    const normalized = normalizeLocationToken(part)
+    if (!normalized || seen.has(normalized)) {
+      return false
+    }
+    seen.add(normalized)
+    return true
+  })
+}
+
 function looksLikeStreetSegment(value: string): boolean {
   return /\d/.test(value) || STREET_SEGMENT_PATTERN.test(value)
+}
+
+function buildExactLocationLabel(input: {
+  label?: string
+  address?: string
+  city?: string
+  zipcode?: string
+}): string {
+  const city = typeof input.city === 'string' ? input.city.trim() : ''
+  const zipcode = typeof input.zipcode === 'string' ? input.zipcode.trim() : ''
+  const cityZip = formatCityZip(city, zipcode)
+  const rawLabel =
+    (typeof input.label === 'string' && input.label.trim()) ||
+    (typeof input.address === 'string' && input.address.trim()) ||
+    ''
+
+  const parts = dedupeLocationParts(splitLocationParts(rawLabel)).filter(
+    part => !COUNTRY_SEGMENT_PATTERN.test(part.trim())
+  )
+
+  // Prefer broad location tokens (neighborhood/city/region) over street-level fragments.
+  const broadParts = parts.filter(part => !looksLikeStreetSegment(part))
+  const tokens = broadParts.length ? broadParts : parts
+
+  if (city && tokens.length) {
+    const normalizedCity = normalizeLocationToken(city)
+    const cityIndex = tokens.findIndex(part => normalizeLocationToken(part) === normalizedCity)
+
+    if (cityIndex > 0) {
+      return `${tokens[cityIndex - 1]}, ${tokens[cityIndex]}`
+    }
+
+    if (cityIndex === 0) {
+      if (tokens[1]) {
+        return `${tokens[0]}, ${tokens[1]}`
+      }
+      return tokens[0]
+    }
+  }
+
+  if (tokens.length >= 2) {
+    return `${tokens[0]}, ${tokens[1]}`
+  }
+
+  if (tokens[0]) {
+    return tokens[0]
+  }
+
+  return cityZip || city || ''
 }
 
 function buildPublicLocationLabel(input: {
@@ -840,25 +902,22 @@ export default function ListingDetail() {
   })()
 
   const displayLocation = (() => {
-    const cityZip = formatCityZip(locationCity, locationPostalCode)
-    const rawExact =
-      (typeof locationAddress === 'string' && locationAddress.trim()) ||
-      (typeof locationLabel === 'string' && locationLabel.trim()) ||
-      ''
+    const exactLabel = buildExactLocationLabel({
+      label: locationLabel,
+      address: locationAddress,
+      city: locationCity,
+      zipcode: locationPostalCode
+    })
 
     if (locationHideExact) {
       return publicLocation
     }
 
-    if (locationAddress) {
-      return cityZip ? `${locationAddress}, ${cityZip}` : locationAddress
+    if (exactLabel) {
+      return exactLabel
     }
 
-    if (rawExact) {
-      return rawExact
-    }
-
-    return cityZip || t('listings.detail.locationUnavailable')
+    return t('listings.detail.locationUnavailable')
   })()
 
   const showExactLocation =
