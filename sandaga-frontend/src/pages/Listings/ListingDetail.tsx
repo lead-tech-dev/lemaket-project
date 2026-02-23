@@ -1270,14 +1270,14 @@ export default function ListingDetail() {
                   <div className="listing-location">
                     <div className="listing-location__row">
                       <span className="listing-location__label">
-                        {t('listings.detail.locationPublicLabel')}
+                        {t('listings.detail.locationPublicLabel')}:
                       </span>
                       <strong className="listing-location__value">{publicLocation}</strong>
                     </div>
                     {showExactLocation ? (
                       <div className="listing-location__row">
                         <span className="listing-location__label">
-                          {t('listings.detail.locationExactLabel')}
+                          {t('listings.detail.locationExactLabel')}:
                         </span>
                         <span className="listing-location__value">{displayLocation}</span>
                       </div>

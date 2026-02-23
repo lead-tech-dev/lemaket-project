@@ -618,11 +618,14 @@
 }
 
 .listing-location__row{
-  display:grid;
-  gap:calc($spacing*.35);
+  display:flex;
+  align-items:baseline;
+  flex-wrap:wrap;
+  gap:calc($spacing*.7);
 }
 
 .listing-location__label{
+  display:inline-flex;
   font-size:.72rem;
   font-weight:700;
   letter-spacing:.12em;
@@ -631,6 +634,7 @@
 }
 
 .listing-location__value{
+  display:inline;
   font-size:1rem;
   line-height:1.45;
   color:rgba(15,23,42,.92);
