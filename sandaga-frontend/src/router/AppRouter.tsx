@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { useEffect } from 'react'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import Home from '../pages/Home/Home'
 import ListingDetail from '../pages/Listings/ListingDetail'
 import ListingCheckout from '../pages/Listings/ListingCheckout'
@@ -54,7 +55,6 @@ import StorefrontsPage from '../pages/Storefront/Storefronts'
 import PublicUserProfile from '../pages/Users/PublicProfile'
 import PaymentReturn from '../pages/Payments/PaymentReturn'
 import { useAuth } from '../hooks/useAuth'
-import { Navigate } from 'react-router-dom'
 import { useFeatureFlagsContext } from '../contexts/FeatureFlagContext'
 import type { FeatureFlagName } from '../config/featureFlags'
 import { Skeleton } from '../components/ui/Skeleton'
@@ -125,6 +125,16 @@ function ProtectedRoute({ element, requirePro, requireAdmin, featureFlag }: Prot
   return element
 }
 
+function ScrollToTopOnPathChange() {
+  const location = useLocation()
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  }, [location.pathname])
+
+  return null
+}
+
 export function AppRouter() {
   return (
     <BrowserRouter
@@ -133,6 +143,7 @@ export function AppRouter() {
         v7_relativeSplatPath: true,
       }}
     >
+      <ScrollToTopOnPathChange />
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/listing/:id" element={<ListingDetail />} />

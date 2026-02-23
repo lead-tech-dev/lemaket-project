@@ -33,6 +33,11 @@ const originalLog = console.log.bind(console)
 const originalInfo = console.info.bind(console)
 
 beforeAll(() => {
+  Object.defineProperty(window, 'scrollTo', {
+    value: vi.fn(),
+    writable: true,
+  })
+
   vi.spyOn(console, 'warn').mockImplementation((...args: unknown[]) => {
     if (shouldSilence(args)) {
       return
