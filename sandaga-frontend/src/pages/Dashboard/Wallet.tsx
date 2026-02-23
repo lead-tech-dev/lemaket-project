@@ -433,7 +433,7 @@ export default function Wallet() {
                   min="1"
                   value={topupAmount}
                   onChange={event => setTopupAmount(event.target.value)}
-                  placeholder="Montant en XAF"
+                  placeholder="Montant en FCFA"
                 />
               </FormField>
               <FormField label="Moyen de paiement">
@@ -472,7 +472,7 @@ export default function Wallet() {
                   min="1"
                   value={withdrawAmount}
                   onChange={event => setWithdrawAmount(event.target.value)}
-                  placeholder="Montant en XAF"
+                  placeholder="Montant en FCFA"
                 />
               </FormField>
               <Button variant="outline" onClick={handleWithdraw} disabled={submitting}>

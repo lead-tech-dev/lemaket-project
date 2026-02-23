@@ -8,10 +8,10 @@ type Translate = (key: string, values?: Record<string, string | number>) => stri
 
 export const PRICE_BANDS: PriceBandOption[] = [
   { id: 'all' },
-  { id: 'lt100', max: 100 },
-  { id: '100-500', min: 100, max: 500 },
-  { id: '500-1000', min: 500, max: 1000 },
-  { id: 'gt1000', min: 1000 }
+  { id: 'lt100', max: 10000 },
+  { id: '100-500', min: 10000, max: 50000 },
+  { id: '500-1000', min: 50000, max: 100000 },
+  { id: 'gt1000', min: 100000 }
 ]
 
 export type RadiusOption = {

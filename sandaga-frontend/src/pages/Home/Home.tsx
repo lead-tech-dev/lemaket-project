@@ -36,7 +36,7 @@ import { useAuth } from '../../hooks/useAuth'
 
 const formatListingPrice = (listing: HomeListing, locale: string): string => {
   const numericPrice = Number(listing.price)
-  const currency = listing.currency || 'EUR'
+  const currency = listing.currency || 'XAF'
 
   if (Number.isFinite(numericPrice)) {
     try {

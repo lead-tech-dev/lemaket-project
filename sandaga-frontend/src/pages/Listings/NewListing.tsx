@@ -81,7 +81,7 @@ const INITIAL_FORM: NewListingFormValues = {
   title: '',
   description: '',
   price: '',
-  currency: 'EUR',
+  currency: 'XAF',
   city: '',
   location: '',
   tag: '',

@@ -86,7 +86,7 @@ const INITIAL_FORM: EditListingFormValues = {
   subject: '',
   body: '',
   price: '',
-  currency: 'EUR',
+  currency: 'XAF',
   city: '',
   location: '',
   details: {},
@@ -476,7 +476,7 @@ const mapListingToForm = (
     title: toStringValue(rawDetails.title, listing.title),
     description: toStringValue(rawDetails.description, listing.description),
     price: toStringValue(rawDetails.price, listing.price),
-    currency: toStringValue(rawDetails.currency, listing.currency || 'EUR') || 'EUR',
+    currency: toStringValue(rawDetails.currency, listing.currency || 'XAF') || 'XAF',
     city: toStringValue(
       rawDetails.city,
       listingLocationCity ?? listing.city ?? locationCity ?? undefined
@@ -1151,7 +1151,7 @@ useEffect(() => {
       }
       const priceInput = toTrimmedString(values.price)
       const priceAmount = Number(priceInput)
-      const currency = toTrimmedString(values.currency || '').toUpperCase() || 'EUR'
+      const currency = toTrimmedString(values.currency || '').toUpperCase() || 'XAF'
 
       const email = toTrimmedString((values as any).email ?? (mergedDetails as any).email)
       const phone = toTrimmedString((values as any).phone ?? (mergedDetails as any).phone)

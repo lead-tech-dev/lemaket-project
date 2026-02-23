@@ -109,7 +109,6 @@ export class PaymentsService {
     'VND',
     'VUV',
     'XAF',
-    'XOF',
     'XPF'
   ]);
 
@@ -178,7 +177,7 @@ export class PaymentsService {
         title: 'Boost mensuel inclus',
         description: 'Un boost offert chaque mois pour maintenir votre visibilité.',
         price: 0,
-        currency: 'XOF',
+        currency: 'XAF',
         categories: ['all'],
         isIncluded: true,
         monthlyLimit: 1
@@ -188,7 +187,7 @@ export class PaymentsService {
         title: 'Boost 7 jours',
         description: 'Positionnez votre annonce en tête de liste pendant 7 jours.',
         price: 4900,
-        currency: 'XOF',
+        currency: 'XAF',
         categories: ['immobilier', 'vehicules', 'maison'],
         stripePriceId: promotionPriceMap['boost-7'] || null
       },
@@ -197,7 +196,7 @@ export class PaymentsService {
         title: 'Boost 14 jours',
         description: 'Gagnez en visibilité pendant deux semaines complètes.',
         price: 8900,
-        currency: 'XOF',
+        currency: 'XAF',
         categories: ['immobilier', 'high-tech', 'emploi'],
         stripePriceId: promotionPriceMap['boost-14'] || null
       },
@@ -206,7 +205,7 @@ export class PaymentsService {
         title: 'Pack Premium',
         description: 'Inclut boost, remontées automatiques et badge Premium.',
         price: 14900,
-        currency: 'XOF',
+        currency: 'XAF',
         categories: ['immobilier', 'services'],
         stripePriceId: promotionPriceMap['pack-premium'] || null
       }
@@ -219,7 +218,7 @@ export class PaymentsService {
         id: 'starter',
         name: 'Pro Starter',
         price: 5000,
-        currency: 'XOF',
+        currency: 'XAF',
         trialDurationDays: 0,
         stripePriceId: proPlanPriceMap.starter || null
       },
@@ -227,7 +226,7 @@ export class PaymentsService {
         id: 'business',
         name: 'Pro Business',
         price: 10000,
-        currency: 'XOF',
+        currency: 'XAF',
         trialDurationDays: 0,
         stripePriceId: proPlanPriceMap.business || null
       },
@@ -235,7 +234,7 @@ export class PaymentsService {
         id: 'premium',
         name: 'Pro Premium',
         price: 20000,
-        currency: 'XOF',
+        currency: 'XAF',
         trialDurationDays: 0,
         stripePriceId: proPlanPriceMap.premium || null
       }
@@ -983,7 +982,7 @@ export class PaymentsService {
 
     const price = subscriptionData.items.data[0]?.price;
     const amount = price?.unit_amount ?? 0;
-    const currency = price?.currency ?? plan?.currency ?? 'eur';
+    const currency = price?.currency ?? plan?.currency ?? 'xaf';
 
     let entity = await this.subscriptionsRepository.findOne({
       where: {

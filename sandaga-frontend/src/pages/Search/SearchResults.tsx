@@ -948,7 +948,7 @@ export default function SearchResults(){
       try {
         return new Intl.NumberFormat(numberLocale, {
           style: 'currency',
-          currency: listing.currency || 'EUR'
+          currency: listing.currency || 'XAF'
         }).format(numericPrice)
       } catch {
         // ignore and fallback below

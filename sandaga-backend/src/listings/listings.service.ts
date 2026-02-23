@@ -104,7 +104,7 @@ export class ListingsService {
     }
 
     const priceAmount = createListingDto.price?.amount ?? 0;
-    const currency = createListingDto.price?.currency ?? 'EUR';
+    const currency = createListingDto.price?.currency ?? 'XAF';
     const newItemPrice =
       typeof createListingDto.price?.newItemPrice === 'number'
         ? createListingDto.price.newItemPrice
@@ -1435,10 +1435,10 @@ export class ListingsService {
       price: listing.price != null ? String(listing.price) : '0',
       priceDetails: {
         amount: Number(listing.price ?? 0),
-        currency: listing.currency ?? 'EUR',
+        currency: listing.currency ?? 'XAF',
         newItemPrice: newItemPrice ?? null
       },
-      currency: listing.currency ?? 'EUR',
+      currency: listing.currency ?? 'XAF',
       flow: listing.flow
         ? (listing.flow.toLowerCase() as 'sell' | 'buy' | 'let' | 'rent')
         : null,

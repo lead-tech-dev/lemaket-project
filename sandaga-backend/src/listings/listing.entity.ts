@@ -36,7 +36,7 @@ export class Listing extends CoreEntity {
   @Column({ type: 'numeric', precision: 12, scale: 2 })
   price!: number;
 
-  @Column({ length: 10, default: 'EUR' })
+  @Column({ length: 10, default: 'XAF' })
   currency!: string;
 
   @Column({ type: 'jsonb', nullable: true })

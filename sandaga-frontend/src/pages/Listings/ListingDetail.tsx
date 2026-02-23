@@ -175,7 +175,7 @@ function formatPrice(listing: Listing | null, locale: string): string {
       const numberLocale = locale === 'fr' ? 'fr-FR' : 'en-US'
       return new Intl.NumberFormat(numberLocale, {
         style: 'currency',
-        currency: listing.currency || 'EUR'
+        currency: listing.currency || 'XAF'
       }).format(numericPrice)
     } catch {
       // Fallback handled below
