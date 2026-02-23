@@ -101,7 +101,7 @@ const HOME_TRANSLATIONS: Record<HomeLocale, HomeLocaleStrings> = {
         quote:
           "J’ai trouvé mon nouvel appartement en une semaine grâce à OMAKET. Les contacts sont sérieux et la messagerie sécurisée rassure tout le monde.",
         author: 'Awa, vendeuse PRO',
-        location: 'Dakar, Sénégal',
+        location: 'Douala, Cameroun',
         avatarUrl: null
       },
       {
@@ -109,7 +109,7 @@ const HOME_TRANSLATIONS: Record<HomeLocale, HomeLocaleStrings> = {
         quote:
           'En tant qu’artisan, je reçois des demandes qualifiées tous les jours. Mes ventes ont augmenté de 35% depuis mon passage en compte PRO.',
         author: 'Mamadou, artisan menuisier',
-        location: 'Thiès, Sénégal',
+        location: 'Yaoundé, Cameroun',
         avatarUrl: null
       },
       {
@@ -117,7 +117,7 @@ const HOME_TRANSLATIONS: Record<HomeLocale, HomeLocaleStrings> = {
         quote:
           'Les options de mise en avant sont très efficaces. Mon stock high-tech part deux fois plus vite en activant les promotions.',
         author: 'Ousmane, vendeur high-tech',
-        location: 'Dakar, Sénégal',
+        location: 'Bafoussam, Cameroun',
         avatarUrl: null
       }
     ],
@@ -212,7 +212,7 @@ const HOME_TRANSLATIONS: Record<HomeLocale, HomeLocaleStrings> = {
         quote:
           'I found my new apartment in one week thanks to OMAKET. Serious contacts and secure messaging reassure everyone.',
         author: 'Awa, PRO seller',
-        location: 'Dakar, Senegal',
+        location: 'Douala, Cameroon',
         avatarUrl: null
       },
       {
@@ -220,7 +220,7 @@ const HOME_TRANSLATIONS: Record<HomeLocale, HomeLocaleStrings> = {
         quote:
           'As a craftsman I receive qualified requests every day. My sales jumped 35% after switching to a PRO account.',
         author: 'Mamadou, carpenter',
-        location: 'Thiès, Senegal',
+        location: 'Yaounde, Cameroon',
         avatarUrl: null
       },
       {
@@ -228,7 +228,7 @@ const HOME_TRANSLATIONS: Record<HomeLocale, HomeLocaleStrings> = {
         quote:
           'Highlight options are very effective. My high-tech stock moves twice as fast when promotions are enabled.',
         author: 'Ousmane, tech seller',
-        location: 'Dakar, Senegal',
+        location: 'Bafoussam, Cameroon',
         avatarUrl: null
       }
     ],
