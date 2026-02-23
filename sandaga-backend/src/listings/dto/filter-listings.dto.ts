@@ -32,6 +32,25 @@ export class FilterListingsDto extends PaginationQueryDto {
   search?: string;
 
   @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      if (['1', 'true', 'yes', 'on'].includes(normalized)) {
+        return true;
+      }
+      if (['0', 'false', 'no', 'off'].includes(normalized)) {
+        return false;
+      }
+    }
+    return value;
+  })
+  @IsBoolean()
+  titleOnly?: boolean;
+
+  @IsOptional()
   @IsString()
   categorySlug?: string;
 

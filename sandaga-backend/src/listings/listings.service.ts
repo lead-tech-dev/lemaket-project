@@ -629,10 +629,16 @@ export class ListingsService {
       .leftJoinAndSelect('listing.owner', 'owner');
 
     if (filter.search) {
-      query.andWhere(
-        `(listing.title ILIKE :search OR listing.description ILIKE :search OR listing.location->>'city' ILIKE :search)`,
-        { search: `%${filter.search}%` }
-      );
+      if (filter.titleOnly) {
+        query.andWhere(`listing.title ILIKE :search`, {
+          search: `%${filter.search}%`
+        });
+      } else {
+        query.andWhere(
+          `(listing.title ILIKE :search OR listing.description ILIKE :search OR listing.location->>'city' ILIKE :search)`,
+          { search: `%${filter.search}%` }
+        );
+      }
     }
 
     if (categoryScopeIds && categoryScopeIds.length > 0) {

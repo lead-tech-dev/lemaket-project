@@ -7,8 +7,6 @@ import { useMessageNotifications } from '../hooks/useMessageNotifications'
 import { useFeatureFlagsContext } from '../contexts/FeatureFlagContext'
 import { useCategories } from '../hooks/useCategories'
 import { useI18n } from '../contexts/I18nContext'
-import { apiGet } from '../utils/api'
-import { HomeTrendingSearch } from '../types/home'
 import omaketIcon from '../assets/icons/omaket-icon.svg'
 
 export default function Header(){
@@ -23,7 +21,7 @@ export default function Header(){
   const { t } = useI18n()
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchValue, setSearchValue] = useState('')
-  const [searchFocused, setSearchFocused] = useState(false)
+  const [searchTitleOnly, setSearchTitleOnly] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [mobileExpandedCategory, setMobileExpandedCategory] = useState<string | null>(null)
   const headerRef = useRef<HTMLElement | null>(null)
@@ -96,49 +94,7 @@ const navLinks = useMemo(() => {
     return null
   }, [isMobileLinkActive, navLinks])
 
-  const RECENT_SEARCHES_KEY = 'lemaket.recentSearches'
-  const MAX_RECENT_SEARCHES = 6
-  const MAX_SUGGESTIONS = 6
-  const [recentSearches, setRecentSearches] = useState<string[]>([])
-  const [trendingSearches, setTrendingSearches] = useState<HomeTrendingSearch[]>([])
-  const [trendingLoading, setTrendingLoading] = useState(false)
-  const [trendingLoaded, setTrendingLoaded] = useState(false)
-
-  useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(RECENT_SEARCHES_KEY)
-      if (raw) {
-        const parsed = JSON.parse(raw)
-        if (Array.isArray(parsed)) {
-          setRecentSearches(parsed.filter(item => typeof item === 'string'))
-        }
-      }
-    } catch {
-      setRecentSearches([])
-    }
-  }, [])
-
-  const storeRecentSearches = useCallback((items: string[]) => {
-    setRecentSearches(items)
-    try {
-      window.localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(items))
-    } catch {
-      // ignore storage errors
-    }
-  }, [])
-
-  const addRecentSearch = useCallback((value: string) => {
-    const trimmed = value.trim()
-    if (!trimmed) {
-      return
-    }
-    const next = [trimmed, ...recentSearches.filter(item => item !== trimmed)].slice(0, MAX_RECENT_SEARCHES)
-    storeRecentSearches(next)
-  }, [recentSearches, storeRecentSearches])
-
-  const clearRecentSearches = useCallback(() => {
-    storeRecentSearches([])
-  }, [storeRecentSearches])
+  const MAX_SUGGESTIONS = 7
 
   const closeMobileMenu = useCallback(() => {
     setMobileMenuOpen(false)
@@ -258,39 +214,16 @@ const navLinks = useMemo(() => {
   }, [mobileMenuOpen])
 
   useEffect(() => {
-    if (searchOpen) {
-      searchInputRef.current?.focus()
-    } else {
-      setTrendingLoaded(false)
-      setSearchFocused(false)
-    }
-  }, [searchOpen])
+    const params = new URLSearchParams(location.search)
+    const value = params.get('titleOnly')
+    setSearchTitleOnly(value === '1' || value === 'true')
+  }, [location.search])
 
   useEffect(() => {
-    if (!searchOpen || trendingLoaded || trendingLoading) {
-      return
+    if (searchOpen) {
+      searchInputRef.current?.focus()
     }
-
-    const controller = new AbortController()
-    setTrendingLoading(true)
-    setTrendingLoaded(true)
-
-    apiGet<HomeTrendingSearch[]>('/home/trending-searches', { signal: controller.signal })
-      .then(data => {
-        if (Array.isArray(data)) {
-          setTrendingSearches(data)
-        }
-      })
-      .catch(err => {
-        if (err instanceof DOMException && err.name === 'AbortError') {
-          return
-        }
-        console.error('Unable to load trending searches', err)
-      })
-      .finally(() => setTrendingLoading(false))
-
-    return () => controller.abort()
-  }, [searchOpen, trendingLoading, trendingSearches.length])
+  }, [searchOpen])
 
   useEffect(() => {
     if (!searchOpen) {
@@ -331,65 +264,77 @@ const navLinks = useMemo(() => {
     }
   }, [searchOpen])
 
+  const buildSearchUrl = (queryTerm?: string, categorySlug?: string) => {
+    const params = new URLSearchParams()
+    const trimmed = queryTerm?.trim() ?? ''
+    if (trimmed) {
+      params.set('q', trimmed)
+    }
+    if (categorySlug) {
+      params.set('category', categorySlug)
+    }
+    if (searchTitleOnly) {
+      params.set('titleOnly', '1')
+    }
+    const queryString = params.toString()
+    return queryString ? `/search?${queryString}` : '/search'
+  }
+
   const handleSearchSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    const value = searchValue.trim()
-    addRecentSearch(value)
-    if (value) {
-      navigate(`/search?q=${encodeURIComponent(value)}`)
-    } else {
-      navigate('/search')
-    }
+    navigate(buildSearchUrl(searchValue))
     setSearchOpen(false)
   }
 
+  const handleClearSearch = () => {
+    setSearchValue('')
+    searchInputRef.current?.focus()
+  }
+
   const normalizedQuery = searchValue.trim().toLowerCase()
-  const categorySuggestions = useMemo(() => {
+  const categorySuggestions = useMemo<
+    Array<{ id: string; slug: string; label: string; parentLabel: string | null }>
+  >(() => {
     if (categoriesLoading || categoriesError || !categories.length) {
       return []
     }
-    const roots = categories.filter(category => !category.parentId)
-    const allCategories = categories.flatMap(category => [
-      category,
-      ...(category.children ?? [])
-    ])
-    const source = normalizedQuery ? allCategories : roots
-    const filtered = normalizedQuery
-      ? source.filter(category => category.name.toLowerCase().includes(normalizedQuery))
-      : source
-    return filtered.slice(0, MAX_SUGGESTIONS).map(category => ({
-      id: category.id,
-      label: category.name,
-      to: `/search?category=${category.slug ?? category.id}`
-    }))
-  }, [categories, categoriesError, categoriesLoading, normalizedQuery])
 
-  const trendingSuggestions = useMemo(() => {
-    if (!trendingSearches.length) {
+    if (!normalizedQuery) {
       return []
     }
-    const filtered = normalizedQuery
-      ? trendingSearches.filter(item =>
-        item.label.toLowerCase().includes(normalizedQuery) ||
-        item.query.toLowerCase().includes(normalizedQuery)
+
+    const bySlug = new Map<string, { id: string; slug: string; label: string; parentLabel: string | null }>()
+
+    categories.forEach(category => {
+      bySlug.set(category.slug, {
+        id: category.id,
+        slug: category.slug,
+        label: category.name,
+        parentLabel: null
+      })
+      ;(category.children ?? []).forEach(child => {
+        bySlug.set(child.slug, {
+          id: child.id,
+          slug: child.slug,
+          label: child.name,
+          parentLabel: category.name
+        })
+      })
+    })
+
+    return Array.from(bySlug.values())
+      .filter(category =>
+        category.label.toLowerCase().includes(normalizedQuery) ||
+        (category.parentLabel ?? '').toLowerCase().includes(normalizedQuery)
       )
-      : trendingSearches
-    return filtered.slice(0, MAX_SUGGESTIONS)
-  }, [normalizedQuery, trendingSearches])
+      .sort((a, b) => a.label.localeCompare(b.label))
+      .slice(0, MAX_SUGGESTIONS)
+  }, [categories, categoriesError, categoriesLoading, normalizedQuery])
 
-  const showPanel = searchOpen && (
-    searchFocused ||
-    recentSearches.length > 0 ||
-    categorySuggestions.length > 0 ||
-    trendingSuggestions.length > 0 ||
-    normalizedQuery.length > 0
-  )
+  const showPanel = searchOpen
 
-  const handleNavigate = (to: string, term?: string) => {
-    if (term) {
-      addRecentSearch(term)
-    }
-    navigate(to)
+  const handleCategorySuggestionClick = (categorySlug: string) => {
+    navigate(buildSearchUrl(searchValue, categorySlug))
     setSearchOpen(false)
   }
 
@@ -475,124 +420,75 @@ const navLinks = useMemo(() => {
 
       <div className={`lbc-header__search-bar${searchOpen ? ' is-open' : ''}`} ref={searchBarRef}>
         <div className="container lbc-header__search-inner">
-          <form onSubmit={handleSearchSubmit}>
-            <input
-              ref={searchInputRef}
-              id="header-search-input"
-              className="input lbc-header__search-input"
-              type="search"
-              value={searchValue}
-              onChange={event => setSearchValue(event.target.value)}
-              onFocus={() => setSearchFocused(true)}
-              placeholder={t('header.searchPlaceholder')}
-              aria-label={t('header.search')}
-            />
+          <form onSubmit={handleSearchSubmit} className="lbc-header__search-form">
+            <div className="lbc-header__search-control">
+              <input
+                ref={searchInputRef}
+                id="header-search-input"
+                className="input lbc-header__search-input"
+                type="search"
+                value={searchValue}
+                onChange={event => setSearchValue(event.target.value)}
+                placeholder={t('header.searchPlaceholder')}
+                aria-label={t('header.search')}
+              />
+              {searchValue ? (
+                <button
+                  type="button"
+                  className="lbc-header__search-clear"
+                  aria-label={t('header.search.clear')}
+                  onClick={handleClearSearch}
+                >
+                  ×
+                </button>
+              ) : null}
+              <button
+                type="submit"
+                className="lbc-header__search-submit"
+                aria-label={t('header.search')}
+              >
+                <span aria-hidden="true">⌕</span>
+              </button>
+            </div>
           </form>
           {showPanel ? (
-            <div className="lbc-header__search-panel">
-              {normalizedQuery ? (
-                <div className="lbc-search-panel__section">
-                  <span className="lbc-search-panel__title">{t('header.search.suggestions')}</span>
-                  <button
-                    type="button"
-                    className="lbc-search-panel__item"
-                    onClick={() => handleNavigate(`/search?q=${encodeURIComponent(normalizedQuery)}`, normalizedQuery)}
-                  >
-                    <span className="lbc-search-panel__icon" aria-hidden>🔎</span>
-                    <span className="lbc-search-panel__label">
-                      {t('header.search.submit', { term: normalizedQuery })}
-                    </span>
-                  </button>
-                  {trendingSuggestions.map(item => (
+            <div className="lbc-header__search-panel lbc-header__search-panel--modern">
+              <label className="lbc-search-panel__toggle">
+                <input
+                  type="checkbox"
+                  checked={searchTitleOnly}
+                  onChange={event => setSearchTitleOnly(event.target.checked)}
+                />
+                <span>{t('header.search.titleOnly')}</span>
+              </label>
+
+              <div className="lbc-search-panel__divider" />
+
+              <div className="lbc-search-panel__section">
+                <span className="lbc-search-panel__title">{t('header.search.suggestions')}</span>
+
+                {!normalizedQuery ? (
+                  <p className="lbc-search-panel__empty">{t('header.search.typeToSuggest')}</p>
+                ) : categorySuggestions.length ? (
+                  categorySuggestions.map(item => (
                     <button
                       key={item.id}
                       type="button"
-                      className="lbc-search-panel__item"
-                      onClick={() => handleNavigate(`/search?q=${encodeURIComponent(item.query)}`, item.query)}
+                      className="lbc-search-panel__item lbc-search-panel__item--query"
+                      onClick={() => handleCategorySuggestionClick(item.slug)}
                     >
-                      <span className="lbc-search-panel__icon" aria-hidden>🔥</span>
-                      <span className="lbc-search-panel__label">{item.label}</span>
+                      <span className="lbc-search-panel__icon" aria-hidden>⌕</span>
+                      <span className="lbc-search-panel__label">
+                        <strong>{searchValue.trim()}</strong>
+                        <span className="lbc-search-panel__in">{t('header.search.in')}</span>
+                        <em>{item.label}</em>
+                      </span>
                     </button>
-                  ))}
-                  {categorySuggestions.map(item => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      className="lbc-search-panel__item"
-                      onClick={() => handleNavigate(item.to, item.label)}
-                    >
-                      <span className="lbc-search-panel__icon" aria-hidden>🏷️</span>
-                      <span className="lbc-search-panel__label">{item.label}</span>
-                    </button>
-                  ))}
-                  {!trendingSuggestions.length && !categorySuggestions.length ? (
-                    <p className="lbc-search-panel__empty">{t('header.search.empty')}</p>
-                  ) : null}
-                </div>
-              ) : (
-                <>
-                  {recentSearches.length ? (
-                    <div className="lbc-search-panel__section">
-                      <div className="lbc-search-panel__header">
-                        <span className="lbc-search-panel__title">{t('header.search.recent')}</span>
-                        <button
-                          type="button"
-                          className="lbc-search-panel__action"
-                          onClick={clearRecentSearches}
-                        >
-                          {t('header.search.clear')}
-                        </button>
-                      </div>
-                      {recentSearches.map(item => (
-                        <button
-                          key={item}
-                          type="button"
-                          className="lbc-search-panel__item"
-                          onClick={() => handleNavigate(`/search?q=${encodeURIComponent(item)}`, item)}
-                        >
-                          <span className="lbc-search-panel__icon" aria-hidden>🕘</span>
-                          <span className="lbc-search-panel__label">{item}</span>
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-                  {trendingSuggestions.length ? (
-                    <div className="lbc-search-panel__section">
-                      <span className="lbc-search-panel__title">{t('header.search.trending')}</span>
-                      {trendingSuggestions.map(item => (
-                        <button
-                          key={item.id}
-                          type="button"
-                          className="lbc-search-panel__item"
-                          onClick={() => handleNavigate(`/search?q=${encodeURIComponent(item.query)}`, item.query)}
-                        >
-                          <span className="lbc-search-panel__icon" aria-hidden>🔥</span>
-                          <span className="lbc-search-panel__label">{item.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-                  {categorySuggestions.length ? (
-                    <div className="lbc-search-panel__section">
-                      <span className="lbc-search-panel__title">{t('header.search.suggestions')}</span>
-                      {categorySuggestions.map(item => (
-                        <button
-                          key={item.id}
-                          type="button"
-                          className="lbc-search-panel__item"
-                          onClick={() => handleNavigate(item.to, item.label)}
-                        >
-                          <span className="lbc-search-panel__icon" aria-hidden>🏷️</span>
-                          <span className="lbc-search-panel__label">{item.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-                  {!recentSearches.length && !trendingSuggestions.length && !categorySuggestions.length ? (
-                    <p className="lbc-search-panel__empty">{t('header.search.empty')}</p>
-                  ) : null}
-                </>
-              )}
+                  ))
+                ) : (
+                  <p className="lbc-search-panel__empty">{t('header.search.empty')}</p>
+                )}
+              </div>
             </div>
           ) : null}
         </div>
