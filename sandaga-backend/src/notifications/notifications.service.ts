@@ -119,7 +119,7 @@ export class NotificationsService {
     const sellerName =
       seller.companyName?.trim() ||
       `${seller.firstName ?? ''} ${seller.lastName ?? ''}`.trim() ||
-      'OMAKET';
+      'LEMAKET';
     const listingTitle = listing.title ?? 'nouvelle annonce';
 
     const baseUrl =

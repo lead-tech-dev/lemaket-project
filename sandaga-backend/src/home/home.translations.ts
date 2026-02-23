@@ -75,14 +75,14 @@ const HOME_TRANSLATIONS: Record<HomeLocale, HomeLocaleStrings> = {
         title: 'Paiement sécurisé',
         description:
           'Une solution intégrée pour acheter et vendre en toute confiance.',
-        actionLabel: 'Découvrir le paiement OMAKET',
+        actionLabel: 'Découvrir le paiement LEMAKET',
         actionUrl: '/services/paiement'
       },
       {
         title: 'Livraison simplifiée',
         description:
           'Des partenaires fiables pour expédier ou recevoir votre article.',
-        actionLabel: 'Explorer la livraison OMAKET',
+        actionLabel: 'Explorer la livraison LEMAKET',
         actionUrl: '/services/livraison'
       },
       {
@@ -97,7 +97,7 @@ const HOME_TRANSLATIONS: Record<HomeLocale, HomeLocaleStrings> = {
       {
         id: 'testimonial-awa',
         quote:
-          "J’ai trouvé mon nouvel appartement en une semaine grâce à OMAKET. Les contacts sont sérieux et la messagerie sécurisée rassure tout le monde.",
+          "J’ai trouvé mon nouvel appartement en une semaine grâce à LEMAKET. Les contacts sont sérieux et la messagerie sécurisée rassure tout le monde.",
         author: 'Awa, vendeuse PRO',
         location: 'Douala, Cameroun',
         avatarUrl: null
@@ -154,14 +154,14 @@ const HOME_TRANSLATIONS: Record<HomeLocale, HomeLocaleStrings> = {
         title: 'Secure payment',
         description:
           'An integrated solution to buy and sell with confidence.',
-        actionLabel: 'Discover OMAKET Pay',
+        actionLabel: 'Discover LEMAKET Pay',
         actionUrl: '/services/paiement'
       },
       {
         title: 'Hassle-free delivery',
         description:
           'Trusted partners to ship or receive your item.',
-        actionLabel: 'Explore OMAKET Delivery',
+        actionLabel: 'Explore LEMAKET Delivery',
         actionUrl: '/services/livraison'
       },
       {
@@ -176,7 +176,7 @@ const HOME_TRANSLATIONS: Record<HomeLocale, HomeLocaleStrings> = {
       {
         id: 'testimonial-awa',
         quote:
-          'I found my new apartment in one week thanks to OMAKET. Serious contacts and secure messaging reassure everyone.',
+          'I found my new apartment in one week thanks to LEMAKET. Serious contacts and secure messaging reassure everyone.',
         author: 'Awa, PRO seller',
         location: 'Douala, Cameroon',
         avatarUrl: null

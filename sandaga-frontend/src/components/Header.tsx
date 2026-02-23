@@ -7,7 +7,7 @@ import { useMessageNotifications } from '../hooks/useMessageNotifications'
 import { useFeatureFlagsContext } from '../contexts/FeatureFlagContext'
 import { useCategories } from '../hooks/useCategories'
 import { useI18n } from '../contexts/I18nContext'
-import omaketIcon from '../assets/icons/omaket-icon.svg'
+import lemaketIcon from '../assets/icons/lemaket-icon.svg'
 
 type RecentSearchItem = {
   label: string
@@ -464,7 +464,7 @@ const navLinks = useMemo(() => {
       <div className="container lbc-header__inner">
         <div className="lbc-header__brand">
           <Link to="/" className="lbc-logo">
-            <img src={omaketIcon} alt="" aria-hidden className="lbc-logo__icon" />
+            <img src={lemaketIcon} alt="" aria-hidden className="lbc-logo__icon" />
             <span className="lbc-logo__text">LEMAKET</span>
           </Link>
           <span className="lbc-header__tag">{t('header.tagline')}</span>

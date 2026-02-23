@@ -7,7 +7,7 @@ import { UserRole } from '../common/enums/user-role.enum';
 async function run() {
   await dataSource.initialize();
 
-  const email = process.env.PLATFORM_WALLET_EMAIL ?? 'platform@omaket.local';
+  const email = process.env.PLATFORM_WALLET_EMAIL ?? 'platform@lemaket.local';
   const firstName = process.env.PLATFORM_WALLET_FIRST_NAME ?? 'Platform';
   const lastName = process.env.PLATFORM_WALLET_LAST_NAME ?? 'Wallet';
   const rawPassword = process.env.PLATFORM_WALLET_PASSWORD ?? 'ChangeMe123!';
