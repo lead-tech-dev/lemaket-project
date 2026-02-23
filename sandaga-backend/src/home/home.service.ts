@@ -48,6 +48,8 @@ export class HomeService {
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    @InjectRepository(Review)
+    private readonly reviewRepository: Repository<Review>,
     private readonly categoriesService: CategoriesService,
     private readonly listingsService: ListingsService,
     private readonly usersService: UsersService,
@@ -73,7 +75,7 @@ export class HomeService {
     const categories = await this.categoriesService.findActive();
     const localeStrings = getHomeTranslations(locale);
 
-    const [hero, categoriesCards, listingCollections, sellerSplit, trendingSearches] =
+    const [hero, categoriesCards, listingCollections, sellerSplit, trendingSearches, testimonials] =
       await Promise.all([
         this.buildHero(categories, localeStrings),
         this.buildCategoryCards(categories),
@@ -84,7 +86,8 @@ export class HomeService {
           locale
         ),
         this.getSellerSplit(),
-        this.searchLogsService.getTrendingSearches().catch(() => [])
+        this.searchLogsService.getTrendingSearches().catch(() => []),
+        this.getTestimonials(locale)
       ]);
 
     return {
@@ -94,7 +97,7 @@ export class HomeService {
       latestListings: listingCollections.latest,
       services: localeStrings.services,
       sellerSplit,
-      testimonials: localeStrings.testimonials,
+      testimonials,
       trendingSearches: trendingSearches.length
         ? trendingSearches
         : localeStrings.trendingSearches,
@@ -243,8 +246,60 @@ export class HomeService {
     };
   }
 
-  getTestimonials(locale: HomeLocale = 'fr'): HomeTestimonial[] {
-    return getHomeTranslations(locale).testimonials;
+  async getTestimonials(locale: HomeLocale = 'fr'): Promise<HomeTestimonial[]> {
+    const fallback = getHomeTranslations(locale).testimonials;
+
+    const reviews = await this.reviewRepository
+      .createQueryBuilder('review')
+      .leftJoinAndSelect('review.reviewer', 'reviewer')
+      .where('review.status = :status', { status: ReviewStatus.APPROVED })
+      .andWhere('review.isTestimonial = true')
+      .andWhere("COALESCE(TRIM(review.comment), '') <> ''")
+      .orderBy('review.created_at', 'DESC')
+      .limit(30)
+      .getMany()
+      .catch(() => []);
+
+    if (!reviews.length) {
+      return fallback;
+    }
+
+    const testimonials: HomeTestimonial[] = [];
+    const seenReviewers = new Set<string>();
+
+    for (const review of reviews) {
+      const reviewerId = review.reviewerId;
+      if (reviewerId && seenReviewers.has(reviewerId)) {
+        continue;
+      }
+
+      const quote = review.comment?.trim();
+      if (!quote || quote.length < 10) {
+        continue;
+      }
+
+      const reviewer = review.reviewer;
+      const authorName = reviewer
+        ? `${reviewer.firstName ?? ''} ${reviewer.lastName ?? ''}`.trim()
+        : '';
+
+      testimonials.push({
+        id: review.id,
+        quote,
+        author: authorName || 'Utilisateur',
+        location: review.location ?? reviewer?.location ?? null,
+        avatarUrl: reviewer?.avatarUrl ?? null
+      });
+
+      if (reviewerId) {
+        seenReviewers.add(reviewerId);
+      }
+      if (testimonials.length >= 6) {
+        break;
+      }
+    }
+
+    return testimonials.length ? testimonials : fallback;
   }
 
   async getTrendingSearches(locale: HomeLocale = 'fr'): Promise<HomeTrendingSearch[]> {

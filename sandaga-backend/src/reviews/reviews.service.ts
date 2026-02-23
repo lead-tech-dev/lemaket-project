@@ -80,6 +80,7 @@ export class ReviewsService {
       rating: dto.rating,
       comment,
       location: dto.location?.trim() || null,
+      isTestimonial: dto.isTestimonial ?? false,
       status: ReviewStatus.APPROVED
     });
 
@@ -171,6 +172,7 @@ export class ReviewsService {
       rating: dto.rating,
       comment,
       location: dto.location?.trim() || null,
+      isTestimonial: dto.isTestimonial ?? false,
       status: ReviewStatus.APPROVED
     });
 

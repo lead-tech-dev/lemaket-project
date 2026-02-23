@@ -1,4 +1,4 @@
-import { IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { IsBoolean, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min, MinLength } from 'class-validator';
 
 export class CreateReviewDto {
   @IsUUID()
@@ -19,4 +19,8 @@ export class CreateReviewDto {
   @IsString()
   @MaxLength(80)
   location?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isTestimonial?: boolean;
 }

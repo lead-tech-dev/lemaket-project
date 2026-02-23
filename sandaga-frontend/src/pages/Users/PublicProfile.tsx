@@ -142,6 +142,7 @@ export default function PublicUserProfile() {
   const [reviewRating, setReviewRating] = useState(5)
   const [reviewComment, setReviewComment] = useState('')
   const [reviewLocation, setReviewLocation] = useState('')
+  const [reviewAsTestimonial, setReviewAsTestimonial] = useState(false)
   const [isSubmittingReview, setIsSubmittingReview] = useState(false)
   const [reportReason, setReportReason] = useState('')
   const [reportDetails, setReportDetails] = useState('')
@@ -329,7 +330,8 @@ export default function PublicUserProfile() {
         sellerId: profile.id,
         rating: reviewRating,
         comment: reviewComment.trim(),
-        location: reviewLocation.trim() || undefined
+        location: reviewLocation.trim() || undefined,
+        isTestimonial: reviewAsTestimonial
       })
       addToast({
         variant: 'success',
@@ -340,6 +342,7 @@ export default function PublicUserProfile() {
       setReviewComment('')
       setReviewLocation('')
       setReviewRating(5)
+      setReviewAsTestimonial(false)
       setSectionTab('reviews')
       // refresh reviews
       if (profile.id) {
@@ -767,6 +770,14 @@ export default function PublicUserProfile() {
               onChange={event => setReviewLocation(event.target.value)}
               placeholder="Ex: Douala"
             />
+          </label>
+          <label className="switch-toggle">
+            <input
+              type="checkbox"
+              checked={reviewAsTestimonial}
+              onChange={event => setReviewAsTestimonial(event.target.checked)}
+            />
+            <span>Autoriser l’affichage de mon avis dans les témoignages de la page d’accueil</span>
           </label>
         </form>
       </Modal>
