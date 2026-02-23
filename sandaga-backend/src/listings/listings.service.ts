@@ -104,7 +104,7 @@ export class ListingsService {
     }
 
     const priceAmount = createListingDto.price?.amount ?? 0;
-    const currency = createListingDto.price?.currency ?? 'EUR';
+    const currency = createListingDto.price?.currency ?? 'XAF';
     const newItemPrice =
       typeof createListingDto.price?.newItemPrice === 'number'
         ? createListingDto.price.newItemPrice
@@ -629,10 +629,16 @@ export class ListingsService {
       .leftJoinAndSelect('listing.owner', 'owner');
 
     if (filter.search) {
-      query.andWhere(
-        `(listing.title ILIKE :search OR listing.description ILIKE :search OR listing.location->>'city' ILIKE :search)`,
-        { search: `%${filter.search}%` }
-      );
+      if (filter.titleOnly) {
+        query.andWhere(`listing.title ILIKE :search`, {
+          search: `%${filter.search}%`
+        });
+      } else {
+        query.andWhere(
+          `(listing.title ILIKE :search OR listing.description ILIKE :search OR listing.location->>'city' ILIKE :search)`,
+          { search: `%${filter.search}%` }
+        );
+      }
     }
 
     if (categoryScopeIds && categoryScopeIds.length > 0) {
@@ -972,6 +978,36 @@ export class ListingsService {
     }
 
     const savedListing = await this.listingsRepository.save(listing);
+
+    if (updateListingDto.images) {
+      const incomingImages = updateListingDto.images
+        .slice(0, 8)
+        .filter(image => typeof image.url === 'string' && image.url.trim().length > 0)
+        .map(image => ({
+          url: image.url.trim(),
+          position:
+            typeof image.position === 'number' && Number.isFinite(image.position)
+              ? image.position
+              : undefined,
+          isCover: Boolean(image.isCover)
+        }));
+
+      await this.listingImagesRepository.delete({ listingId: savedListing.id });
+
+      if (incomingImages.length > 0) {
+        const hasCover = incomingImages.some(image => image.isCover);
+        const imagesToSave = incomingImages.map((image, index) =>
+          this.listingImagesRepository.create({
+            listingId: savedListing.id,
+            url: image.url,
+            position: image.position ?? index,
+            isCover: hasCover ? image.isCover : index === 0
+          })
+        );
+
+        await this.listingImagesRepository.save(imagesToSave);
+      }
+    }
 
     savedListing.images = await this.listingImagesRepository.find({
       where: { listingId: savedListing.id },
@@ -1399,10 +1435,10 @@ export class ListingsService {
       price: listing.price != null ? String(listing.price) : '0',
       priceDetails: {
         amount: Number(listing.price ?? 0),
-        currency: listing.currency ?? 'EUR',
+        currency: listing.currency ?? 'XAF',
         newItemPrice: newItemPrice ?? null
       },
-      currency: listing.currency ?? 'EUR',
+      currency: listing.currency ?? 'XAF',
       flow: listing.flow
         ? (listing.flow.toLowerCase() as 'sell' | 'buy' | 'let' | 'rent')
         : null,

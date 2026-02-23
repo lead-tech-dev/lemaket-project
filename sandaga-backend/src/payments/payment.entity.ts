@@ -9,7 +9,7 @@ export class Payment extends CoreEntity {
   @Column({ type: 'numeric', precision: 12, scale: 2 })
   amount!: string;
 
-  @Column({ length: 3, default: 'EUR' })
+  @Column({ length: 3, default: 'XAF' })
   currency!: string;
 
   @Column({ type: 'enum', enum: PaymentStatus, default: PaymentStatus.PENDING })

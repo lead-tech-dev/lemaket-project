@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { I18nProvider } from '../contexts/I18nContext'
@@ -36,5 +36,18 @@ describe('Routing (integration)', () => {
 
     // Assert the email field is present
     expect(screen.getByLabelText(/adresse e-mail/i)).toBeInTheDocument()
+  })
+
+  it('scrolls to top when changing page', async () => {
+    const user = userEvent.setup()
+    const scrollToMock = vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+    renderApp()
+
+    const link = await screen.findByRole('link', { name: /se connecter/i })
+    scrollToMock.mockClear()
+    await user.click(link)
+
+    expect(await screen.findByRole('heading', { name: /connexion à votre compte/i })).toBeInTheDocument()
+    expect(scrollToMock).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'auto' })
   })
 })

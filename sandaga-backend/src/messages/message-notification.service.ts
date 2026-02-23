@@ -49,7 +49,7 @@ export class MessageNotificationService {
       this.configService.get<string>('FRONTEND_URL') ||
       'http://localhost:5173';
     const conversationLink = `${baseUrl.replace(/\/$/, '')}/dashboard/messages/${conversation.id}`;
-    const senderName = `${sender.firstName ?? ''} ${sender.lastName ?? ''}`.trim() || 'OMAKET';
+    const senderName = `${sender.firstName ?? ''} ${sender.lastName ?? ''}`.trim() || 'LEMAKET';
     const listingTitle = conversation.listing?.title ?? 'votre annonce';
 
     const messagePreview = message.content?.trim()

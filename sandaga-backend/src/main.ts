@@ -43,10 +43,10 @@ async function bootstrap(): Promise<void> {
   );
 
   const config = new DocumentBuilder()
-    .setTitle('OMAKET API')
-    .setDescription('The OMAKET API description')
+    .setTitle('LEMAKET API')
+    .setDescription('The LEMAKET API description')
     .setVersion('1.0')
-    .addTag('OMAKET')
+    .addTag('LEMAKET')
     .build();
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);
@@ -56,7 +56,7 @@ async function bootstrap(): Promise<void> {
 
   const url = await app.getUrl();
   // eslint-disable-next-line no-console
-  console.log(`OMAKET API is running at ${url}`);
+  console.log(`LEMAKET API is running at ${url}`);
 }
 
 void bootstrap();

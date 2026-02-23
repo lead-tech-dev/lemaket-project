@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import MainLayout from '../../layouts/MainLayout'
@@ -33,11 +33,10 @@ import { useFollowedSellers } from '../../hooks/useFollowedSellers'
 import { useAuth } from '../../hooks/useAuth'
 
  
-const RESULTS_PER_TREND = 999
 
 const formatListingPrice = (listing: HomeListing, locale: string): string => {
   const numericPrice = Number(listing.price)
-  const currency = listing.currency || 'EUR'
+  const currency = listing.currency || 'XAF'
 
   if (Number.isFinite(numericPrice)) {
     try {
@@ -213,6 +212,108 @@ export default function Home() {
   const [storefrontsLoading, setStorefrontsLoading] = useState(false)
   const [storefrontsError, setStorefrontsError] = useState<string | null>(null)
   const [isCreatingAlert, setIsCreatingAlert] = useState(false)
+  const [querySuggestionsOpen, setQuerySuggestionsOpen] = useState(false)
+  const queryFieldRef = useRef<HTMLDivElement | null>(null)
+
+  type CategorySuggestion = {
+    id: string
+    slug: string
+    label: string
+    parentLabel?: string
+  }
+
+  const categorySuggestions = useMemo<CategorySuggestion[]>(() => {
+    if (!categories.length) {
+      return []
+    }
+
+    const normalized = query.term.trim().toLowerCase()
+    const suggestionsBySlug = new Map<string, CategorySuggestion>()
+    const categoriesById = new Map(categories.map(category => [category.id, category]))
+
+    const addSuggestion = (entry: CategorySuggestion) => {
+      if (!entry.slug || suggestionsBySlug.has(entry.slug)) {
+        return
+      }
+      suggestionsBySlug.set(entry.slug, entry)
+    }
+
+    categories.forEach(category => {
+      const parentLabel = category.parentId
+        ? categoriesById.get(category.parentId)?.name
+        : undefined
+      addSuggestion({
+        id: category.id,
+        slug: category.slug,
+        label: category.name,
+        parentLabel
+      })
+
+      ;(category.children ?? []).forEach(child => {
+        addSuggestion({
+          id: child.id,
+          slug: child.slug,
+          label: child.name,
+          parentLabel: category.name
+        })
+      })
+    })
+
+    const list = Array.from(suggestionsBySlug.values())
+    if (!normalized) {
+      return list.filter(item => !item.parentLabel).slice(0, 6)
+    }
+
+    return list
+      .filter(item => {
+        const label = item.label.toLowerCase()
+        const parent = item.parentLabel?.toLowerCase() ?? ''
+        return label.includes(normalized) || parent.includes(normalized)
+      })
+      .sort((a, b) => {
+        const aStarts = a.label.toLowerCase().startsWith(normalized) ? 0 : 1
+        const bStarts = b.label.toLowerCase().startsWith(normalized) ? 0 : 1
+        if (aStarts !== bStarts) {
+          return aStarts - bStarts
+        }
+        return a.label.localeCompare(b.label, locale === 'fr' ? 'fr' : 'en', {
+          sensitivity: 'base'
+        })
+      })
+      .slice(0, 8)
+  }, [categories, locale, query.term])
+
+  useEffect(() => {
+    if (!querySuggestionsOpen) {
+      return
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null
+      if (!target) {
+        setQuerySuggestionsOpen(false)
+        return
+      }
+      if (queryFieldRef.current?.contains(target)) {
+        return
+      }
+      setQuerySuggestionsOpen(false)
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setQuerySuggestionsOpen(false)
+      }
+    }
+
+    window.addEventListener('pointerdown', handlePointerDown)
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown)
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [querySuggestionsOpen])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -490,6 +591,7 @@ export default function Home() {
 
   const handleSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    setQuerySuggestionsOpen(false)
     const params = new URLSearchParams()
     if (query.term.trim()) params.set('q', query.term.trim())
     if (query.location.trim()) params.set('l', query.location.trim())
@@ -503,6 +605,17 @@ export default function Home() {
     }
     if (preferences.sellerType && preferences.sellerType !== 'all') {
       params.set('sellerType', preferences.sellerType)
+    }
+    navigate(`/search?${params.toString()}`)
+  }
+
+  const handleCategorySuggestionSelect = (suggestion: CategorySuggestion) => {
+    setQuerySuggestionsOpen(false)
+    setQuery(prev => ({ ...prev, term: suggestion.label }))
+    const params = new URLSearchParams()
+    params.set('category', suggestion.slug)
+    if (query.location.trim()) {
+      params.set('l', query.location.trim())
     }
     navigate(`/search?${params.toString()}`)
   }
@@ -625,16 +738,51 @@ export default function Home() {
                 </div>
               )}
               <form className="lbc-search" role="search" onSubmit={handleSearch}>
-                <div className="lbc-search__field">
+                <div className="lbc-search__field lbc-search__field--query" ref={queryFieldRef}>
                   <label>{t('home.search.queryLabel')}</label>
                   <input
                     className="input"
                     placeholder={t('home.search.queryPlaceholder')}
                     value={query.term}
-                    onChange={event =>
+                    onFocus={() => setQuerySuggestionsOpen(true)}
+                    onBlur={event => {
+                      const nextTarget = event.relatedTarget as Node | null
+                      if (nextTarget && queryFieldRef.current?.contains(nextTarget)) {
+                        return
+                      }
+                      setQuerySuggestionsOpen(false)
+                    }}
+                    onChange={event => {
                       setQuery(prev => ({ ...prev, term: event.target.value }))
-                    }
+                      if (!querySuggestionsOpen) {
+                        setQuerySuggestionsOpen(true)
+                      }
+                    }}
                   />
+                  {querySuggestionsOpen ? (
+                    <div className="lbc-search__suggestions" role="listbox">
+                      {categoriesLoading ? (
+                        <p className="lbc-search__suggestions-hint">{t('search.header.loading')}</p>
+                      ) : categorySuggestions.length ? (
+                        categorySuggestions.map(suggestion => (
+                          <button
+                            key={suggestion.id}
+                            type="button"
+                            className="lbc-search__suggestion"
+                            onMouseDown={event => event.preventDefault()}
+                            onClick={() => handleCategorySuggestionSelect(suggestion)}
+                          >
+                            <span className="lbc-search__suggestion-label">{suggestion.label}</span>
+                            {suggestion.parentLabel ? (
+                              <span className="lbc-search__suggestion-meta">{suggestion.parentLabel}</span>
+                            ) : null}
+                          </button>
+                        ))
+                      ) : (
+                        <p className="lbc-search__suggestions-hint">{t('header.search.empty')}</p>
+                      )}
+                    </div>
+                  ) : null}
                 </div>
                 <div className="lbc-search__field">
                   <label>{t('home.search.locationLabel')}</label>
@@ -882,9 +1030,9 @@ export default function Home() {
                     >
                       <span className="lbc-trending-card__label">{item.label}</span>
                       <small>
-                        {item.resultCount
-                          ? t('home.trending.results', { count: numberFormatter.format(item.resultCount) })
-                          : t('home.trending.resultsMore', { count: RESULTS_PER_TREND })}
+                        {t('home.trending.results', {
+                          count: numberFormatter.format(Math.max(0, Number(item.resultCount) || 0))
+                        })}
                       </small>
                     </button>
                   ))
@@ -1037,7 +1185,7 @@ export default function Home() {
           ) : latestListings.length ? (
             <div className="lbc-listings lbc-listings--grid">
               {latestListings.map(listing => (
-                <Link key={listing.id} to={`/listing/${listing.id}`} className="lbc-mini-card">
+                <Link key={listing.id} to={`/listing/${listing.id}`} className="lbc-mini-card lbc-mini-card--with-favorite">
                   <FavoriteButton listingId={listing.id} className="favorite-toggle--overlay" />
                   <div
                     className="lbc-mini-card__image"

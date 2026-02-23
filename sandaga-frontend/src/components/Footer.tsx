@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useI18n } from '../contexts/I18nContext'
 import { useAuth } from '../hooks/useAuth'
-import omaketIcon from '../assets/icons/omaket-icon.svg'
+import lemaketIcon from '../assets/icons/lemaket-icon.svg'
 
 export default function Footer(){
   const { t } = useI18n()
@@ -48,7 +48,7 @@ export default function Footer(){
         <div className="lbc-footer__top">
           <div className="lbc-footer__brand">
             <span className="lbc-logo lbc-logo--footer">
-              <img src={omaketIcon} alt="" aria-hidden className="lbc-logo__icon" />
+              <img src={lemaketIcon} alt="" aria-hidden className="lbc-logo__icon" />
               <span className="lbc-logo__text">LEMAKET</span>
             </span>
             <p>{t('footer.brand.tagline')}</p>

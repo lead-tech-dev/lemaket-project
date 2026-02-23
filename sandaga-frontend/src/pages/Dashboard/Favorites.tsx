@@ -117,7 +117,7 @@ export default function Favorites() {
       try {
         return new Intl.NumberFormat(numberLocale, {
           style: 'currency',
-          currency: listing.currency || 'EUR'
+          currency: listing.currency || 'XAF'
         }).format(numericPrice)
       } catch {
         // Ignore and fallback below.

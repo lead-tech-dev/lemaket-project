@@ -277,6 +277,35 @@ export function DynamicFormField({
     const shouldUseRichTextarea =
       normalizedPath.endsWith('body') ||
       normalizedPath.endsWith('description')
+    if (shouldUseRichTextarea) {
+      return (
+        <Controller
+          control={control}
+          name={path}
+          rules={baseRules}
+          render={({ field: controllerField }) => (
+            <FormField
+              label={field.label}
+              htmlFor={id}
+              hint={hint}
+              required={isRequired}
+              error={errorMessage}
+            >
+              <RichTextarea
+                id={id}
+                rows={typeof field.rows === 'number' ? field.rows : 6}
+                placeholder={placeholder}
+                name={controllerField.name}
+                value={typeof controllerField.value === 'string' ? controllerField.value : ''}
+                onChange={controllerField.onChange}
+                onBlur={controllerField.onBlur}
+              />
+            </FormField>
+          )}
+        />
+      )
+    }
+
     return (
       <FormField
         label={field.label}
@@ -285,22 +314,13 @@ export function DynamicFormField({
         required={isRequired}
         error={errorMessage}
       >
-        {shouldUseRichTextarea ? (
-          <RichTextarea
-            id={id}
-            rows={typeof field.rows === 'number' ? field.rows : 6}
-            placeholder={placeholder}
-            {...register(path, baseRules)}
-          />
-        ) : (
-          <textarea
-            id={id}
-            className="input"
-            rows={typeof field.rows === 'number' ? field.rows : 4}
-            placeholder={placeholder}
-            {...register(path, baseRules)}
-          />
-        )}
+        <textarea
+          id={id}
+          className="input"
+          rows={typeof field.rows === 'number' ? field.rows : 4}
+          placeholder={placeholder}
+          {...register(path, baseRules)}
+        />
       </FormField>
     )
   }

@@ -1,7 +1,6 @@
 import {
   HomeServiceCard,
-  HomeTestimonial,
-  HomeTrendingSearch
+  HomeTestimonial
 } from './home.types';
 
 export type HomeLocale = 'fr' | 'en';
@@ -41,7 +40,6 @@ export type HomeLocaleStrings = {
   hero: HeroStrings;
   services: HomeServiceCard[];
   testimonials: HomeTestimonial[];
-  trendingSearches: HomeTrendingSearch[];
   ribbons: RibbonStrings;
 };
 
@@ -77,14 +75,14 @@ const HOME_TRANSLATIONS: Record<HomeLocale, HomeLocaleStrings> = {
         title: 'Paiement sécurisé',
         description:
           'Une solution intégrée pour acheter et vendre en toute confiance.',
-        actionLabel: 'Découvrir le paiement OMAKET',
+        actionLabel: 'Découvrir le paiement LEMAKET',
         actionUrl: '/services/paiement'
       },
       {
         title: 'Livraison simplifiée',
         description:
           'Des partenaires fiables pour expédier ou recevoir votre article.',
-        actionLabel: 'Explorer la livraison OMAKET',
+        actionLabel: 'Explorer la livraison LEMAKET',
         actionUrl: '/services/livraison'
       },
       {
@@ -99,9 +97,9 @@ const HOME_TRANSLATIONS: Record<HomeLocale, HomeLocaleStrings> = {
       {
         id: 'testimonial-awa',
         quote:
-          "J’ai trouvé mon nouvel appartement en une semaine grâce à OMAKET. Les contacts sont sérieux et la messagerie sécurisée rassure tout le monde.",
+          "J’ai trouvé mon nouvel appartement en une semaine grâce à LEMAKET. Les contacts sont sérieux et la messagerie sécurisée rassure tout le monde.",
         author: 'Awa, vendeuse PRO',
-        location: 'Dakar, Sénégal',
+        location: 'Douala, Cameroun',
         avatarUrl: null
       },
       {
@@ -109,7 +107,7 @@ const HOME_TRANSLATIONS: Record<HomeLocale, HomeLocaleStrings> = {
         quote:
           'En tant qu’artisan, je reçois des demandes qualifiées tous les jours. Mes ventes ont augmenté de 35% depuis mon passage en compte PRO.',
         author: 'Mamadou, artisan menuisier',
-        location: 'Thiès, Sénégal',
+        location: 'Yaoundé, Cameroun',
         avatarUrl: null
       },
       {
@@ -117,40 +115,8 @@ const HOME_TRANSLATIONS: Record<HomeLocale, HomeLocaleStrings> = {
         quote:
           'Les options de mise en avant sont très efficaces. Mon stock high-tech part deux fois plus vite en activant les promotions.',
         author: 'Ousmane, vendeur high-tech',
-        location: 'Dakar, Sénégal',
+        location: 'Bafoussam, Cameroun',
         avatarUrl: null
-      }
-    ],
-    trendingSearches: [
-      {
-        id: 'trend-immobilier',
-        label: 'Appartements avec balcon',
-        query: 'appartement balcon',
-        resultCount: 1860
-      },
-      {
-        id: 'trend-voitures',
-        label: 'SUV d’occasion',
-        query: 'SUV',
-        resultCount: 1420
-      },
-      {
-        id: 'trend-emploi',
-        label: 'Jobs développeur JS',
-        query: 'développeur javascript',
-        resultCount: 980
-      },
-      {
-        id: 'trend-mode',
-        label: 'Sneakers édition limitée',
-        query: 'sneakers',
-        resultCount: 760
-      },
-      {
-        id: 'trend-services',
-        label: 'Cours particuliers en ligne',
-        query: 'cours particuliers',
-        resultCount: 540
       }
     ],
     ribbons: {
@@ -188,14 +154,14 @@ const HOME_TRANSLATIONS: Record<HomeLocale, HomeLocaleStrings> = {
         title: 'Secure payment',
         description:
           'An integrated solution to buy and sell with confidence.',
-        actionLabel: 'Discover OMAKET Pay',
+        actionLabel: 'Discover LEMAKET Pay',
         actionUrl: '/services/paiement'
       },
       {
         title: 'Hassle-free delivery',
         description:
           'Trusted partners to ship or receive your item.',
-        actionLabel: 'Explore OMAKET Delivery',
+        actionLabel: 'Explore LEMAKET Delivery',
         actionUrl: '/services/livraison'
       },
       {
@@ -210,9 +176,9 @@ const HOME_TRANSLATIONS: Record<HomeLocale, HomeLocaleStrings> = {
       {
         id: 'testimonial-awa',
         quote:
-          'I found my new apartment in one week thanks to OMAKET. Serious contacts and secure messaging reassure everyone.',
+          'I found my new apartment in one week thanks to LEMAKET. Serious contacts and secure messaging reassure everyone.',
         author: 'Awa, PRO seller',
-        location: 'Dakar, Senegal',
+        location: 'Douala, Cameroon',
         avatarUrl: null
       },
       {
@@ -220,7 +186,7 @@ const HOME_TRANSLATIONS: Record<HomeLocale, HomeLocaleStrings> = {
         quote:
           'As a craftsman I receive qualified requests every day. My sales jumped 35% after switching to a PRO account.',
         author: 'Mamadou, carpenter',
-        location: 'Thiès, Senegal',
+        location: 'Yaounde, Cameroon',
         avatarUrl: null
       },
       {
@@ -228,40 +194,8 @@ const HOME_TRANSLATIONS: Record<HomeLocale, HomeLocaleStrings> = {
         quote:
           'Highlight options are very effective. My high-tech stock moves twice as fast when promotions are enabled.',
         author: 'Ousmane, tech seller',
-        location: 'Dakar, Senegal',
+        location: 'Bafoussam, Cameroon',
         avatarUrl: null
-      }
-    ],
-    trendingSearches: [
-      {
-        id: 'trend-immobilier',
-        label: 'Apartments with balconies',
-        query: 'balcony apartment',
-        resultCount: 1860
-      },
-      {
-        id: 'trend-voitures',
-        label: 'Second-hand SUVs',
-        query: 'SUV',
-        resultCount: 1420
-      },
-      {
-        id: 'trend-emploi',
-        label: 'JavaScript developer jobs',
-        query: 'javascript developer',
-        resultCount: 980
-      },
-      {
-        id: 'trend-mode',
-        label: 'Limited edition sneakers',
-        query: 'limited sneakers',
-        resultCount: 760
-      },
-      {
-        id: 'trend-services',
-        label: 'Online private lessons',
-        query: 'online tutoring',
-        resultCount: 540
       }
     ],
     ribbons: {

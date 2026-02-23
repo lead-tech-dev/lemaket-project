@@ -48,6 +48,9 @@ export class Review extends CoreEntity {
   @Column({ nullable: true })
   location?: string | null;
 
+  @Column({ name: 'is_testimonial', default: false })
+  isTestimonial!: boolean;
+
   @Column({
     type: 'enum',
     enum: ReviewStatus,

@@ -138,7 +138,7 @@ export default function Promotions() {
     () =>
       new Intl.NumberFormat(localeTag, {
         style: 'currency',
-        currency: 'EUR',
+        currency: 'XAF',
         minimumFractionDigits: 2
       }),
     [localeTag]

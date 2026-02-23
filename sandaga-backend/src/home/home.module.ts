@@ -7,6 +7,7 @@ import { ListingsModule } from '../listings/listings.module';
 import { UsersModule } from '../users/users.module';
 import { SearchLogsModule } from '../search-logs/search-logs.module';
 import { User } from '../users/user.entity';
+import { Review } from '../reviews/review.entity';
 
 @Module({
   imports: [
@@ -14,7 +15,7 @@ import { User } from '../users/user.entity';
     ListingsModule,
     UsersModule,
     SearchLogsModule,
-    TypeOrmModule.forFeature([User])
+    TypeOrmModule.forFeature([User, Review])
   ],
   providers: [HomeService],
   controllers: [HomeController]

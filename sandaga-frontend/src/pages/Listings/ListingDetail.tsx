@@ -13,9 +13,155 @@ import { useAuth } from '../../hooks/useAuth'
 import { useFollowedSellers } from '../../hooks/useFollowedSellers'
 import { useI18n } from '../../contexts/I18nContext'
 import { formatCityZip } from '../../utils/location'
+import { toRenderableRichTextHtml } from '../../utils/richText'
 type MapboxMap = import('mapbox-gl').Map
 type MapboxMarker = import('mapbox-gl').Marker
 import 'mapbox-gl/dist/mapbox-gl.css'
+
+const STREET_SEGMENT_PATTERN = /\b(rue|avenue|av\.?|boulevard|bd\.?|street|st\.?|road|rd\.?|route|impasse|allee|lotissement)\b/i
+const COUNTRY_SEGMENT_PATTERN = /^(cameroon|cameroun)$/i
+
+function normalizeLocationToken(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function splitLocationParts(value: string): string[] {
+  return value
+    .split(',')
+    .map(part => part.trim())
+    .filter(Boolean)
+}
+
+function dedupeLocationParts(parts: string[]): string[] {
+  const seen = new Set<string>()
+  return parts.filter(part => {
+    const normalized = normalizeLocationToken(part)
+    if (!normalized || seen.has(normalized)) {
+      return false
+    }
+    seen.add(normalized)
+    return true
+  })
+}
+
+function looksLikeStreetSegment(value: string): boolean {
+  return /\d/.test(value) || STREET_SEGMENT_PATTERN.test(value)
+}
+
+function buildExactLocationLabel(input: {
+  label?: string
+  address?: string
+  city?: string
+  zipcode?: string
+}): string {
+  const city = typeof input.city === 'string' ? input.city.trim() : ''
+  const zipcode = typeof input.zipcode === 'string' ? input.zipcode.trim() : ''
+  const cityZip = formatCityZip(city, zipcode)
+  const rawLabel =
+    (typeof input.label === 'string' && input.label.trim()) ||
+    (typeof input.address === 'string' && input.address.trim()) ||
+    ''
+
+  const parts = dedupeLocationParts(splitLocationParts(rawLabel)).filter(
+    part => !COUNTRY_SEGMENT_PATTERN.test(part.trim())
+  )
+
+  // Prefer broad location tokens (neighborhood/city/region) over street-level fragments.
+  const broadParts = parts.filter(part => !looksLikeStreetSegment(part))
+  const tokens = broadParts.length ? broadParts : parts
+
+  if (city && tokens.length) {
+    const normalizedCity = normalizeLocationToken(city)
+    const cityIndex = tokens.findIndex(part => normalizeLocationToken(part) === normalizedCity)
+
+    if (cityIndex > 0) {
+      return `${tokens[cityIndex - 1]}, ${tokens[cityIndex]}`
+    }
+
+    if (cityIndex === 0) {
+      if (tokens[1]) {
+        return `${tokens[0]}, ${tokens[1]}`
+      }
+      return tokens[0]
+    }
+  }
+
+  if (tokens.length >= 2) {
+    return `${tokens[0]}, ${tokens[1]}`
+  }
+
+  if (tokens[0]) {
+    return tokens[0]
+  }
+
+  return cityZip || city || ''
+}
+
+function buildPublicLocationLabel(input: {
+  label?: string
+  address?: string
+  city?: string
+  zipcode?: string
+}): string {
+  const city = typeof input.city === 'string' ? input.city.trim() : ''
+  const zipcode = typeof input.zipcode === 'string' ? input.zipcode.trim() : ''
+  const cityZip = formatCityZip(city, zipcode)
+  const rawLabel =
+    (typeof input.label === 'string' && input.label.trim()) ||
+    (typeof input.address === 'string' && input.address.trim()) ||
+    ''
+  const parts = splitLocationParts(rawLabel)
+
+  if (city) {
+    const normalizedCity = normalizeLocationToken(city)
+    const cityPartIndex = parts.findIndex(part => {
+      const normalized = normalizeLocationToken(part)
+      return (
+        normalized === normalizedCity ||
+        normalized.includes(normalizedCity) ||
+        normalizedCity.includes(normalized)
+      )
+    })
+
+    if (cityPartIndex > 0) {
+      const previous = parts[cityPartIndex - 1]
+      if (
+        previous &&
+        !looksLikeStreetSegment(previous) &&
+        normalizeLocationToken(previous) !== normalizedCity
+      ) {
+        return `${previous}, ${parts[cityPartIndex]}`
+      }
+    }
+
+    if (cityPartIndex >= 0) {
+      return parts[cityPartIndex]
+    }
+  }
+
+  if (parts.length >= 2 && !looksLikeStreetSegment(parts[0])) {
+    return `${parts[0]}, ${parts[1]}`
+  }
+
+  if (cityZip) {
+    return cityZip
+  }
+
+  if (city) {
+    return city
+  }
+
+  if (parts.length) {
+    return parts[0]
+  }
+
+  return ''
+}
 
 function formatPrice(listing: Listing | null, locale: string): string {
   if (!listing) {
@@ -29,7 +175,7 @@ function formatPrice(listing: Listing | null, locale: string): string {
       const numberLocale = locale === 'fr' ? 'fr-FR' : 'en-US'
       return new Intl.NumberFormat(numberLocale, {
         style: 'currency',
-        currency: listing.currency || 'EUR'
+        currency: listing.currency || 'XAF'
       }).format(numericPrice)
     } catch {
       // Fallback handled below
@@ -498,6 +644,10 @@ export default function ListingDetail() {
   const highlights = listing?.highlights?.length
     ? listing.highlights
     : buildDefaultHighlights(listing, t)
+  const renderedDescription = useMemo(
+    () => toRenderableRichTextHtml(listing?.description ?? ''),
+    [listing?.description]
+  )
   const formattedPrice = formatPrice(listing, locale)
   const dateLocale = locale === 'fr' ? 'fr-FR' : 'en-US'
   const formatListingDate = (value: string | null | undefined) => {
@@ -594,6 +744,8 @@ export default function ListingDetail() {
         'categoryId',
         'contact_email',
         'owner_email',
+        'handover_modes',
+        'handover_mode',
         'lat',
         'lng',
         'latitude',
@@ -607,7 +759,9 @@ export default function ListingDetail() {
     const labelMap: Record<string, string> = {
       regdate: t('listings.detail.fields.regdate'),
       issuance_date: t('listings.detail.fields.issuanceDate'),
-      spare_parts_availability: t('listings.detail.fields.sparePartsAvailability')
+      spare_parts_availability: t('listings.detail.fields.sparePartsAvailability'),
+      handover_modes: t('listings.new.handover.title'),
+      handover_mode: t('listings.new.handover.title')
     }
 
     if (labelMap[normalized]) {
@@ -619,6 +773,33 @@ export default function ListingDetail() {
       .replace(/\b\w/g, char => char.toUpperCase())
   }
 
+  const formatDetailValue = (key: string, value: unknown): string => {
+    const normalized = key.toLowerCase()
+    const values = Array.isArray(value) ? value : [value]
+
+    if (normalized === 'handover_modes' || normalized === 'handover_mode') {
+      return values
+        .map(entry => {
+          const token = String(entry ?? '').trim().toLowerCase()
+          if (!token) return ''
+          if (token === 'pickup') return t('listings.new.handover.pickup')
+          if (token === 'delivery') return t('listings.new.handover.delivery')
+          return String(entry)
+        })
+        .filter(Boolean)
+        .join(', ')
+    }
+
+    return Array.isArray(value)
+      ? value
+          .map(entry => (entry === null || entry === undefined ? '' : String(entry)))
+          .filter(Boolean)
+          .join(', ')
+      : typeof value === 'object'
+      ? ''
+      : String(value ?? '')
+  }
+
   const detailEntries = useMemo(() => {
     if (!listing) {
       return []
@@ -626,16 +807,9 @@ export default function ListingDetail() {
 
     const entries: Array<{ label: string; value: string }> = []
 
-    const pushEntry = (label: string, value: unknown) => {
+    const pushEntry = (label: string, value: unknown, key?: string) => {
       if (value === null || value === undefined) return
-      const stringValue = Array.isArray(value)
-        ? value
-            .map(entry => (entry === null || entry === undefined ? '' : String(entry)))
-            .filter(Boolean)
-            .join(', ')
-        : typeof value === 'object'
-        ? ''
-        : String(value)
+      const stringValue = key ? formatDetailValue(key, value) : formatDetailValue('', value)
       if (stringValue.trim()) {
         entries.push({ label, value: stringValue.trim() })
       }
@@ -655,11 +829,39 @@ export default function ListingDetail() {
         return
       }
 
-      pushEntry(formatDetailLabel(key), value)
+      pushEntry(formatDetailLabel(key), value, key)
     })
 
     return entries
   }, [listing, reservedDetailKeys, t])
+
+  const handoverModes = useMemo<Array<'pickup' | 'delivery'>>(() => {
+    if (!listing) {
+      return []
+    }
+
+    const raw =
+      (listing.attributes as Record<string, unknown> | undefined)?.handover_modes ??
+      (listing.details as Record<string, unknown> | undefined)?.handover_modes ??
+      (listing.attributes as Record<string, unknown> | undefined)?.handover_mode ??
+      (listing.details as Record<string, unknown> | undefined)?.handover_mode
+
+    const normalized = Array.isArray(raw)
+      ? raw
+          .map(entry => String(entry ?? '').trim().toLowerCase())
+          .filter(mode => mode === 'pickup' || mode === 'delivery')
+      : typeof raw === 'string'
+      ? raw
+          .split(',')
+          .map(entry => entry.trim().toLowerCase())
+          .filter(mode => mode === 'pickup' || mode === 'delivery')
+      : []
+
+    return Array.from(new Set(normalized)) as Array<'pickup' | 'delivery'>
+  }, [listing])
+
+  const hasPickupHandover = handoverModes.includes('pickup')
+  const hasDeliveryHandover = handoverModes.includes('delivery')
 
   const resolvedLocation = listing?.location as any
   const locationAddress =
@@ -668,6 +870,8 @@ export default function ListingDetail() {
       : typeof resolvedLocation === 'string'
       ? resolvedLocation
       : '') || ''
+  const locationLabel =
+    (resolvedLocation && typeof resolvedLocation === 'object' ? resolvedLocation.label : '') || ''
   const locationHideExact =
     resolvedLocation && typeof resolvedLocation === 'object'
       ? Boolean((resolvedLocation as { hideExact?: boolean }).hideExact)
@@ -687,16 +891,39 @@ export default function ListingDetail() {
     listing?.city ??
     ''
 
-  const displayLocation = (() => {
-    const cityZip = formatCityZip(locationCity, locationPostalCode)
-    if (locationHideExact) {
-      return cityZip || locationCity || t('listings.detail.locationUnavailable')
-    }
-    if (locationAddress) {
-      return cityZip ? `${locationAddress}, ${cityZip}` : locationAddress
-    }
-    return cityZip || t('listings.detail.locationUnavailable')
+  const publicLocation = (() => {
+    const value = buildPublicLocationLabel({
+      label: locationLabel,
+      address: locationAddress,
+      city: locationCity,
+      zipcode: locationPostalCode
+    })
+    return value || t('listings.detail.locationUnavailable')
   })()
+
+  const displayLocation = (() => {
+    const exactLabel = buildExactLocationLabel({
+      label: locationLabel,
+      address: locationAddress,
+      city: locationCity,
+      zipcode: locationPostalCode
+    })
+
+    if (locationHideExact) {
+      return publicLocation
+    }
+
+    if (exactLabel) {
+      return exactLabel
+    }
+
+    return t('listings.detail.locationUnavailable')
+  })()
+
+  const showExactLocation =
+    !locationHideExact &&
+    Boolean(displayLocation) &&
+    normalizeLocationToken(displayLocation) !== normalizeLocationToken(publicLocation)
 
   const handlePrevImage = () => {
     if (images.length <= 1) return
@@ -1039,13 +1266,8 @@ export default function ListingDetail() {
                   </div>
                 </header>
 
-                <article className="listing-details__section listing-details__section--description">
-                  <h2>{t('listings.detail.descriptionTitle')}</h2>
-                  <p>{listing.description}</p>
-                </article>
-
-                <section className="listing-details__section">
-                  <h3>{t('listings.detail.detailsTitle')}</h3>
+                <section className="listing-details__section listing-details__section--key-info">
+                  <h2>{t('listings.detail.detailsTitle')}</h2>
                   {detailEntries.length ? (
                     <div className="listing-details__grid">
                       {detailEntries.map(entry => (
@@ -1063,20 +1285,68 @@ export default function ListingDetail() {
                   )}
                 </section>
 
+                <article className="listing-details__section listing-details__section--description">
+                  <h2>{t('listings.detail.descriptionTitle')}</h2>
+                  <div
+                    className="listing-details__description"
+                    dangerouslySetInnerHTML={{ __html: renderedDescription }}
+                  />
+                </article>
+
+                {handoverModes.length ? (
+                  <section className="listing-details__section listing-details__section--handover">
+                    <h2>{t('listings.new.handover.title')}</h2>
+                    <div className="listing-handover">
+                      {hasPickupHandover ? (
+                        <article className="listing-handover__mode">
+                          <h4>{t('listings.new.handover.pickup')}</h4>
+                          <span className="listing-handover__badge">
+                            <span aria-hidden className="listing-handover__badge-icon">✦</span>
+                            {t('listings.detail.handover.pickupLocation', {
+                              location:
+                                formatCityZip(locationCity, locationPostalCode) ||
+                                locationCity ||
+                                locationAddress ||
+                                t('listings.detail.locationUnavailable')
+                            })}
+                          </span>
+                          <p>{t('listings.new.handover.pickupHelp')}</p>
+                        </article>
+                      ) : null}
+
+                      {hasDeliveryHandover ? (
+                        <article className="listing-handover__mode">
+                          <h4>{t('listings.new.handover.delivery')}</h4>
+                          <p className="listing-handover__helper">{t('listings.new.handover.deliveryHelp')}</p>
+                        </article>
+                      ) : null}
+                    </div>
+                  </section>
+                ) : null}
+
                 <section className="listing-details__section">
-                  <h3>{t('listings.detail.locationTitle')}</h3>
-                  <p className="listing-card__location">
-                    {locationHideExact ? (
-                      <span>
-                        {formatCityZip(locationCity, locationPostalCode) ||
-                          t('listings.detail.locationUnavailable')}
+                  <h2>{t('listings.detail.locationTitle')}</h2>
+                  <div className="listing-location">
+                    <div className="listing-location__row">
+                      <span className="listing-location__label">
+                        {t('listings.detail.locationPublicLabel')}:
                       </span>
-                    ) : locationAddress || locationCity || locationPostalCode ? (
-                      <span>{displayLocation}</span>
-                    ) : (
-                      <span>{t('listings.detail.locationUnavailable')}</span>
-                    )}
-                  </p>
+                      <strong className="listing-location__value">{publicLocation}</strong>
+                    </div>
+                    {showExactLocation ? (
+                      <div className="listing-location__row">
+                        <span className="listing-location__label">
+                          {t('listings.detail.locationExactLabel')}:
+                        </span>
+                        <span className="listing-location__value">{displayLocation}</span>
+                      </div>
+                    ) : null}
+                    {locationHideExact ? (
+                      <p className="listing-location__privacy">
+                        {t('listings.detail.locationPrivacyHint')}
+                      </p>
+                    ) : null}
+                  </div>
                   {locationHideExact ? (
                     approxCoords ? (
                       <div ref={mapContainerRef} className="listing-details__map" />

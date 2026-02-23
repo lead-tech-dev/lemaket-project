@@ -48,7 +48,7 @@ export default function ListingsModeration() {
     () =>
       new Intl.NumberFormat(localeTag, {
         style: 'currency',
-        currency: 'EUR'
+        currency: 'XAF'
       }),
     [localeTag]
   )

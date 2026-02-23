@@ -144,6 +144,8 @@ type Suggestion = {
   zipcode?: string
 }
 
+const MAPBOX_LOCATION_TYPES = 'neighborhood,locality,place,district,address,postcode'
+
 const resolveMandatoryMessage = (field: CategoryFormField | undefined, fallback: string): string => {
   if (!field?.rules) {
     return fallback
@@ -185,7 +187,7 @@ const parseCoordinate = (value: unknown, fallback: number): number => {
 };
 
 export function MapPicker({ latitude, longitude, address, locationField, basePath }: MapPickerProps) {
-  const { t } = useI18n()
+  const { locale, t } = useI18n()
   const {
     register,
     watch,
@@ -484,7 +486,7 @@ export function MapPicker({ latitude, longitude, address, locationField, basePat
         const response = await fetch(
           `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
             query
-          )}.json?access_token=${accessToken}&autocomplete=true&limit=6&country=cm`,
+          )}.json?access_token=${accessToken}&autocomplete=true&limit=6&country=cm&types=${MAPBOX_LOCATION_TYPES}&language=${locale}`,
           { signal: controller.signal }
         )
         if (!response.ok) {
@@ -523,7 +525,7 @@ export function MapPicker({ latitude, longitude, address, locationField, basePat
     return () => {
       window.clearTimeout(timeoutId)
     }
-  }, [searchQuery, accessToken])
+  }, [searchQuery, accessToken, locale, t])
 
   const handleSuggestionSelect = useCallback(
     (suggestion: Suggestion) => {

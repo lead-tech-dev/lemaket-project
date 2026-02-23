@@ -108,7 +108,7 @@ describe('Settings page (integration)', () => {
     await user.type(screen.getByLabelText(/^nouveau mot de passe/i), 'newpassword1')
     await user.type(screen.getByLabelText(/confirmer le nouveau mot de passe/i), 'newpassword1')
 
-    await user.click(screen.getByRole('button', { name: /enregistrer/i }))
+    await user.click(screen.getByRole('button', { name: /^enregistrer$/i }))
 
     expect(vi.mocked(AuthApi.changePassword)).toHaveBeenCalled()
     expect(await screen.findByText(/mot de passe mis à jour/i)).toBeInTheDocument()
