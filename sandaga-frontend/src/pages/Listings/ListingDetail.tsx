@@ -13,6 +13,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { useFollowedSellers } from '../../hooks/useFollowedSellers'
 import { useI18n } from '../../contexts/I18nContext'
 import { formatCityZip } from '../../utils/location'
+import { toRenderableRichTextHtml } from '../../utils/richText'
 type MapboxMap = import('mapbox-gl').Map
 type MapboxMarker = import('mapbox-gl').Marker
 import 'mapbox-gl/dist/mapbox-gl.css'
@@ -498,6 +499,10 @@ export default function ListingDetail() {
   const highlights = listing?.highlights?.length
     ? listing.highlights
     : buildDefaultHighlights(listing, t)
+  const renderedDescription = useMemo(
+    () => toRenderableRichTextHtml(listing?.description ?? ''),
+    [listing?.description]
+  )
   const formattedPrice = formatPrice(listing, locale)
   const dateLocale = locale === 'fr' ? 'fr-FR' : 'en-US'
   const formatListingDate = (value: string | null | undefined) => {
@@ -1041,7 +1046,10 @@ export default function ListingDetail() {
 
                 <article className="listing-details__section listing-details__section--description">
                   <h2>{t('listings.detail.descriptionTitle')}</h2>
-                  <p>{listing.description}</p>
+                  <div
+                    className="listing-details__description"
+                    dangerouslySetInnerHTML={{ __html: renderedDescription }}
+                  />
                 </article>
 
                 <section className="listing-details__section">

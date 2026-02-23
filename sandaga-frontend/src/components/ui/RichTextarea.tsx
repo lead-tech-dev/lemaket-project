@@ -1,84 +1,130 @@
-import { forwardRef, useImperativeHandle, useRef } from 'react'
+import type {
+  ChangeEvent,
+  ClipboardEventHandler,
+  FocusEvent,
+  FocusEventHandler,
+  TextareaHTMLAttributes
+} from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
 import { useI18n } from '../../contexts/I18nContext'
+import { richTextToPlainText, sanitizeRichTextHtml, toRenderableRichTextHtml } from '../../utils/richText'
 
-type RichTextareaProps = React.TextareaHTMLAttributes<HTMLTextAreaElement>
-
-type FormatToken = {
-  label: string
-  prefix: string
-  suffix?: string
-  aria: string
-}
+type RichTextareaProps = TextareaHTMLAttributes<HTMLTextAreaElement>
 
 export const RichTextarea = forwardRef<HTMLTextAreaElement, RichTextareaProps>(
   ({ className = '', ...textareaProps }, ref) => {
     const { t } = useI18n()
     const internalRef = useRef<HTMLTextAreaElement | null>(null)
-    const tokens: FormatToken[] = [
-      { label: 'B', prefix: '**', aria: t('richTextarea.format.bold') },
-      { label: 'I', prefix: '*', aria: t('richTextarea.format.italic') },
-      { label: 'U', prefix: '__', aria: t('richTextarea.format.underline') }
-    ]
+    const editorRef = useRef<HTMLDivElement | null>(null)
+    const lastSyncedValueRef = useRef<string>('')
 
     useImperativeHandle(ref, () => internalRef.current as HTMLTextAreaElement)
 
-    const applyToken = (token: FormatToken) => {
-      const textarea = internalRef.current
-      if (!textarea) return
+    const syncEditorFromValue = (rawValue: string) => {
+      const editor = editorRef.current
+      if (!editor) return
 
-      const { selectionStart, selectionEnd, value } = textarea
-      const selected =
-        selectionStart !== selectionEnd
-          ? value.slice(selectionStart, selectionEnd)
-          : t('richTextarea.selection.default')
-      const formatted = `${token.prefix}${selected}${token.suffix ?? token.prefix}`
-      const nextValue = value.slice(0, selectionStart) + formatted + value.slice(selectionEnd)
-      const cursor = selectionStart + formatted.length
-
-      updateValue(textarea, nextValue, cursor)
+      const nextHtml = toRenderableRichTextHtml(rawValue)
+      if (editor.innerHTML !== nextHtml) {
+        editor.innerHTML = nextHtml
+      }
+      lastSyncedValueRef.current = nextHtml
+      if (internalRef.current) {
+        internalRef.current.value = nextHtml
+      }
     }
 
-    const applyList = () => {
+    useEffect(() => {
+      if (typeof textareaProps.value === 'string') {
+        syncEditorFromValue(textareaProps.value)
+      }
+    }, [textareaProps.value])
+
+    useEffect(() => {
+      if (typeof textareaProps.defaultValue === 'string' && textareaProps.value === undefined) {
+        syncEditorFromValue(textareaProps.defaultValue)
+      }
+    }, [])
+
+    const emitChange = (nextValue: string) => {
       const textarea = internalRef.current
-      if (!textarea) return
-
-      const { selectionStart, selectionEnd, value } = textarea
-      const before = value.slice(0, selectionStart)
-      const selected = value.slice(selectionStart, selectionEnd)
-      const after = value.slice(selectionEnd)
-
-      const lines = (selected || t('richTextarea.list.defaultItem')).split(/\r?\n/)
-      const formatted = lines.map(line => (line.trim().startsWith('- ') ? line : `- ${line.trim()}`)).join('\n')
-      const nextValue = `${before}${formatted}${after}`
-      const cursor = before.length + formatted.length
-
-      updateValue(textarea, nextValue, cursor)
+      if (textarea) {
+        textarea.value = nextValue
+      }
+      if (typeof textareaProps.onChange === 'function') {
+        textareaProps.onChange({
+          target: {
+            name: textareaProps.name,
+            value: nextValue
+          },
+          currentTarget: {
+            name: textareaProps.name,
+            value: nextValue
+          }
+        } as unknown as ChangeEvent<HTMLTextAreaElement>)
+      }
     }
 
-    const applyQuote = () => {
-      const textarea = internalRef.current
-      if (!textarea) return
+    const syncFromEditor = () => {
+      const editor = editorRef.current
+      if (!editor) return
 
-      const { selectionStart, selectionEnd, value } = textarea
-      const before = value.slice(0, selectionStart)
-      const selected =
-        value.slice(selectionStart, selectionEnd) || t('richTextarea.quote.default')
-      const after = value.slice(selectionEnd)
-      const formatted = selected
-        .split(/\r?\n/)
-        .map(line => (line.trim().startsWith('> ') ? line : `> ${line}`))
-        .join('\n')
-      const nextValue = `${before}${formatted}${after}`
-      const cursor = before.length + formatted.length
+      const sanitizedHtml = sanitizeRichTextHtml(editor.innerHTML)
+      const plain = richTextToPlainText(sanitizedHtml)
+      const nextValue = plain ? sanitizedHtml : ''
 
-      updateValue(textarea, nextValue, cursor)
+      if (editor.innerHTML !== nextValue) {
+        editor.innerHTML = nextValue
+      }
+
+      if (lastSyncedValueRef.current !== nextValue) {
+        lastSyncedValueRef.current = nextValue
+        emitChange(nextValue)
+      }
     }
 
-    const updateValue = (textarea: HTMLTextAreaElement, nextValue: string, cursor: number) => {
-      textarea.focus()
-      textarea.value = nextValue
-      textarea.setSelectionRange(cursor, cursor)
-      textarea.dispatchEvent(new Event('input', { bubbles: true }))
+    const applyCommand = (command: string, value?: string) => {
+      const editor = editorRef.current
+      if (!editor) return
+
+      editor.focus()
+      document.execCommand(command, false, value)
+      syncFromEditor()
+    }
+
+    const clearFormatting = () => {
+      const editor = editorRef.current
+      if (!editor) return
+      editor.focus()
+      document.execCommand('removeFormat')
+      document.execCommand('formatBlock', false, 'p')
+      syncFromEditor()
+    }
+
+    const onPastePlainText: ClipboardEventHandler<HTMLDivElement> = event => {
+      const text = event.clipboardData.getData('text/plain')
+      if (!text) return
+      event.preventDefault()
+      document.execCommand('insertText', false, text)
+      syncFromEditor()
+    }
+
+    const onEditorBlur: FocusEventHandler<HTMLDivElement> = () => {
+      if (typeof textareaProps.onBlur !== 'function') {
+        return
+      }
+
+      const currentValue = internalRef.current?.value ?? ''
+      textareaProps.onBlur({
+        target: {
+          name: textareaProps.name,
+          value: currentValue
+        },
+        currentTarget: {
+          name: textareaProps.name,
+          value: currentValue
+        }
+      } as unknown as FocusEvent<HTMLTextAreaElement>)
     }
 
     return (
@@ -88,34 +134,77 @@ export const RichTextarea = forwardRef<HTMLTextAreaElement, RichTextareaProps>(
           role="group"
           aria-label={t('richTextarea.toolbar')}
         >
-          {tokens.map(token => (
-            <button
-              key={token.label}
-              type="button"
-              className="rich-textarea__button"
-              onClick={() => applyToken(token)}
-              aria-label={token.aria}
-            >
-              {token.label}
-            </button>
-          ))}
           <button
             type="button"
             className="rich-textarea__button"
-            onClick={applyList}
-            aria-label={t('richTextarea.list')}
+            onClick={() => applyCommand('bold')}
+            aria-label={t('richTextarea.format.bold')}
           >
-            ••
+            B
           </button>
           <button
             type="button"
             className="rich-textarea__button"
-            onClick={applyQuote}
+            onClick={() => applyCommand('italic')}
+            aria-label={t('richTextarea.format.italic')}
+          >
+            I
+          </button>
+          <button
+            type="button"
+            className="rich-textarea__button"
+            onClick={() => applyCommand('underline')}
+            aria-label={t('richTextarea.format.underline')}
+          >
+            U
+          </button>
+          <button
+            type="button"
+            className="rich-textarea__button"
+            onClick={() => applyCommand('insertUnorderedList')}
+            aria-label={t('richTextarea.list')}
+          >
+            •
+          </button>
+          <button
+            type="button"
+            className="rich-textarea__button"
+            onClick={() => applyCommand('insertOrderedList')}
+            aria-label={t('richTextarea.list')}
+          >
+            1.
+          </button>
+          <button
+            type="button"
+            className="rich-textarea__button"
+            onClick={() => applyCommand('formatBlock', 'blockquote')}
             aria-label={t('richTextarea.quote')}
           >
             “”
           </button>
+          <button
+            type="button"
+            className="rich-textarea__button"
+            onClick={clearFormatting}
+            aria-label={t('richTextarea.toolbar')}
+          >
+            Tx
+          </button>
         </div>
+        <div
+          ref={editorRef}
+          id={textareaProps.id}
+          className={`rich-textarea__input ${className}`}
+          contentEditable
+          role="textbox"
+          aria-multiline="true"
+          aria-label={textareaProps['aria-label']}
+          data-placeholder={textareaProps.placeholder}
+          onInput={syncFromEditor}
+          onBlur={onEditorBlur}
+          onPaste={onPastePlainText}
+          suppressContentEditableWarning
+        />
         <textarea
           ref={node => {
             internalRef.current = node
@@ -125,8 +214,10 @@ export const RichTextarea = forwardRef<HTMLTextAreaElement, RichTextareaProps>(
               ref.current = node
             }
           }}
-          className={`rich-textarea__input ${className}`}
+          className="rich-textarea__native"
           {...textareaProps}
+          tabIndex={-1}
+          aria-hidden="true"
         />
       </div>
     )

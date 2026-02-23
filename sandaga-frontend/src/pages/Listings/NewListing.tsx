@@ -19,6 +19,7 @@ import { ROOT_LISTING_FIELDS } from '../../constants/listingForm'
 import { clearAuthToken } from '../../utils/auth'
 import { useI18n } from '../../contexts/I18nContext'
 import { useAuth } from '../../hooks/useAuth'
+import { richTextToPlainText, sanitizeRichTextHtml } from '../../utils/richText'
 
 type SchemaStep = FormSchemaDTO['steps'][number] & Partial<FormStep>
 type SchemaField = FormSchemaDTO['steps'][number]['fields'][number] & Partial<FormField>
@@ -514,7 +515,7 @@ export default function NewListing() {
     setError,
     clearErrors,
     trigger,
-    formState: { errors }
+    formState: { errors, dirtyFields }
   } = methods
   const handoverModes = watch('details.handover_modes') as string[] | undefined
   const handoverError = (errors as any)?.details?.handover_modes?.message as string | undefined
@@ -1311,6 +1312,13 @@ export default function NewListing() {
       [key: string]: unknown
     }
 
+    const detailsTitleInput = toTrimmedString(
+      (restDetails as any).title ?? (restDetails as any).subject
+    )
+    const detailsDescriptionInput = toTrimmedString(
+      (restDetails as any).description ?? (restDetails as any).body
+    )
+
     const newDetails: Record<string, unknown> = restDetails
 
     for (const key of Object.keys(newDetails)) {
@@ -1399,8 +1407,60 @@ export default function NewListing() {
       }
     }
 
-    const title = toTrimmedString(values.title || values.subject)
-    const description = toTrimmedString(values.description || values.body)
+    const dynamicSteps = wizardSteps
+      .filter((step): step is Extract<typeof step, { kind: 'dynamic' }> => step.kind === 'dynamic')
+      .map(step => step.formStep)
+    const hasSubjectField = dynamicSteps.some(step => step.fields.some(field => field.name === 'subject'))
+    const hasBodyField = dynamicSteps.some(step => step.fields.some(field => field.name === 'body'))
+    const hasDescriptionField = dynamicSteps.some(step =>
+      step.fields.some(field => field.name === 'description')
+    )
+
+    const rootTitle = hasSubjectField
+      ? toTrimmedString(values.subject || values.title)
+      : toTrimmedString(values.title || values.subject)
+    const detailsTitle = detailsTitleInput
+    const rootDescriptionRaw = hasBodyField
+      ? toTrimmedString(values.body || values.description)
+      : toTrimmedString(values.description || values.body)
+    const detailsDescriptionRaw = detailsDescriptionInput
+
+    const isRootTitleDirty = Boolean((dirtyFields as any)?.title || (dirtyFields as any)?.subject)
+    const isDetailsTitleDirty = Boolean(
+      (dirtyFields as any)?.details?.title || (dirtyFields as any)?.details?.subject
+    )
+    const isRootDescriptionDirty = Boolean(
+      (dirtyFields as any)?.description || (dirtyFields as any)?.body
+    )
+    const isDetailsDescriptionDirty = Boolean(
+      (dirtyFields as any)?.details?.description || (dirtyFields as any)?.details?.body
+    )
+
+    const title = isDetailsTitleDirty
+      ? detailsTitle || rootTitle
+      : isRootTitleDirty
+      ? rootTitle || detailsTitle
+      : detailsTitle || rootTitle
+
+    const descriptionRaw = isDetailsDescriptionDirty
+      ? detailsDescriptionRaw || rootDescriptionRaw
+      : isRootDescriptionDirty
+      ? rootDescriptionRaw || detailsDescriptionRaw
+      : detailsDescriptionRaw || rootDescriptionRaw
+    const description = sanitizeRichTextHtml(descriptionRaw)
+    const descriptionText = richTextToPlainText(description)
+    if (descriptionText.length < 10) {
+      setIsSubmitting(false)
+      const message = t('forms.validation.minLength', { min: 10 })
+      const descriptionErrorPath = hasBodyField
+        ? ('body' as never)
+        : hasDescriptionField
+        ? ('description' as never)
+        : ('description' as never)
+
+      setError(descriptionErrorPath, { type: 'manual', message })
+      return
+    }
     const priceInput = toTrimmedString(values.price)
     const priceAmount = Number(priceInput)
 

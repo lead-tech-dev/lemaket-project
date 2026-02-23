@@ -25,6 +25,7 @@ import type { TranslationKey } from '../../i18n/translations'
 import type { Category, FormStep } from '../../types/category'
 import type { Listing } from '../../types/listing'
 import type { ListingStatus } from '../../types/listing-status'
+import { richTextToPlainText, sanitizeRichTextHtml } from '../../utils/richText'
 
 import { ROOT_LISTING_FIELDS } from '../../constants/listingForm'
 
@@ -518,7 +519,7 @@ export default function EditListing() {
     getValues,
     reset,
     trigger,
-    formState: { isSubmitting: hookIsSubmitting, errors }
+    formState: { isSubmitting: hookIsSubmitting, errors, dirtyFields }
   } = methods
 
   const [isLoadingListing, setIsLoadingListing] = useState(true)
@@ -852,7 +853,10 @@ useEffect(() => {
           }
         }
         if (value !== undefined) {
-          setValue(`details.${fieldName}` as const, value, {
+          const path = ROOT_LISTING_FIELDS.has(fieldName)
+            ? (fieldName as keyof EditListingFormValues)
+            : (`details.${fieldName}` as const)
+          setValue(path as never, value as never, {
             shouldDirty: false,
             shouldValidate: false
           })
@@ -944,6 +948,13 @@ useEffect(() => {
         [key: string]: unknown
       }
 
+      const detailsTitleInput = toTrimmedString(
+        (restDetails as any).title ?? (restDetails as any).subject
+      )
+      const detailsDescriptionInput = toTrimmedString(
+        (restDetails as any).description ?? (restDetails as any).body
+      )
+
       const mergedDetails: Record<string, unknown> = {
         ...initialDetails,
         ...restDetails
@@ -1025,6 +1036,19 @@ useEffect(() => {
       })()
 
       const hideExact = toBoolean((values as any).locationHideExact)
+      const isLocationDirty = Boolean(
+        (dirtyFields as any)?.location ||
+          (dirtyFields as any)?.city ||
+          (dirtyFields as any)?.locationHideExact ||
+          (dirtyFields as any)?.details?.address ||
+          (dirtyFields as any)?.details?.latitude ||
+          (dirtyFields as any)?.details?.longitude ||
+          (dirtyFields as any)?.details?.location ||
+          (dirtyFields as any)?.details?.city ||
+          (dirtyFields as any)?.details?.zipcode ||
+          (dirtyFields as any)?.details?.postal_code ||
+          (dirtyFields as any)?.details?.zipCode
+      )
 
       let locationPayload: { latitude: number; longitude: number; address: string; hideExact?: boolean } | null = null
       if (
@@ -1039,14 +1063,92 @@ useEffect(() => {
           hideExact: hideExact || false
         }
       }
-      if (resolvedAddress && !locationPayload) {
+      if (isLocationDirty && resolvedAddress && !locationPayload) {
         setIsSubmitting(false)
         setPageError(t('forms.mapPicker.errors.locationRequired'))
         return
       }
 
-      const title = toTrimmedString(values.title)
-      const description = toTrimmedString(values.description)
+      const cityForLocation = toTrimmedString(values.city)
+      const zipcode = toTrimmedString(
+        (mergedDetails as any).zipcode ??
+          (mergedDetails as any).postal_code ??
+          (mergedDetails as any).zipCode
+      )
+      const locationForPayload = (() => {
+        if (!isLocationDirty) {
+          return undefined
+        }
+        if (locationPayload) {
+          return {
+            address: locationPayload.address,
+            lat: locationPayload.latitude,
+            lng: locationPayload.longitude,
+            city: cityForLocation,
+            zipcode: zipcode || undefined,
+            hideExact: locationPayload.hideExact ?? false
+          }
+        }
+        return { hideExact }
+      })()
+
+      const hasSubjectField = schemaSteps.some(step =>
+        step.fields.some(field => field.name === 'subject')
+      )
+      const hasBodyField = schemaSteps.some(step =>
+        step.fields.some(field => field.name === 'body')
+      )
+      const hasDescriptionField = schemaSteps.some(step =>
+        step.fields.some(field => field.name === 'description')
+      )
+
+      const rootTitle = hasSubjectField
+        ? toTrimmedString(values.subject || values.title)
+        : toTrimmedString(values.title || values.subject)
+      const detailsTitle = detailsTitleInput
+      const rootDescriptionRaw = hasBodyField
+        ? toTrimmedString(values.body || values.description)
+        : toTrimmedString(values.description || values.body)
+      const detailsDescriptionRaw = detailsDescriptionInput
+
+      const isRootTitleDirty = Boolean((dirtyFields as any)?.title || (dirtyFields as any)?.subject)
+      const isDetailsTitleDirty = Boolean(
+        (dirtyFields as any)?.details?.title || (dirtyFields as any)?.details?.subject
+      )
+      const isRootDescriptionDirty = Boolean(
+        (dirtyFields as any)?.description || (dirtyFields as any)?.body
+      )
+      const isDetailsDescriptionDirty = Boolean(
+        (dirtyFields as any)?.details?.description || (dirtyFields as any)?.details?.body
+      )
+
+      const title = isDetailsTitleDirty
+        ? detailsTitle || rootTitle
+        : isRootTitleDirty
+        ? rootTitle || detailsTitle
+        : detailsTitle || rootTitle
+
+      const descriptionRaw = isDetailsDescriptionDirty
+        ? detailsDescriptionRaw || rootDescriptionRaw
+        : isRootDescriptionDirty
+        ? rootDescriptionRaw || detailsDescriptionRaw
+        : detailsDescriptionRaw || rootDescriptionRaw
+      const description = sanitizeRichTextHtml(descriptionRaw)
+      const descriptionText = richTextToPlainText(description)
+      if (descriptionText.length < 10) {
+        const descriptionErrorPath = hasBodyField
+          ? ('body' as never)
+          : hasDescriptionField
+          ? ('description' as never)
+          : ('description' as never)
+
+        setError(descriptionErrorPath, {
+          type: 'manual',
+          message: t('forms.validation.minLength', { min: 10 })
+        })
+        setIsSubmitting(false)
+        return
+      }
       const priceInput = toTrimmedString(values.price)
       const priceAmount = Number(priceInput)
       const currency = toTrimmedString(values.currency || '').toUpperCase() || 'EUR'
@@ -1063,11 +1165,6 @@ useEffect(() => {
       const newItemPriceRaw = toTrimmedString((mergedDetails as any).new_item_price)
       const newItemPrice = newItemPriceRaw ? Number(newItemPriceRaw) : undefined
       const customRef = toTrimmedString((mergedDetails as any).custom_ref)
-      const zipcode = toTrimmedString(
-        (mergedDetails as any).zipcode ??
-          (mergedDetails as any).postal_code ??
-          (mergedDetails as any).zipCode
-      )
       const resolvedFlow = (() => {
         const raw = toTrimmedString((listingFlow ?? values.adType) ?? '').toLowerCase()
         if (raw === 'sell' || raw === 'buy') return raw
@@ -1124,23 +1221,7 @@ useEffect(() => {
         price: Number.isFinite(priceAmount)
           ? { amount: Number(priceAmount), currency, newItemPrice }
           : undefined,
-        location: locationPayload
-          ? {
-              address: locationPayload.address,
-              lat: locationPayload.latitude,
-              lng: locationPayload.longitude,
-              city: toTrimmedString(values.city),
-              zipcode: zipcode || undefined,
-              hideExact: locationPayload.hideExact ?? false
-            }
-          : resolvedAddress
-          ? {
-              address: resolvedAddress,
-              city: toTrimmedString(values.city),
-              zipcode: zipcode || undefined,
-              hideExact: hideExact || false
-            }
-          : { city: toTrimmedString(values.city), zipcode: zipcode || undefined, hideExact: hideExact || false },
+        location: locationForPayload,
         contact: {
           email: email || undefined,
           phone: phone || undefined,
@@ -1187,7 +1268,7 @@ useEffect(() => {
         setIsSubmitting(false)
       }
     },
-    [addToast, hookIsSubmitting, id, images, initialDetails, rawDetails, isSubmitting, t]
+    [addToast, dirtyFields, hookIsSubmitting, id, images, initialDetails, rawDetails, isSubmitting, schemaSteps, t]
   )
 
   const handleDelete = useCallback(async () => {

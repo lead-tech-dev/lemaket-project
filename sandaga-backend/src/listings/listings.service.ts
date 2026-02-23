@@ -973,6 +973,36 @@ export class ListingsService {
 
     const savedListing = await this.listingsRepository.save(listing);
 
+    if (updateListingDto.images) {
+      const incomingImages = updateListingDto.images
+        .slice(0, 8)
+        .filter(image => typeof image.url === 'string' && image.url.trim().length > 0)
+        .map(image => ({
+          url: image.url.trim(),
+          position:
+            typeof image.position === 'number' && Number.isFinite(image.position)
+              ? image.position
+              : undefined,
+          isCover: Boolean(image.isCover)
+        }));
+
+      await this.listingImagesRepository.delete({ listingId: savedListing.id });
+
+      if (incomingImages.length > 0) {
+        const hasCover = incomingImages.some(image => image.isCover);
+        const imagesToSave = incomingImages.map((image, index) =>
+          this.listingImagesRepository.create({
+            listingId: savedListing.id,
+            url: image.url,
+            position: image.position ?? index,
+            isCover: hasCover ? image.isCover : index === 0
+          })
+        );
+
+        await this.listingImagesRepository.save(imagesToSave);
+      }
+    }
+
     savedListing.images = await this.listingImagesRepository.find({
       where: { listingId: savedListing.id },
       order: { position: 'ASC' }

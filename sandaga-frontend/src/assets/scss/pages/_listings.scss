@@ -484,19 +484,28 @@
 
 
 .listing-details__description{
-  border-top:1px solid rgba(148,163,184,.35);
-  padding-top:calc($spacing*2);
   line-height:1.7;
   color:rgba(15,23,42,.9);
   display:grid;
   gap:calc($spacing*1.2);
   font-size:1rem;
-  white-space:pre-line;
+  white-space:normal;
 
   p{margin:0;}
   ul,ol{margin:0; padding-left:calc($spacing*2.5);}
   ul{list-style:disc;}
   ol{list-style:decimal;}
+  blockquote{
+    margin:0;
+    padding-left:calc($spacing*1.5);
+    border-left:3px solid rgba(37,99,235,.35);
+    color:rgba(15,23,42,.72);
+  }
+  a{
+    color:var(--color-accent);
+    text-decoration:underline;
+    word-break:break-word;
+  }
   strong{font-weight:700;}
   em{font-style:italic;}
 }
