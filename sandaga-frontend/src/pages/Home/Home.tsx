@@ -1037,7 +1037,7 @@ export default function Home() {
           ) : latestListings.length ? (
             <div className="lbc-listings lbc-listings--grid">
               {latestListings.map(listing => (
-                <Link key={listing.id} to={`/listing/${listing.id}`} className="lbc-mini-card">
+                <Link key={listing.id} to={`/listing/${listing.id}`} className="lbc-mini-card lbc-mini-card--with-favorite">
                   <FavoriteButton listingId={listing.id} className="favorite-toggle--overlay" />
                   <div
                     className="lbc-mini-card__image"

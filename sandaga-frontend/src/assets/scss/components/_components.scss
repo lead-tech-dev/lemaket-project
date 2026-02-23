@@ -1748,6 +1748,14 @@ button.lbc-header__pill{
   font-weight:600;
 }
 
+.lbc-mini-card--with-favorite .lbc-mini-card__category{
+  right:calc($spacing*2 + 46px);
+  max-width:calc(100% - 88px);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
 @media (max-width: 1280px){
   .lbc-listings--featured,
   .lbc-listings--grid{
