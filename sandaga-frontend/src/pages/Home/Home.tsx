@@ -1346,8 +1346,8 @@ export default function Home() {
               <p className="lbc-seller-split__summary">
                 {totalSellerListings
                   ? t('home.sellerSplit.summary', {
-                      proShare: shareFormatter.format(sellerSplitData.proShare),
-                      individualShare: shareFormatter.format(sellerSplitData.individualShare)
+                      share: shareFormatter.format(sellerSplitData.proShare),
+                      count: numberFormatter.format(totalSellerListings)
                     })
                   : t('home.sellerSplit.summaryEmpty')}
               </p>
