@@ -663,13 +663,13 @@ export default function ListingCheckout() {
 
           <aside className="listing-checkout__summary">
             <div className="summary-card">
-              <div className="summary-card__media">
-                {mainImage ? (
-                  <img src={mainImage} alt={listing?.title ?? ''} />
-                ) : (
-                  <div className="summary-card__placeholder">Image</div>
-                )}
-              </div>
+	              <div className="summary-card__media">
+	                {mainImage ? (
+	                  <img src={mainImage} alt={listing?.title ?? ''} />
+	                ) : (
+	                  <div className="summary-card__placeholder" role="img" aria-label="Aucune image" />
+	                )}
+	              </div>
               <div className="summary-card__body">
                 <div className="summary-card__content">
                   <h3>{listing?.title ?? 'Annonce'}</h3>

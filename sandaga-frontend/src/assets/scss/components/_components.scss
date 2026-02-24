@@ -3,6 +3,8 @@
 @use 'spinner';
 @use '../abstracts/variables' as *;
 
+$listing-placeholder-image: url('/listing-placeholder.svg');
+
 
 .rich-textarea {
   position: relative;
@@ -1776,8 +1778,14 @@ button.lbc-header__pill{
 }
 .lbc-listing-card__image{
   height:180px;
-  background:linear-gradient(135deg, rgba(255,110,20,.18), rgba(15,96,196,.12));
+  background-color:var(--color-surface-alt);
+  background-position:center;
+  background-size:cover;
+  background-repeat:no-repeat;
   position:relative;
+}
+.lbc-listing-card__image.is-placeholder{
+  background-image:$listing-placeholder-image;
 }
 .lbc-listing-card__badges{
   position:absolute;
@@ -1901,8 +1909,14 @@ button.lbc-header__pill{
 }
 .lbc-mini-card__image{
   height:140px;
-  background:linear-gradient(135deg, rgba(15,96,196,.1), rgba(255,110,20,.14));
+  background-color:var(--color-surface-alt);
+  background-position:center;
+  background-size:cover;
+  background-repeat:no-repeat;
   border-radius:calc($radius*.9);
+}
+.lbc-mini-card__image.is-placeholder{
+  background-image:$listing-placeholder-image;
 }
 .lbc-mini-card__body{
   display:flex;

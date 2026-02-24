@@ -1,5 +1,7 @@
 @use '../abstracts/variables' as *;
 
+$listing-placeholder-image: url('/listing-placeholder.svg');
+
 .listing-checkout {
   display: flex;
   flex-direction: column;
@@ -226,7 +228,13 @@
 }
 
 .summary-card__placeholder {
-  color: var(--color-muted);
+  width: 100%;
+  height: 100%;
+  background-color: var(--color-surface-alt);
+  background-image: $listing-placeholder-image;
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
 }
 
 .summary-card__body {
