@@ -68,7 +68,7 @@ $listing-placeholder-image: url('/listing-placeholder.svg');
 }
 
 .handover-mode__option {
-  border: 1px solid rgba(148, 163, 184, 0.3);
+  border: 1px solid var(--color-border);
   background: transparent;
   padding: calc($spacing * 1.1) calc($spacing * 1.8);
   border-radius: 999px;
@@ -80,7 +80,7 @@ $listing-placeholder-image: url('/listing-placeholder.svg');
 
 .handover-mode__option.is-active {
   border-color: var(--color-accent);
-  background: rgba(15, 96, 196, 0.12);
+  background: var(--color-info-soft);
   color: var(--color-accent);
 }
 
@@ -93,7 +93,7 @@ $listing-placeholder-image: url('/listing-placeholder.svg');
   height: 220px;
   border-radius: calc($radius * 0.9);
   overflow: hidden;
-  background: rgba(148, 163, 184, 0.15);
+  background: var(--color-surface-alt);
 }
 
 .courier-grid {
@@ -104,7 +104,7 @@ $listing-placeholder-image: url('/listing-placeholder.svg');
 
 .courier-card {
   appearance: none;
-  border: 1px solid rgba(148, 163, 184, 0.2);
+  border: 1px solid var(--color-border);
   background: transparent;
   text-align: left;
   border-radius: calc($radius * 0.9);
@@ -118,22 +118,22 @@ $listing-placeholder-image: url('/listing-placeholder.svg');
 }
 
 .courier-card:hover {
-  border-color: rgba(15, 96, 196, 0.5);
-  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.08);
+  border-color: var(--color-border-strong);
+  box-shadow: var(--shadow-soft);
   transform: translateY(-2px);
 }
 
 .courier-card.is-selected {
   border-color: var(--color-accent);
-  box-shadow: 0 12px 24px rgba(15, 96, 196, 0.15);
-  background: rgba(15, 96, 196, 0.05);
+  box-shadow: var(--shadow-soft);
+  background: var(--color-info-soft);
 }
 
 .courier-card__avatar {
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  background: rgba(15, 96, 196, 0.12);
+  background: var(--color-info-soft);
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -165,7 +165,7 @@ $listing-placeholder-image: url('/listing-placeholder.svg');
 .courier-card__cta {
   grid-column: span 2;
   border: none;
-  background: rgba(15, 96, 196, 0.1);
+  background: var(--color-info-soft);
   color: var(--color-accent);
   padding: calc($spacing * 0.9) calc($spacing * 1.5);
   border-radius: 999px;
@@ -176,7 +176,7 @@ $listing-placeholder-image: url('/listing-placeholder.svg');
 .courier-empty {
   padding: calc($spacing * 2);
   border-radius: calc($radius);
-  background: rgba(148, 163, 184, 0.08);
+  background: var(--color-surface-alt);
   color: var(--color-muted);
   text-align: center;
 }
@@ -184,7 +184,7 @@ $listing-placeholder-image: url('/listing-placeholder.svg');
 .pickup-info {
   padding: calc($spacing * 1.5);
   border-radius: calc($radius);
-  background: rgba(148, 163, 184, 0.08);
+  background: var(--color-surface-alt);
   color: var(--color-muted);
   display: grid;
   gap: calc($spacing * 0.6);
@@ -215,10 +215,10 @@ $listing-placeholder-image: url('/listing-placeholder.svg');
 
 .summary-card__media {
   height: 160px;
-  background: rgba(15, 96, 196, 0.08);
+  background: var(--color-info-soft);
   display: grid;
   place-items: center;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .summary-card__media img {
@@ -272,7 +272,7 @@ $listing-placeholder-image: url('/listing-placeholder.svg');
 .summary-card__row--total {
   font-weight: 700;
   color: var(--color-text);
-  border-top: 1px solid rgba(148, 163, 184, 0.2);
+  border-top: 1px solid var(--color-border);
   padding-top: calc($spacing * 1.2);
 }
 
@@ -333,10 +333,10 @@ $listing-placeholder-image: url('/listing-placeholder.svg');
     gap: calc($spacing * 1.5);
     padding: calc($spacing * 1.1) calc($spacing * 1.2)
       calc(env(safe-area-inset-bottom) + $spacing * 1.1);
-    background: rgba(255, 255, 255, 0.96);
+    background: var(--color-surface-glass);
     backdrop-filter: blur(10px);
-    border-top: 1px solid rgba(15, 35, 63, 0.12);
-    box-shadow: 0 -12px 28px rgba(15, 23, 42, 0.12);
+    border-top: 1px solid var(--color-border);
+    box-shadow: var(--shadow-elevated);
   }
 
   .listing-checkout__mobile-total {

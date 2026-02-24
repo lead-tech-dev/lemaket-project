@@ -1,7 +1,7 @@
 @use '../abstracts/variables' as *;
 
 .static-hero{
-  background:linear-gradient(135deg, rgba(15,96,196,.1), rgba(255,110,20,.1));
+  background:linear-gradient(135deg, var(--color-accent-soft), var(--color-primary-soft));
   border-radius:calc($radius*1.2);
   padding:calc($spacing*5);
   box-shadow:var(--shadow-soft);
@@ -38,7 +38,7 @@
 }
 
 .faq-item{
-  border:1px solid rgba(20,20,20,.08);
+  border:1px solid var(--color-border);
   border-radius:calc($radius*.9);
   padding:calc($spacing*2.5);
   display:flex;
@@ -67,7 +67,7 @@
 }
 
 .contact-card{
-  background:rgba(15,96,196,.08);
+  background:var(--color-accent-soft);
   border-radius:calc($spacing*3);
   padding:calc($spacing*3);
   display:flex;
@@ -93,7 +93,7 @@
 
 .terms-list li,
 .policy-list li{
-  background:rgba(15,96,196,.06);
+  background:var(--color-accent-soft);
   border-radius:calc($radius*.9);
   padding:calc($spacing*2.5);
   display:flex;
