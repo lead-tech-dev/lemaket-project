@@ -53,6 +53,12 @@ type SettingsState = Record<ToggleSettingKey, boolean> & {
   courierRadiusKm: string
 }
 
+type PayoutErrors = {
+  payoutMobileNetwork?: string
+  payoutMobileNumber?: string
+  payoutMobileName?: string
+}
+
 const DEFAULT_CONTACT_CHANNELS: PreferredContactChannel[] = ['email', 'in_app']
 
 const DEFAULT_SETTINGS: SettingsState = {
@@ -120,6 +126,29 @@ function sanitizePreferredChannels(
   }
 
   return normalized.length ? normalized : DEFAULT_CONTACT_CHANNELS
+}
+
+function normalizeCameroonMobileNumber(rawValue: string) {
+  return rawValue.replace(/[\s().-]/g, '')
+}
+
+function isValidCameroonMobileNumber(value: string) {
+  const normalized = normalizeCameroonMobileNumber(value)
+  return /^(\+237|237)?6\d{8}$/.test(normalized)
+}
+
+function toCanonicalCameroonMobileNumber(value: string) {
+  const normalized = normalizeCameroonMobileNumber(value)
+  if (!normalized) {
+    return ''
+  }
+  if (normalized.startsWith('+237')) {
+    return normalized
+  }
+  if (normalized.startsWith('237')) {
+    return `+${normalized}`
+  }
+  return `+237${normalized}`
 }
 
 const getContactChannelOptions = (
@@ -198,6 +227,7 @@ export default function Settings(){
   const [settings, setSettings] = useState<SettingsState>(DEFAULT_SETTINGS)
   const [updatingSetting, setUpdatingSetting] = useState<ToggleSettingKey | null>(null)
   const [payoutSaving, setPayoutSaving] = useState(false)
+  const [payoutErrors, setPayoutErrors] = useState<PayoutErrors>({})
   const [updatingTwoFactor, setUpdatingTwoFactor] = useState(false)
   const [isDeactivating, setIsDeactivating] = useState(false)
   const [showDeactivateModal, setShowDeactivateModal] = useState(false)
@@ -463,13 +493,48 @@ export default function Settings(){
     if (payoutSaving) {
       return
     }
+    const nextErrors: PayoutErrors = {}
+    const payoutNetwork = settings.payoutMobileNetwork
+    const payoutNumber = settings.payoutMobileNumber.trim()
+    const payoutName = settings.payoutMobileName.trim()
+
+    if (!payoutNetwork) {
+      nextErrors.payoutMobileNetwork = t('dashboard.settings.payout.validation.networkRequired')
+    }
+    if (!payoutNumber) {
+      nextErrors.payoutMobileNumber = t('dashboard.settings.payout.validation.numberRequired')
+    } else if (!isValidCameroonMobileNumber(payoutNumber)) {
+      nextErrors.payoutMobileNumber = t('dashboard.settings.payout.validation.numberInvalidCm')
+    }
+    if (!payoutName) {
+      nextErrors.payoutMobileName = t('dashboard.settings.payout.validation.nameRequired')
+    } else if (!/^[\p{L}\s'.-]{2,80}$/u.test(payoutName)) {
+      nextErrors.payoutMobileName = t('dashboard.settings.payout.validation.nameInvalid')
+    }
+
+    if (Object.keys(nextErrors).length > 0) {
+      setPayoutErrors(nextErrors)
+      addToast({
+        variant: 'error',
+        title: t('dashboard.settings.payout.errorTitle'),
+        message: t('dashboard.settings.payout.validation.formInvalid')
+      })
+      return
+    }
+
+    setPayoutErrors({})
     setPayoutSaving(true)
     try {
+      const canonicalNumber = toCanonicalCameroonMobileNumber(payoutNumber)
       await updateSettings({
-        payoutMobileNetwork: settings.payoutMobileNetwork || undefined,
-        payoutMobileNumber: settings.payoutMobileNumber?.trim() || undefined,
-        payoutMobileName: settings.payoutMobileName?.trim() || undefined
+        payoutMobileNetwork: payoutNetwork || undefined,
+        payoutMobileNumber: canonicalNumber || undefined,
+        payoutMobileName: payoutName || undefined
       })
+      setSettings(prev => ({
+        ...prev,
+        payoutMobileNumber: canonicalNumber
+      }))
       addToast({
         variant: 'success',
         title: t('dashboard.settings.payout.savedTitle'),
@@ -1083,39 +1148,54 @@ export default function Settings(){
             </div>
           ) : null}
           <form className="settings-form settings-form--stack" onSubmit={handlePayoutSubmit}>
-            <FormField label={t('dashboard.settings.payout.network.label')}>
+            <FormField
+              label={t('dashboard.settings.payout.network.label')}
+              error={payoutErrors.payoutMobileNetwork}
+            >
               <Select
                 options={payoutNetworkOptions}
                 value={settings.payoutMobileNetwork || ''}
                 onChange={value =>
-                  setSettings(prev => ({
-                    ...prev,
-                    payoutMobileNetwork: (value?.toString?.() ?? '') as SettingsState['payoutMobileNetwork']
-                  }))
+                  {
+                    setSettings(prev => ({
+                      ...prev,
+                      payoutMobileNetwork: (value?.toString?.() ?? '') as SettingsState['payoutMobileNetwork']
+                    }))
+                    setPayoutErrors(prev => ({ ...prev, payoutMobileNetwork: undefined }))
+                  }
                 }
               />
             </FormField>
-            <FormField label={t('dashboard.settings.payout.number.label')}>
+            <FormField
+              label={t('dashboard.settings.payout.number.label')}
+              hint={t('dashboard.settings.payout.number.hint')}
+              error={payoutErrors.payoutMobileNumber}
+            >
               <Input
                 value={settings.payoutMobileNumber}
-                onChange={event =>
+                onChange={event => {
                   setSettings(prev => ({
                     ...prev,
                     payoutMobileNumber: event.target.value
                   }))
-                }
+                  setPayoutErrors(prev => ({ ...prev, payoutMobileNumber: undefined }))
+                }}
                 placeholder={t('dashboard.settings.payout.number.placeholder')}
               />
             </FormField>
-            <FormField label={t('dashboard.settings.payout.name.label')}>
+            <FormField
+              label={t('dashboard.settings.payout.name.label')}
+              error={payoutErrors.payoutMobileName}
+            >
               <Input
                 value={settings.payoutMobileName}
-                onChange={event =>
+                onChange={event => {
                   setSettings(prev => ({
                     ...prev,
                     payoutMobileName: event.target.value
                   }))
-                }
+                  setPayoutErrors(prev => ({ ...prev, payoutMobileName: undefined }))
+                }}
                 placeholder={t('dashboard.settings.payout.name.placeholder')}
               />
             </FormField>

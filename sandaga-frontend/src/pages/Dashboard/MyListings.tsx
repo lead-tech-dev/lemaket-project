@@ -151,6 +151,11 @@ function formatDateTime(
   }
 }
 
+function isValidCameroonMobileNumber(value: string) {
+  const normalized = value.replace(/[\s().-]/g, '')
+  return /^(\+237|237)?6\d{8}$/.test(normalized)
+}
+
 function toDateTimeLocalValue(value: string | null | undefined) {
   if (!value) {
     return ''
@@ -214,7 +219,7 @@ export default function MyListings() {
     const settings = (user?.settings ?? {}) as Record<string, unknown>
     const network = typeof settings.payoutMobileNetwork === 'string' ? settings.payoutMobileNetwork : ''
     const number = typeof settings.payoutMobileNumber === 'string' ? settings.payoutMobileNumber : ''
-    return !network || !number.trim()
+    return !network || !number.trim() || !isValidCameroonMobileNumber(number)
   }, [isPro, user?.settings])
 
   const pendingUpdatesRef = useRef<Record<string, number>>({})

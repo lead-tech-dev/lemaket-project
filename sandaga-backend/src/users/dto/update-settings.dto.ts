@@ -8,7 +8,8 @@ import {
   Max,
   IsString,
   Length,
-  ValidateNested
+  ValidateNested,
+  Matches
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -130,11 +131,12 @@ export class UpdateSettingsDto {
 
   @IsOptional()
   @IsString()
-  @Length(6, 20)
+  @Matches(/^(\+237|237)?6\d{8}$/)
   payoutMobileNumber?: string;
 
   @IsOptional()
   @IsString()
   @Length(2, 80)
+  @Matches(/^[\p{L}\s'.-]{2,80}$/u)
   payoutMobileName?: string;
 }

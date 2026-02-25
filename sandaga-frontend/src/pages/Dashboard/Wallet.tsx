@@ -27,6 +27,11 @@ type WalletTransactionsResponse = {
   total: number
 }
 
+function isValidCameroonMobileNumber(value: string) {
+  const normalized = value.replace(/[\s().-]/g, '')
+  return /^(\+237|237)?6\d{8}$/.test(normalized)
+}
+
 export default function Wallet() {
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -54,7 +59,11 @@ export default function Wallet() {
     typeof payoutSettings.payoutMobileNumber === 'string'
       ? payoutSettings.payoutMobileNumber.trim()
       : ''
-  const payoutConfigured = Boolean(payoutNetwork && payoutNumber)
+  const payoutConfigured = Boolean(
+    payoutNetwork &&
+      payoutNumber &&
+      isValidCameroonMobileNumber(payoutNumber)
+  )
   const withdrawAmountNumber = Number(withdrawAmount)
   const hasValidWithdrawAmount = Number.isFinite(withdrawAmountNumber) && withdrawAmountNumber > 0
   const currentBalance = Number(summary?.balance ?? 0)
