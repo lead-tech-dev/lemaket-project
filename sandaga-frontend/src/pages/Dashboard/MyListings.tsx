@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import DashboardLayout from '../../layouts/DashboardLayout'
 import { Button } from '../../components/ui/Button'
 import { Select } from '../../components/ui/Select'
+import { Modal } from '../../components/ui/Modal'
 import { apiGet, apiPatch, apiPost } from '../../utils/api'
 import type { Listing } from '../../types/listing'
 import type { ListingStatus } from '../../types/listing-status'
@@ -150,6 +151,18 @@ function formatDateTime(
   }
 }
 
+function toDateTimeLocalValue(value: string | null | undefined) {
+  if (!value) {
+    return ''
+  }
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return ''
+  }
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
+  return localDate.toISOString().slice(0, 16)
+}
+
 function parsePrice(value: string): number {
   const numeric = Number(value)
   return Number.isFinite(numeric) ? numeric : 0
@@ -192,6 +205,9 @@ export default function MyListings() {
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [bulkLoading, setBulkLoading] = useState(false)
   const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null)
+  const [scheduleModalListing, setScheduleModalListing] = useState<ListingWithMeta | null>(null)
+  const [scheduleModalValue, setScheduleModalValue] = useState('')
+  const [isSavingSchedule, setIsSavingSchedule] = useState(false)
 
   const payoutMissing = useMemo(() => {
     if (!isPro) return false
@@ -545,18 +561,26 @@ export default function MyListings() {
     }
   }
 
-  const handleScheduleListing = async (listing: ListingWithMeta) => {
-    const current = listing.scheduledAt
-      ? new Date(listing.scheduledAt).toISOString().slice(0, 16)
-      : ''
-    const input = window.prompt(
-      t('dashboard.listings.schedule.prompt'),
-      current.replace('T', ' ')
-    )
-    if (input === null) {
+  const openScheduleModal = (listing: ListingWithMeta) => {
+    setScheduleModalListing(listing)
+    setScheduleModalValue(toDateTimeLocalValue(listing.scheduledAt))
+  }
+
+  const closeScheduleModal = (force = false) => {
+    if (isSavingSchedule && !force) {
       return
     }
-    const trimmed = input.trim()
+    setScheduleModalListing(null)
+    setScheduleModalValue('')
+  }
+
+  const handleScheduleListing = async () => {
+    if (!scheduleModalListing || isSavingSchedule) {
+      return
+    }
+
+    const trimmed = scheduleModalValue.trim()
+    const listing = scheduleModalListing
     const details = { ...(listing.details ?? {}) } as Record<string, unknown>
     let scheduledAt: string | null = null
 
@@ -577,6 +601,7 @@ export default function MyListings() {
       delete details.scheduledAt
     }
 
+    setIsSavingSchedule(true)
     try {
       await apiPatch(`/listings/${listing.id}`, { details })
       setListings(prev =>
@@ -593,6 +618,7 @@ export default function MyListings() {
           ? t('dashboard.listings.schedule.updatedMessageScheduled')
           : t('dashboard.listings.schedule.updatedMessageRemoved')
       })
+      closeScheduleModal(true)
     } catch (err) {
       console.error('Unable to schedule listing', err)
       addToast({
@@ -603,6 +629,8 @@ export default function MyListings() {
             ? err.message
             : t('dashboard.listings.schedule.errorMessage')
       })
+    } finally {
+      setIsSavingSchedule(false)
     }
   }
 
@@ -922,7 +950,7 @@ export default function MyListings() {
                             icon="🗓️"
                             label={scheduledLabel ? t('dashboard.listings.schedule.edit') : t('dashboard.listings.schedule.set')}
                             size="small"
-                            onClick={() => void handleScheduleListing(listing)}
+                            onClick={() => openScheduleModal(listing)}
                           />
                         </div>
                       </td>
@@ -966,6 +994,45 @@ export default function MyListings() {
             {t('dashboard.listings.search.empty')}
           </p>
         ) : null}
+
+        <Modal
+          open={Boolean(scheduleModalListing)}
+          onClose={() => closeScheduleModal()}
+          title={t('dashboard.listings.schedule.modalTitle')}
+          description={t('dashboard.listings.schedule.modalDescription')}
+          footer={
+            <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setScheduleModalValue('')}
+                disabled={isSavingSchedule}
+              >
+                {t('actions.remove')}
+              </Button>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <Button type="button" variant="ghost" onClick={() => closeScheduleModal()} disabled={isSavingSchedule}>
+                  {t('actions.cancel')}
+                </Button>
+                <Button type="button" onClick={() => void handleScheduleListing()} disabled={isSavingSchedule}>
+                  {isSavingSchedule ? t('actions.saving') : t('actions.save')}
+                </Button>
+              </div>
+            </div>
+          }
+        >
+          <label htmlFor="schedule-date-time" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <span style={{ fontWeight: 600 }}>{t('dashboard.listings.schedule.fieldLabel')}</span>
+            <input
+              id="schedule-date-time"
+              type="datetime-local"
+              className="input"
+              value={scheduleModalValue}
+              onChange={event => setScheduleModalValue(event.target.value)}
+              disabled={isSavingSchedule}
+            />
+          </label>
+        </Modal>
       </div>
     </DashboardLayout>
   )
