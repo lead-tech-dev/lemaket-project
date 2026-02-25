@@ -515,7 +515,7 @@ export default function StorefrontPage() {
                     ))}
                   </div>
                 ) : listingsError ? (
-                  <p style={{ color: '#b91c1c' }}>{listingsError}</p>
+                  <p className="ui-feedback ui-feedback--danger">{listingsError}</p>
                 ) : listings.length ? (
                   <div className="storefront-listings-grid">
 	                    {listings.map(listing => {
@@ -568,7 +568,7 @@ export default function StorefrontPage() {
                     })}
                   </div>
                 ) : (
-                  <p style={{ color: '#6c757d' }}>{t('storefront.listings.empty')}</p>
+                  <p className="ui-feedback">{t('storefront.listings.empty')}</p>
                 )}
               </Card>
 
@@ -614,7 +614,7 @@ export default function StorefrontPage() {
                     </div>
                   ) : null}
                   {reviewsLoading ? (
-                    <p style={{ color: '#6c757d' }}>{t('storefront.reviews.loading')}</p>
+                    <p className="ui-feedback">{t('storefront.reviews.loading')}</p>
                   ) : reviews.length ? (
                     <div className="storefront-reviews">
                       {reviews.map(review => (
@@ -631,7 +631,7 @@ export default function StorefrontPage() {
                       ))}
                     </div>
                   ) : (
-                    <p style={{ color: '#6c757d' }}>{t('storefront.reviews.empty')}</p>
+                    <p className="ui-feedback">{t('storefront.reviews.empty')}</p>
                   )}
                 </Card>
               ) : null}

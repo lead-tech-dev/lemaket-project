@@ -2080,13 +2080,13 @@ export default function SearchResults(){
 
         <section className={`search-page__results ${viewMode === 'grid' ? 'search-page__results--grid' : 'search-page__results--list'}`}>
           {isLoading && !listings.length ? (
-            <p style={{ padding: '1.5rem 0', color: '#6c757d' }}>
+            <p className="ui-feedback ui-feedback--padded">
               {t('search.results.loading')}
             </p>
           ) : null}
 
           {error ? (
-            <p role="alert" style={{ padding: '1.5rem 0', color: '#d14343' }}>
+            <p role="alert" className="ui-feedback ui-feedback--padded ui-feedback--danger">
               {error}
             </p>
           ) : null}
