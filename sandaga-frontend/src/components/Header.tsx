@@ -469,6 +469,68 @@ const navLinks = useMemo(() => {
           </Link>
           <span className="lbc-header__tag">{t('header.tagline')}</span>
         </div>
+        <div className="lbc-header__center">
+          <button
+            type="button"
+            className="lbc-header__search-trigger"
+            ref={searchToggleRef}
+            onClick={() => setSearchOpen(prev => !prev)}
+            aria-expanded={searchOpen}
+            aria-controls="header-search-input"
+          >
+            <span aria-hidden className="lbc-header__search-trigger-icon">🔎</span>
+            <span className="lbc-header__search-trigger-label">{t('header.searchPlaceholder')}</span>
+          </button>
+        </div>
+
+        <div className="lbc-header__actions">
+          <div className="lbc-header__actions-main">
+            <Link to="/listings/new" className="btn btn--primary">{t('header.postListing')}</Link>
+            <Link to="/dashboard/favorites" className="lbc-header__pill">
+              <span aria-hidden>⭐</span>
+              <span>{t('header.favorites')}</span>
+            </Link>
+            {messagingEnabled && isPro ? (
+              <Link to="/dashboard/messages" className="lbc-header__pill">
+                <span aria-hidden>💬</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  {t('header.messages')}
+                  {unreadTotal ? (
+                    <span
+                      className="lbc-header__badge lbc-header__badge--alert"
+                      aria-label={unreadLabel}
+                    >
+                      {unreadTotal > 99 ? '99+' : unreadTotal}
+                    </span>
+                  ) : null}
+                </span>
+              </Link>
+            ) : null}
+            {user ? (
+              <Link to="/dashboard" className="lbc-header__pill lbc-header__pill--user">
+                <span aria-hidden>👤</span>
+                <span>
+                  {user.firstName}
+                  {isAdmin ? (
+                    <span className="lbc-header__badge">{t('header.badge.admin')}</span>
+                  ) : isPro ? (
+                    <span className="lbc-header__badge">{t('header.badge.pro')}</span>
+                  ) : null}
+                </span>
+              </Link>
+            ) : (
+              <Link to="/login" className="lbc-header__pill">
+                <span aria-hidden>👤</span>
+                <span>{t('header.login')}</span>
+              </Link>
+            )}
+          </div>
+          <div className="lbc-header__actions-preferences">
+            <LocaleSwitcher />
+            <SwitchTheme />
+          </div>
+        </div>
+
         <button
           type="button"
           className="lbc-header__search-mobile-toggle"
@@ -492,61 +554,6 @@ const navLinks = useMemo(() => {
           <span className="lbc-header__menu-line" aria-hidden="true" />
           <span className="lbc-header__menu-line" aria-hidden="true" />
         </button>
-
-        <div className="lbc-header__actions">
-          {messagingEnabled && isPro ? (
-            <Link to="/dashboard/messages" className="lbc-header__pill">
-              <span aria-hidden>💬</span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                {t('header.messages')}
-                {unreadTotal ? (
-                  <span
-                    className="lbc-header__badge lbc-header__badge--alert"
-                    aria-label={unreadLabel}
-                  >
-                    {unreadTotal > 99 ? '99+' : unreadTotal}
-                  </span>
-                ) : null}
-              </span>
-            </Link>
-          ) : null}
-          <button
-            type="button"
-            className="lbc-header__pill"
-            ref={searchToggleRef}
-            onClick={() => setSearchOpen(prev => !prev)}
-            aria-expanded={searchOpen}
-            aria-controls="header-search-input"
-          >
-            <span aria-hidden>🔎</span>
-            <span>{t('header.search')}</span>
-          </button>
-          <Link to="/dashboard/favorites" className="lbc-header__pill">
-            <span aria-hidden>⭐</span>
-            <span>{t('header.favorites')}</span>
-          </Link>
-          {user ? (
-            <Link to="/dashboard" className="lbc-header__pill lbc-header__pill--user">
-              <span aria-hidden>👤</span>
-              <span>
-                {user.firstName}
-                {isAdmin ? (
-                  <span className="lbc-header__badge">{t('header.badge.admin')}</span>
-                ) : isPro ? (
-                  <span className="lbc-header__badge">{t('header.badge.pro')}</span>
-                ) : null}
-              </span>
-            </Link>
-          ) : (
-            <Link to="/login" className="lbc-header__pill">
-              <span aria-hidden>👤</span>
-              <span>{t('header.login')}</span>
-            </Link>
-          )}
-          <Link to="/listings/new" className="btn btn--primary">{t('header.postListing')}</Link>
-          <LocaleSwitcher />
-          <SwitchTheme />
-        </div>
       </div>
 
       <div className={`lbc-header__search-bar${searchOpen ? ' is-open' : ''}`} ref={searchBarRef}>
