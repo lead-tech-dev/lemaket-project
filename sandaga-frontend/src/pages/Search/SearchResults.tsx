@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import MainLayout from '../../layouts/MainLayout'
-import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
-import { FavoriteButton } from '../../components/ui/FavoriteButton'
 import { Input } from '../../components/ui/Input'
 import type { SortOption } from '../../components/ui/SortSelect'
 import type { Category } from '../../types/category'
@@ -13,7 +11,6 @@ import type { Listing } from '../../types/listing'
 import type { Paginated } from '../../types/pagination'
 import {
   PRICE_BANDS,
-  RADIUS_OPTIONS,
   getPriceBandLabel,
   resolvePriceBand
 } from '../../constants/filters'
@@ -26,19 +23,13 @@ import { ROOT_LISTING_FIELDS } from '../../constants/listingForm'
 import { formatListingLocation } from '../../utils/location'
 import { useFollowedSellers } from '../../hooks/useFollowedSellers'
 import { useAuth } from '../../hooks/useAuth'
-import { LocationPinIcon } from '../../components/ui/LocationPinIcon'
+import type { LocationSuggestion, SearchDrawerView, SearchViewMode } from './types'
+import { SearchResultsHeader } from './components/SearchResultsHeader'
+import { SearchFiltersDrawer } from './components/SearchFiltersDrawer'
+import { SearchResultsList } from './components/SearchResultsList'
 
 const DEFAULT_PAGE_SIZE = 20
 const ATTRIBUTE_PARAM_PREFIX = 'attr_'
-
-type LocationSuggestion = {
-  id: string
-  label: string
-  context: string | null
-  coordinates: [number, number]
-  city?: string
-  zipcode?: string
-}
 
 const MAPBOX_LOCATION_TYPES = 'neighborhood,locality,place,district,address,postcode'
 
@@ -139,7 +130,7 @@ export default function SearchResults(){
   const searchParamsString = searchParams.toString()
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN
   const VIEW_MODE_KEY = 'lemaket.searchView'
-  const [viewMode, setViewMode] = useState<'list' | 'grid'>(() => {
+  const [viewMode, setViewMode] = useState<SearchViewMode>(() => {
     if (typeof window === 'undefined') {
       return 'list'
     }
@@ -181,9 +172,7 @@ export default function SearchResults(){
   const [error, setError] = useState<string | null>(null)
   const [isCreatingAlert, setIsCreatingAlert] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
-  const [drawerView, setDrawerView] = useState<
-    'main' | 'categoryParents' | 'categoryChildren' | 'criteriaList' | 'criteriaOptions'
-  >('main')
+  const [drawerView, setDrawerView] = useState<SearchDrawerView>('main')
   const [activeCriteriaField, setActiveCriteriaField] = useState<
     FormSchemaDTO['steps'][number]['fields'][number] | null
   >(null)
@@ -196,13 +185,13 @@ export default function SearchResults(){
   const [locationSuggestions, setLocationSuggestions] = useState<LocationSuggestion[]>([])
   const [locationLoading, setLocationLoading] = useState(false)
   const [locationError, setLocationError] = useState<string | null>(null)
-  const locationWrapperRef = useRef<HTMLDivElement | null>(null)
-  const locationInputRef = useRef<HTMLInputElement | null>(null)
+  const locationWrapperRef = useRef<HTMLDivElement>(null)
+  const locationInputRef = useRef<HTMLInputElement>(null)
   const locationAbortRef = useRef<AbortController | null>(null)
   const locationDebounceRef = useRef<number | null>(null)
   const mapboxTokenLoggedRef = useRef(false)
 
-  const handleViewModeChange = (next: 'list' | 'grid') => {
+  const handleViewModeChange = (next: SearchViewMode) => {
     setViewMode(next)
     try {
       window.localStorage.setItem(VIEW_MODE_KEY, next)
@@ -1851,351 +1840,70 @@ export default function SearchResults(){
   return (
     <MainLayout>
       <div className="search-page">
-        <header className="search-page__header">
-          <div className="search-page__header-actions">
-            <div className="search-page__location">
-              <div className="search-location" ref={locationWrapperRef}>
-                <span className="search-location__icon" aria-hidden="true">
-                  <LocationPinIcon />
-                </span>
-                <Input
-                  id="search-location-input"
-                  ref={locationInputRef}
-                  className="input search-location__input"
-                  type="search"
-                  value={locationQuery}
-                  placeholder={t('search.location.placeholder')}
-                  onChange={event => {
-                    setLocationQuery(event.target.value)
-                    if (!locationOpen) {
-                      setLocationOpen(true)
-                    }
-                  }}
-                  onFocus={() => setLocationOpen(true)}
-                  onBlur={event => {
-                    const nextTarget = event.relatedTarget as Node | null
-                    if (nextTarget && locationWrapperRef.current?.contains(nextTarget)) {
-                      return
-                    }
-                    if (!locationQuery.trim()) {
-                      return
-                    }
-                    commitManualLocation()
-                  }}
-                  onKeyDown={event => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault()
-                      commitManualLocation()
-                    }
-                  }}
-                />
-                {locationQuery ? (
-                  <button
-                    type="button"
-                    className="search-location__clear"
-                    onClick={handleLocationClear}
-                    aria-label={t('search.location.clear')}
-                  >
-                    ×
-                  </button>
-                ) : null}
-                {locationOpen ? (
-                  <div className="search-location__panel">
-                    <span className="search-location__title">{t('search.location.suggestions')}</span>
-                    {locationLoading ? (
-                      <p className="search-location__hint">{t('search.location.loading')}</p>
-                    ) : null}
-                    {locationError ? (
-                      <p className="search-location__error" role="alert">{locationError}</p>
-                    ) : null}
-                    {!locationLoading && !locationError && locationSuggestions.length === 0 && locationQuery.trim().length >= 3 ? (
-                      <p className="search-location__hint">{t('search.location.empty')}</p>
-                    ) : null}
-                    {locationSuggestions.map(suggestion => (
-                      <button
-                        key={suggestion.id}
-                        type="button"
-                        className="search-location__item"
-                        onMouseDown={event => event.preventDefault()}
-                        onClick={() => handleLocationSelect(suggestion)}
-                      >
-                        <span className="search-location__marker" aria-hidden="true">
-                          <LocationPinIcon />
-                        </span>
-                        <span className="search-location__text">
-                          <span className="search-location__label">{suggestion.label}</span>
-                          {suggestion.context ? (
-                            <span className="search-location__meta">{suggestion.context}</span>
-                          ) : null}
-                        </span>
-                        <span className="search-location__arrow" aria-hidden="true">›</span>
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-              {hasLocationSelection ? (
-                <div className="search-location__radius">
-                  <span className="search-location__radius-title">{t('filters.radius.label')}</span>
-                  <div className="lbc-filter-chips" role="group" aria-label={t('filters.radius.aria')}>
-                    {RADIUS_OPTIONS.map(option => (
-                      <button
-                        key={option.value}
-                        type="button"
-                        className={`lbc-chip ${preferences.radius === option.value ? 'lbc-chip--active' : ''}`}
-                        onClick={() => handleRadiusChange(option.value)}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-            </div>
-            <div className="search-page__header-buttons">
-              <div className="search-view-toggle" role="group" aria-label={t('search.view.aria')}>
-                <button
-                  type="button"
-                  className={`btn btn--ghost search-view-toggle__btn ${viewMode === 'list' ? 'is-active' : ''}`}
-                  onClick={() => handleViewModeChange('list')}
-                  aria-pressed={viewMode === 'list'}
-                >
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M4 6h16M4 12h16M4 18h16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                  </svg>
-                  <span>{t('search.view.list')}</span>
-                </button>
-                <button
-                  type="button"
-                  className={`btn btn--ghost search-view-toggle__btn ${viewMode === 'grid' ? 'is-active' : ''}`}
-                  onClick={() => handleViewModeChange('grid')}
-                  aria-pressed={viewMode === 'grid'}
-                >
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M4 5h7v7H4zM13 5h7v7h-7zM4 12h7v7H4zM13 12h7v7h-7z" fill="none" stroke="currentColor" strokeWidth="1.6" />
-                  </svg>
-                  <span>{t('search.view.grid')}</span>
-                </button>
-              </div>
-              <div className="search-page__quick-actions">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="search-page__filters-toggle"
-                  onClick={() => {
-                    setDrawerView('main')
-                    setFiltersOpen(true)
-                  }}
-                  aria-expanded={filtersOpen}
-                  aria-controls="search-filters-drawer"
-                >
-                  <svg aria-hidden="true" viewBox="0 0 24 24">
-                    <path
-                      d="M4 6h16M7 12h10M10 18h4"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                  {t('search.filters.button')}
-                </Button>
-                <Button
-                  variant="outline"
-                  className="search-page__alert-button"
-                  onClick={handleCreateAlert}
-                  disabled={isCreatingAlert}
-                >
-                  {isCreatingAlert ? t('search.alert.saving') : t('search.alert.create')}
-                </Button>
-              </div>
-            </div>
-          </div>
-          <div className="search-page__header-content">
-            <h1>{t('search.header.title')}</h1>
-            <p>
-              {term ? <><strong>{term}</strong> — </> : null}
-              {headerCountLabel}
-              {city ? <> {t('search.header.near')} <strong>{city}</strong></> : null}
-              {results ? <> {t('search.header.page', { page })}</> : null}
-            </p>
-          </div>
-        </header>
+        <SearchResultsHeader
+          t={t}
+          term={term}
+          city={city}
+          page={page}
+          hasResults={Boolean(results)}
+          headerCountLabel={headerCountLabel}
+          filtersOpen={filtersOpen}
+          isCreatingAlert={isCreatingAlert}
+          viewMode={viewMode}
+          hasLocationSelection={hasLocationSelection}
+          selectedRadius={preferences.radius}
+          locationQuery={locationQuery}
+          locationOpen={locationOpen}
+          locationSuggestions={locationSuggestions}
+          locationLoading={locationLoading}
+          locationError={locationError}
+          locationWrapperRef={locationWrapperRef}
+          locationInputRef={locationInputRef}
+          onLocationQueryChange={setLocationQuery}
+          onLocationOpenChange={setLocationOpen}
+          onLocationCommit={commitManualLocation}
+          onLocationClear={handleLocationClear}
+          onLocationSelect={handleLocationSelect}
+          onRadiusChange={handleRadiusChange}
+          onViewModeChange={handleViewModeChange}
+          onOpenFilters={() => {
+            setDrawerView('main')
+            setFiltersOpen(true)
+          }}
+          onCreateAlert={handleCreateAlert}
+        />
 
-        <div className={`search-drawer ${filtersOpen ? 'search-drawer--open' : ''}`} aria-hidden={!filtersOpen}>
-          <button
-            type="button"
-            className="search-drawer__overlay"
-            onClick={closeFilters}
-            aria-label={t('search.filters.close')}
-            tabIndex={filtersOpen ? 0 : -1}
-          />
-          <div
-            className="search-drawer__panel"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="search-filters-title"
-            id="search-filters-drawer"
-          >
-            <div className="search-drawer__header">
-              <div className="search-drawer__nav">
-                {drawerView !== 'main' ? (
-                  <button
-                    type="button"
-                    className="search-drawer__back"
-                    onClick={handleDrawerBack}
-                    aria-label={t('search.filters.back')}
-                  >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                      <path
-                        d="M15 6l-6 6 6 6"
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </button>
-                ) : null}
-                <h2 id="search-filters-title">{drawerTitle}</h2>
-              </div>
-              <button
-                type="button"
-                className="search-drawer__close"
-                onClick={closeFilters}
-                aria-label={t('search.filters.close')}
-                tabIndex={filtersOpen ? 0 : -1}
-              >
-                ×
-              </button>
-            </div>
-            <div className="search-drawer__body">
-              {drawerView === 'main' ? renderDrawerMain : null}
-              {drawerView === 'categoryParents' ? renderDrawerCategoryParents : null}
-              {drawerView === 'categoryChildren' ? renderDrawerCategoryChildren : null}
-              {drawerView === 'criteriaList' ? renderDrawerCriteriaList : null}
-              {drawerView === 'criteriaOptions' ? renderDrawerCriteriaOptions : null}
-            </div>
-          </div>
-        </div>
+        <SearchFiltersDrawer
+          t={t}
+          isOpen={filtersOpen}
+          view={drawerView}
+          title={drawerTitle}
+          main={renderDrawerMain}
+          categoryParents={renderDrawerCategoryParents}
+          categoryChildren={renderDrawerCategoryChildren}
+          criteriaList={renderDrawerCriteriaList}
+          criteriaOptions={renderDrawerCriteriaOptions}
+          onBack={handleDrawerBack}
+          onClose={closeFilters}
+        />
 
-        <section className={`search-page__results ${viewMode === 'grid' ? 'search-page__results--grid' : 'search-page__results--list'}`}>
-          {isLoading && !listings.length ? (
-            <p className="ui-feedback ui-feedback--padded">
-              {t('search.results.loading')}
-            </p>
-          ) : null}
-
-          {error ? (
-            <p role="alert" className="ui-feedback ui-feedback--padded ui-feedback--danger">
-              {error}
-            </p>
-          ) : null}
-
-          {!isLoading && !error && listings.length === 0 ? (
-            <div className="search-result search-result--empty">
-              <div className="search-result__body">
-                <h2>{t('search.results.emptyTitle')}</h2>
-                <p>{t('search.results.emptyMessage')}</p>
-                <Button variant="outline">{t('search.alert.create')}</Button>
-              </div>
-            </div>
-          ) : null}
-
-	          {listings.map(listing => {
-	            const cover =
-	              listing.images?.find(image => image.isCover) ?? listing.images?.[0]
-	            const coverUrl = cover?.url?.trim() ?? ''
-	            const hasCover = Boolean(coverUrl)
-
-            return (
-              <Link key={listing.id} to={`/listing/${listing.id}`} className="search-result-link">
-                <Card className="search-result">
-	                <div
-	                  className={`search-result__media${hasCover ? '' : ' is-placeholder'}`}
-	                  style={hasCover ? { backgroundImage: `url(${coverUrl})` } : undefined}
-	                >
-                  <FavoriteButton
-                    listingId={listing.id}
-                    className="favorite-toggle--overlay"
-                  />
-                </div>
-                <div className="search-result__body">
-                  <header className="search-result__header">
-                    <div className="search-result__badges">
-                      {listing.isFeatured ? (
-                        <span className="search-result__badge search-result__badge--featured">
-                          {t('listings.detail.badges.featured')}
-                        </span>
-                      ) : null}
-                      {listing.isBoosted ? (
-                        <span className="search-result__badge search-result__badge--boosted">
-                          {t('listings.detail.badges.boosted')}
-                        </span>
-                      ) : null}
-                      {listing.owner?.isCompanyVerified ? (
-                        <span className="search-result__badge search-result__badge--verified">
-                          {t('listings.badge.companyVerified')}
-                        </span>
-                      ) : null}
-                      <span className="search-result__badge search-result__badge--seller">
-                        {getSellerType(listing)}
-                      </span>
-                    </div>
-                    <span className="search-result__category">
-                      {listing.category?.name ?? t('listing.fallbackCategory')}
-                    </span>
-                  </header>
-                  <h2>{listing.title}</h2>
-                  {getOwnerProfileUrl(listing) && getOwnerName(listing) ? (
-                    <button
-                      type="button"
-                      className="listing-seller-link"
-                      onClick={event => {
-                        event.preventDefault()
-                        event.stopPropagation()
-                        navigate(getOwnerProfileUrl(listing)!)
-                      }}
-                    >
-                      {getOwnerName(listing)}
-                    </button>
-                  ) : null}
-                  {listing.publishedAt ? (
-                    <p className="search-result__date">
-                      {formatListingDate(listing.publishedAt)}
-                    </p>
-                  ) : null}
-                  <p>{getListingLocation(listing)}</p>
-                  <strong>{formatPrice(listing)}</strong>
-                </div>
-                </Card>
-              </Link>
-            )
-          })}
-        </section>
-
-        {totalPages > 1 ? (
-          <div className="search-page__pagination">
-            <div className="listings-pagination">
-              <Button
-                variant="ghost"
-                onClick={() => handlePageChange(page - 1)}
-                disabled={page <= 1 || isLoading}
-              >
-                {t('pagination.previous')}
-              </Button>
-              <span>
-                {t('pagination.pageIndicator', { page, total: totalPages })}
-              </span>
-              <Button
-                variant="ghost"
-                onClick={() => handlePageChange(page + 1)}
-                disabled={page >= totalPages || isLoading}
-              >
-                {t('pagination.next')}
-              </Button>
-            </div>
-          </div>
-        ) : null}
+        <SearchResultsList
+          t={t}
+          listings={listings}
+          isLoading={isLoading}
+          error={error}
+          viewMode={viewMode}
+          page={page}
+          totalPages={totalPages}
+          formatPrice={formatPrice}
+          getSellerType={getSellerType}
+          getListingLocation={getListingLocation}
+          getOwnerProfileUrl={getOwnerProfileUrl}
+          getOwnerName={getOwnerName}
+          formatListingDate={formatListingDate}
+          onOwnerNavigate={url => navigate(url)}
+          onPageChange={handlePageChange}
+        />
       </div>
     </MainLayout>
   )
