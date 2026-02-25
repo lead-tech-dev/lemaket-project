@@ -372,6 +372,46 @@
   gap:calc($spacing*1);
 }
 
+.orders-list{
+  display:grid;
+  gap:calc($spacing*2);
+}
+
+.orders-item{
+  padding:calc($spacing*2);
+}
+
+.orders-item__row{
+  display:flex;
+  justify-content:space-between;
+  gap:calc($spacing*2);
+}
+
+.orders-item__main h3{
+  margin:0;
+}
+
+.orders-item__mode{
+  margin:6px 0;
+  color:var(--color-muted);
+}
+
+.orders-item__total{
+  margin:0;
+  color:var(--color-text);
+  font-weight:600;
+}
+
+.orders-item__meta{
+  text-align:right;
+}
+
+.orders-item__date{
+  margin-top:8px;
+  color:var(--color-muted);
+  font-size:.85rem;
+}
+
 @media (max-width: 768px){
   .dashboard-page{
     gap:calc($spacing*2.5);
@@ -422,6 +462,12 @@
     grid-template-columns: 1fr;
     align-items:flex-start;
     gap:calc($spacing*1.2);
+  }
+  .orders-item__row{
+    flex-direction:column;
+  }
+  .orders-item__meta{
+    text-align:left;
   }
   .message-item__meta{
     width:100%;

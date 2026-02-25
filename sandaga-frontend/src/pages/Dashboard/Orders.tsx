@@ -56,26 +56,26 @@ export default function Orders() {
         </header>
 
         {loading ? (
-          <p style={{ color: '#6b7280' }}>Chargement...</p>
+          <p className="ui-feedback">Chargement...</p>
         ) : orders.length ? (
-          <div style={{ display: 'grid', gap: '16px' }}>
+          <div className="orders-list">
             {orders.map(order => (
-              <div key={order.id} className="card" style={{ padding: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px' }}>
-                  <div>
-                    <h3 style={{ margin: 0 }}>{order.listing?.title ?? 'Annonce'}</h3>
-                    <p style={{ margin: '6px 0', color: '#64748b' }}>
+              <div key={order.id} className="card orders-item">
+                <div className="orders-item__row">
+                  <div className="orders-item__main">
+                    <h3>{order.listing?.title ?? 'Annonce'}</h3>
+                    <p className="orders-item__mode">
                       Mode: {order.handoverMode === 'delivery' ? 'Livraison' : 'Remise en main propre'}
                     </p>
-                    <p style={{ margin: 0, color: '#0f172a', fontWeight: 600 }}>
+                    <p className="orders-item__total">
                       Total: {Number(order.totalAmount).toLocaleString('fr-FR')} {order.currency}
                     </p>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
+                  <div className="orders-item__meta">
                     <span className="badge">
                       {STATUS_LABELS[order.status] ?? order.status}
                     </span>
-                    <p style={{ marginTop: '8px', color: '#94a3b8', fontSize: '0.85rem' }}>
+                    <p className="orders-item__date">
                       {new Date(order.created_at).toLocaleDateString('fr-FR')}
                     </p>
                   </div>
@@ -84,7 +84,7 @@ export default function Orders() {
             ))}
           </div>
         ) : (
-          <p style={{ color: '#6b7280' }}>Aucune commande pour le moment.</p>
+          <p className="ui-feedback">Aucune commande pour le moment.</p>
         )}
       </div>
     </DashboardLayout>

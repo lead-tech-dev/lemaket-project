@@ -2248,6 +2248,23 @@ button.lbc-header__pill{
   gap:calc($spacing*1.5);
 }
 
+.ui-feedback{
+  margin:0;
+  color:var(--color-muted);
+}
+.ui-feedback--padded{
+  padding:calc($spacing*2) 0;
+}
+.ui-feedback--compact{
+  padding:calc($spacing*1) 0;
+}
+.ui-feedback--danger{
+  color:var(--color-danger);
+}
+.ui-feedback--offset-sm{
+  margin-top:calc($spacing*1.25);
+}
+
 .locale-switcher{
   min-width:88px;
 }
@@ -2782,7 +2799,6 @@ button.lbc-header__pill{
 @media (max-width: 1080px){
   .lbc-search{grid-template-columns:1fr; }
   .lbc-search__submit{width:100%;}
-  .lbc-header__right{justify-content:flex-end;}
   .lbc-hero__inner{grid-template-columns:1fr;}
   .sidebar{position:static; min-width:unset; width:100%;}
 }
@@ -2837,9 +2853,6 @@ button.lbc-header__pill{
 
 @media (max-width: 720px){
   .container{padding: calc($spacing*2);}
-  .lbc-header__bar{flex-direction:column; align-items:flex-start;}
-  .lbc-header__right{width:100%; justify-content:flex-start;}
-  .btn{width:100%; justify-content:center;}
   .lbc-hero{padding:calc($spacing*4);}
   .lbc-hero h1{font-size:2.2rem;}
   .lbc-section--alt,

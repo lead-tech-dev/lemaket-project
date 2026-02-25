@@ -828,10 +828,7 @@ export default function Home() {
                 </Link>
               </div>
               {heroLoading ? (
-                <p
-                  style={{ marginTop: '1rem', fontSize: '0.9rem', color: '#6c757d' }}
-                  aria-live="polite"
-                >
+                <p className="ui-feedback ui-feedback--offset-sm" aria-live="polite">
                   {t('home.search.loadingRecommendations')}
                 </p>
               ) : null}
@@ -908,7 +905,7 @@ export default function Home() {
                 })}
               </div>
             ) : (
-              <p style={{ padding: '1rem', color: '#6c757d' }}>
+              <p className="ui-feedback ui-feedback--compact">
                 {t('home.categories.empty')}
               </p>
             )
@@ -927,7 +924,7 @@ export default function Home() {
           </div>
           {storefrontsSkeleton ?? (
             storefrontsError ? (
-              <p style={{ padding: '0.75rem 0', color: '#b91c1c' }}>
+              <p className="ui-feedback ui-feedback--compact ui-feedback--danger">
                 {storefrontsError}
               </p>
             ) : storefronts.length ? (
@@ -998,7 +995,7 @@ export default function Home() {
                 })}
               </div>
             ) : (
-              <p style={{ padding: '0.75rem 0', color: '#6c757d' }}>
+              <p className="ui-feedback ui-feedback--compact">
                 {t('home.storefronts.empty')}
               </p>
             )
@@ -1037,7 +1034,7 @@ export default function Home() {
                     </button>
                   ))
                 ) : (
-                  <p style={{ padding: '0.5rem', color: '#6c757d' }}>
+                  <p className="ui-feedback ui-feedback--compact">
                     {t('home.trending.empty')}
                   </p>
                 )}
@@ -1106,7 +1103,7 @@ export default function Home() {
 	              })}
 	            </div>
           ) : (
-            <p style={{ padding: '1rem', color: '#6c757d' }}>
+            <p className="ui-feedback ui-feedback--compact">
               {t('home.featured.empty')}
             </p>
           )}
@@ -1223,7 +1220,7 @@ export default function Home() {
 	              })}
 	            </div>
           ) : (
-            <p style={{ padding: '1rem', color: '#6c757d' }}>
+            <p className="ui-feedback ui-feedback--compact">
               {t('home.latest.empty')}
             </p>
           )}
@@ -1256,7 +1253,7 @@ export default function Home() {
                     </Card>
                   ))
                 ) : (
-                  <p style={{ padding: '1rem', color: '#6c757d' }}>
+                  <p className="ui-feedback ui-feedback--compact">
                     {t('home.testimonials.empty')}
                   </p>
                 )}
@@ -1291,7 +1288,7 @@ export default function Home() {
               ))}
             </div>
           ) : (
-            <p style={{ padding: '1rem', color: '#6c757d' }}>
+            <p className="ui-feedback ui-feedback--compact">
               {t('home.services.empty')}
             </p>
           )}
@@ -1353,7 +1350,7 @@ export default function Home() {
               </p>
             </>
           ) : (
-            <p style={{ padding: '1rem', color: '#6c757d' }}>
+            <p className="ui-feedback ui-feedback--compact">
               {t('home.sellerSplit.unavailable')}
             </p>
           )}
