@@ -40,7 +40,7 @@
 }
 
 .auth-feature{
-  background:linear-gradient(135deg, rgba(15,96,196,.12), rgba(255,110,20,.12));
+  background:linear-gradient(135deg, var(--color-accent-soft-strong), var(--color-primary-soft-strong));
   border-radius:calc($radius*1.2);
   padding:calc($spacing*5);
   display:flex;
@@ -70,7 +70,8 @@
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  background:#fff;
+  background:var(--color-surface-raised);
+  border:1px solid var(--color-border);
   color:var(--color-primary);
   font-weight:700;
 }

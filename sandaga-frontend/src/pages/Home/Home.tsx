@@ -1051,21 +1051,19 @@ export default function Home() {
               {t('home.section.featuredAll')}
             </Link>
           </div>
-          {featuredLoading && !featuredBase.length ? (
-            <ListingSkeletonGrid count={4} />
-          ) : featuredListings.length ? (
-            <div className="lbc-listings lbc-listings--featured">
-              {featuredListings.map(listing => (
-                <Link key={listing.id} to={`/listing/${listing.id}`} className="lbc-listing-card-link">
-                  <Card className="lbc-listing-card">
-                  <div
-                    className="lbc-listing-card__image"
-                    style={
-                      listing.coverImage
-                        ? { backgroundImage: `url(${listing.coverImage})` }
-                        : undefined
-                    }
-                  >
+	          {featuredLoading && !featuredBase.length ? (
+	            <ListingSkeletonGrid count={4} />
+	          ) : featuredListings.length ? (
+	            <div className="lbc-listings lbc-listings--featured">
+	              {featuredListings.map(listing => {
+	                const hasCover = Boolean(listing.coverImage)
+	                return (
+	                <Link key={listing.id} to={`/listing/${listing.id}`} className="lbc-listing-card-link">
+	                  <Card className="lbc-listing-card">
+	                  <div
+	                    className={`lbc-listing-card__image${hasCover ? '' : ' is-placeholder'}`}
+	                    style={hasCover ? { backgroundImage: `url(${listing.coverImage})` } : undefined}
+	                  >
                     {listing.owner?.isCompanyVerified ? (
                       <div className="lbc-listing-card__badges">
                         <span className="lbc-listing-card__badge lbc-listing-card__badge--verified">
@@ -1100,12 +1098,13 @@ export default function Home() {
                       {getListingLocation(listing)} ·{' '}
                       {listing.category?.name ?? listing.tag ?? t('listing.fallbackCategory')}
                     </p>
-                    <p className="lbc-listing-card__price">{formatListingPrice(listing, numberLocale)}</p>
-                  </div>
-                  </Card>
-                </Link>
-              ))}
-            </div>
+	                    <p className="lbc-listing-card__price">{formatListingPrice(listing, numberLocale)}</p>
+	                  </div>
+	                  </Card>
+	                </Link>
+	                )
+	              })}
+	            </div>
           ) : (
             <p style={{ padding: '1rem', color: '#6c757d' }}>
               {t('home.featured.empty')}
@@ -1180,21 +1179,19 @@ export default function Home() {
             </div>
           </div>
 
-          {latestLoading && !latestBase.length ? (
-            <ListingSkeletonGrid count={6} />
-          ) : latestListings.length ? (
-            <div className="lbc-listings lbc-listings--grid">
-              {latestListings.map(listing => (
-                <Link key={listing.id} to={`/listing/${listing.id}`} className="lbc-mini-card lbc-mini-card--with-favorite">
-                  <FavoriteButton listingId={listing.id} className="favorite-toggle--overlay" />
-                  <div
-                    className="lbc-mini-card__image"
-                    style={
-                      listing.coverImage
-                        ? { backgroundImage: `url(${listing.coverImage})` }
-                        : undefined
-                    }
-                  />
+	          {latestLoading && !latestBase.length ? (
+	            <ListingSkeletonGrid count={6} />
+	          ) : latestListings.length ? (
+	            <div className="lbc-listings lbc-listings--grid">
+	              {latestListings.map(listing => {
+	                const hasCover = Boolean(listing.coverImage)
+	                return (
+	                <Link key={listing.id} to={`/listing/${listing.id}`} className="lbc-mini-card lbc-mini-card--with-favorite">
+	                  <FavoriteButton listingId={listing.id} className="favorite-toggle--overlay" />
+	                  <div
+	                    className={`lbc-mini-card__image${hasCover ? '' : ' is-placeholder'}`}
+	                    style={hasCover ? { backgroundImage: `url(${listing.coverImage})` } : undefined}
+	                  />
                   <div className="lbc-mini-card__body">
                     <h3>{listing.title}</h3>
                     {getOwnerProfileUrl(listing) && getOwnerLabel(listing) ? (
@@ -1218,12 +1215,13 @@ export default function Home() {
                     <p>{getListingLocation(listing)}</p>
                     <span>{formatListingPrice(listing, numberLocale)}</span>
                   </div>
-                  <span className="lbc-mini-card__category">
-                    {listing.category?.name ?? listing.tag ?? t('listing.fallbackCategory')}
-                  </span>
-                </Link>
-              ))}
-            </div>
+	                  <span className="lbc-mini-card__category">
+	                    {listing.category?.name ?? listing.tag ?? t('listing.fallbackCategory')}
+	                  </span>
+	                </Link>
+	                )
+	              })}
+	            </div>
           ) : (
             <p style={{ padding: '1rem', color: '#6c757d' }}>
               {t('home.latest.empty')}
@@ -1348,8 +1346,8 @@ export default function Home() {
               <p className="lbc-seller-split__summary">
                 {totalSellerListings
                   ? t('home.sellerSplit.summary', {
-                      proShare: shareFormatter.format(sellerSplitData.proShare),
-                      individualShare: shareFormatter.format(sellerSplitData.individualShare)
+                      share: shareFormatter.format(sellerSplitData.proShare),
+                      count: numberFormatter.format(totalSellerListings)
                     })
                   : t('home.sellerSplit.summaryEmpty')}
               </p>

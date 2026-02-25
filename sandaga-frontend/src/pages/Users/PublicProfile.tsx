@@ -569,15 +569,17 @@ export default function PublicUserProfile() {
           <p style={{ color: '#b91c1c' }}>{listingsError}</p>
         ) : sectionTab === 'listings' && listings.length ? (
           <div className="lbc-listings lbc-listings--grid">
-            {listings.map(listing => {
-              const cover = listing.images?.find(image => image.isCover) ?? listing.images?.[0]
-              return (
-                <Link key={listing.id} to={`/listing/${listing.id}`} className="lbc-listing-card-link">
-                  <Card className="lbc-listing-card">
-                    <div
-                      className="lbc-listing-card__image"
-                      style={cover?.url ? { backgroundImage: `url(${cover.url})` } : undefined}
-                    >
+	            {listings.map(listing => {
+	              const cover = listing.images?.find(image => image.isCover) ?? listing.images?.[0]
+	              const coverUrl = cover?.url?.trim() ?? ''
+	              const hasCover = Boolean(coverUrl)
+	              return (
+	                <Link key={listing.id} to={`/listing/${listing.id}`} className="lbc-listing-card-link">
+	                  <Card className="lbc-listing-card">
+	                    <div
+	                      className={`lbc-listing-card__image${hasCover ? '' : ' is-placeholder'}`}
+	                      style={hasCover ? { backgroundImage: `url(${coverUrl})` } : undefined}
+	                    >
                       <FavoriteButton listingId={listing.id} className="favorite-toggle--overlay" />
                     </div>
                     <div className="lbc-listing-card__body">

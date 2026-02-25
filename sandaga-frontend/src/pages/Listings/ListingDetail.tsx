@@ -1125,12 +1125,12 @@ export default function ListingDetail() {
         {listing ? (
           <>
             <div className="listing-detail__main">
-              <div className="listing-gallery">
-                <div
-                  className="listing-gallery__main"
-                  style={
-                    activeImage?.url
-                      ? {
+	              <div className="listing-gallery">
+	                <div
+	                  className={`listing-gallery__main${activeImage?.url ? '' : ' is-placeholder'}`}
+	                  style={
+	                    activeImage?.url
+	                      ? {
                           backgroundImage: `url(${activeImage.url})`,
                           backgroundSize: 'cover',
                           backgroundPosition: 'center'
@@ -1208,13 +1208,13 @@ export default function ListingDetail() {
                           }}
                         />
                       ))
-                    : Array.from({ length: 4 }).map((_, index) => (
-                        <div
-                          key={index}
-                          className="listing-gallery__thumb"
-                        />
-                      ))}
-                </div>
+	                    : Array.from({ length: 4 }).map((_, index) => (
+	                        <div
+	                          key={index}
+	                          className="listing-gallery__thumb is-placeholder"
+	                        />
+	                      ))}
+	                </div>
               </div>
 
               <Modal
@@ -1374,17 +1374,17 @@ export default function ListingDetail() {
                         similar.images?.find(image => image.isCover) ??
                         similar.images?.[0]
 
-                      return (
-                        <Link
-                          key={similar.id}
-                          to={`/listing/${similar.id}`}
-                          className="lbc-mini-card"
-                        >
-                          <div
-                            className="lbc-mini-card__image"
-                            style={
-                              similarCover?.url
-                                ? {
+	                      return (
+	                        <Link
+	                          key={similar.id}
+	                          to={`/listing/${similar.id}`}
+	                          className="lbc-mini-card"
+	                        >
+	                          <div
+	                            className={`lbc-mini-card__image${similarCover?.url ? '' : ' is-placeholder'}`}
+	                            style={
+	                              similarCover?.url
+	                                ? {
                                     backgroundImage: `url(${similarCover.url})`,
                                     backgroundSize: 'cover',
                                     backgroundPosition: 'center'

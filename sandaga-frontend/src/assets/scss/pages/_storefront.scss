@@ -16,7 +16,7 @@
 
 .storefront-hero__media {
   min-height: 220px;
-  background: linear-gradient(135deg, rgba(255, 110, 20, 0.3), rgba(15, 96, 196, 0.2));
+  background: linear-gradient(135deg, var(--color-primary-soft-strong), var(--color-accent-soft-strong));
   background-size: cover;
   background-position: center;
 }
@@ -36,7 +36,7 @@
   background: var(--color-surface);
   background-size: cover;
   background-position: center;
-  box-shadow: 0 10px 20px rgba(20, 20, 20, 0.12);
+  box-shadow: var(--shadow-soft);
 }
 
 .storefront-title__row {
@@ -68,15 +68,15 @@
 .storefront-badge {
   padding: 0.2rem 0.6rem;
   border-radius: 999px;
-  background: rgba(15, 96, 196, 0.12);
+  background: var(--color-accent-soft-strong);
   color: var(--color-accent);
   font-size: 0.75rem;
   font-weight: 600;
 }
 
 .storefront-badge--verified {
-  background: rgba(16, 185, 129, 0.12);
-  color: #0f766e;
+  background: var(--color-success-soft);
+  color: var(--color-success);
 }
 
 .storefront-actions {
@@ -134,7 +134,7 @@
 .storefront-reviews__rating {
   padding: 0.25rem 0.65rem;
   border-radius: 999px;
-  background: rgba(15, 96, 196, 0.12);
+  background: var(--color-info-soft);
 }
 
 .storefront-reviews__sales {
@@ -156,15 +156,15 @@
   align-items: center;
   padding: 0.75rem 0.9rem;
   border-radius: 0.9rem;
-  border: 1px solid rgba(15, 96, 196, 0.12);
-  background: rgba(248, 250, 252, 0.9);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-glass);
 }
 
 .storefront-reviews__metric-icon {
   width: 32px;
   height: 32px;
   border-radius: 10px;
-  background: rgba(15, 96, 196, 0.1);
+  background: var(--color-info-soft);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -189,10 +189,10 @@
 }
 
 .storefront-about__summary {
-  background: rgba(15, 96, 196, 0.06);
+  background: var(--color-surface-alt);
   border-radius: calc($radius * 1);
   padding: 1.25rem;
-  border: 1px solid rgba(15, 96, 196, 0.12);
+  border: 1px solid var(--color-border);
 }
 
 .storefront-about__text {
@@ -220,7 +220,7 @@
   align-items: center;
   padding: 0.85rem 1rem;
   border-radius: calc($radius * 0.9);
-  background: rgba(248, 250, 252, 0.9);
+  background: var(--color-surface-glass);
   border: 1px solid var(--color-border);
 }
 
@@ -228,7 +228,7 @@
   width: 32px;
   height: 32px;
   border-radius: 10px;
-  background: rgba(15, 96, 196, 0.1);
+  background: var(--color-info-soft);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -256,7 +256,7 @@
   color: var(--color-text);
   font-weight: 600;
   text-decoration: underline;
-  text-decoration-color: rgba(15, 96, 196, 0.35);
+  text-decoration-color: var(--color-border-strong);
   text-underline-offset: 3px;
 }
 
@@ -290,8 +290,8 @@
   gap: 0.5rem;
   padding: 0.4rem;
   border-radius: 999px;
-  border: 1px solid rgba(15, 96, 196, 0.12);
-  background: rgba(15, 96, 196, 0.04);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-alt);
 }
 
 .storefront-sort__tab {
@@ -307,8 +307,8 @@
 
 .storefront-sort__tab.is-active {
   background: var(--color-accent);
-  color: #fff;
-  box-shadow: 0 12px 24px rgba(15, 96, 196, 0.2);
+  color: var(--color-surface);
+  box-shadow: var(--shadow-soft);
 }
 
 .storefront-listings-grid {
@@ -386,9 +386,9 @@
   gap: 0.85rem;
   padding: 0.85rem 1rem;
   border-radius: 1rem;
-  border: 1px solid rgba(15, 96, 196, 0.12);
-  background: rgba(255, 255, 255, 0.7);
-  box-shadow: 0 14px 28px rgba(15, 96, 196, 0.1);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-glass);
+  box-shadow: var(--shadow-soft);
 }
 
 .storefront-trust__item strong,
@@ -408,7 +408,7 @@
   width: 36px;
   height: 36px;
   border-radius: 12px;
-  background: rgba(15, 96, 196, 0.12);
+  background: var(--color-info-soft);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -424,7 +424,7 @@
 
 .storefront-trust__link:hover {
   transform: translateY(-1px);
-  box-shadow: 0 18px 32px rgba(15, 96, 196, 0.16);
+  box-shadow: var(--shadow-elevated);
 }
 
 .storefront-trust__arrow {

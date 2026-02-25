@@ -2101,19 +2101,19 @@ export default function SearchResults(){
             </div>
           ) : null}
 
-          {listings.map(listing => {
-            const cover =
-              listing.images?.find(image => image.isCover) ?? listing.images?.[0]
+	          {listings.map(listing => {
+	            const cover =
+	              listing.images?.find(image => image.isCover) ?? listing.images?.[0]
+	            const coverUrl = cover?.url?.trim() ?? ''
+	            const hasCover = Boolean(coverUrl)
 
             return (
               <Link key={listing.id} to={`/listing/${listing.id}`} className="search-result-link">
                 <Card className="search-result">
-                <div
-                  className="search-result__media"
-                  style={
-                    cover?.url ? { backgroundImage: `url(${cover.url})` } : undefined
-                  }
-                >
+	                <div
+	                  className={`search-result__media${hasCover ? '' : ' is-placeholder'}`}
+	                  style={hasCover ? { backgroundImage: `url(${coverUrl})` } : undefined}
+	                >
                   <FavoriteButton
                     listingId={listing.id}
                     className="favorite-toggle--overlay"
