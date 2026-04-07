@@ -107,6 +107,98 @@ describe('SearchResults', () => {
     )
   })
 
+  it('normalizes query search before calling API', async () => {
+    renderWithProviders(<SearchResults />, {
+      useRouter: true,
+      router: { initialEntries: ['/search?q=%20%20coloc%20%20'] }
+    })
+
+    await waitFor(() => {
+      expect(vi.mocked(Api.apiGet)).toHaveBeenCalledWith(
+        expect.stringContaining('search=coloc'),
+        expect.any(Object)
+      )
+    })
+  })
+
+  it('forwards advanced search syntax (phrase + exclusion) to API', async () => {
+    renderWithProviders(<SearchResults />, {
+      useRouter: true,
+      router: { initialEntries: ['/search?q=%22studio%20coloc%22%20-balcon'] }
+    })
+
+    await waitFor(() => {
+      const calls = vi.mocked(Api.apiGet).mock.calls
+      expect(calls.length).toBeGreaterThan(0)
+      const listingPath = calls
+        .map(([path]) => String(path))
+        .reverse()
+        .find(path => path.startsWith('/listings?'))
+      expect(listingPath).toBeTruthy()
+      const queryString = (listingPath as string).split('?')[1] ?? ''
+      const params = new URLSearchParams(queryString)
+      expect(params.get('search')).toBe('"studio coloc" -balcon')
+    })
+  })
+
+  it('applies a syntax example chip and refreshes API query', async () => {
+    const user = userEvent.setup()
+
+    renderWithProviders(<SearchResults />, {
+      useRouter: true,
+      router: { initialEntries: ['/search'] }
+    })
+
+    await user.click(await screen.findByRole('button', { name: '"studio meublé"' }))
+
+    await waitFor(() => {
+      const calls = vi.mocked(Api.apiGet).mock.calls
+      expect(calls.length).toBeGreaterThan(0)
+      const listingPath = calls
+        .map(([path]) => String(path))
+        .reverse()
+        .find(path => path.startsWith('/listings?'))
+      expect(listingPath).toBeTruthy()
+      const queryString = (listingPath as string).split('?')[1] ?? ''
+      const params = new URLSearchParams(queryString)
+      expect(params.get('search')).toBe('"studio meublé"')
+    })
+  })
+
+  it('shows and applies did-you-mean suggestion when query looks misspelled', async () => {
+    const user = userEvent.setup()
+    vi.mocked(Api.apiGet).mockImplementation((path: string) => {
+      if (path.startsWith('/search/suggestions')) {
+        return Promise.resolve([
+          { id: 's1', label: 'Téléphone', query: 'telephone', resultCount: 42, hits: 12 }
+        ] as any)
+      }
+      return Promise.resolve({
+        data: [],
+        total: 0,
+        page: 1,
+        limit: 20
+      } as any)
+    })
+
+    renderWithProviders(<SearchResults />, {
+      useRouter: true,
+      router: { initialEntries: ['/search?q=telephne'] }
+    })
+
+    expect(await screen.findByText(/vous vouliez dire/i)).toBeInTheDocument()
+    await user.click(screen.getAllByRole('button', { name: 'Téléphone' })[0])
+
+    await waitFor(() => {
+      const calls = vi.mocked(Api.apiGet).mock.calls
+      const listingCall = calls
+        .map(([path]) => String(path))
+        .reverse()
+        .find(path => path.startsWith('/listings?'))
+      expect(listingCall).toContain('search=telephone')
+    })
+  })
+
   it('applies manual location search on Enter', async () => {
     const user = userEvent.setup()
 

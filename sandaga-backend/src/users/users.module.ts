@@ -11,12 +11,14 @@ import { Favorite } from '../favorites/favorite.entity';
 import { UserFollow } from './user-follow.entity';
 import { Review } from '../reviews/review.entity';
 import { Message } from '../messages/message.entity';
+import { PresenceModule } from '../presence/presence.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User, UserAddress, Listing, Favorite, UserFollow, Review, Message]),
     AdminModule,
-    MediaModule
+    MediaModule,
+    PresenceModule
   ],
   controllers: [UsersController],
   providers: [UsersService],

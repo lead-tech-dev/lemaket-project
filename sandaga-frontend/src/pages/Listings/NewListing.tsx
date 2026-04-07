@@ -421,6 +421,19 @@ const isFieldMandatory = (field: SchemaField): boolean => {
   return Boolean(rules?.mandatory)
 }
 
+const isSchemaFieldEnabled = (field: SchemaField): boolean => {
+  if ((field as { disabled?: boolean }).disabled === true) {
+    return false
+  }
+  if ((field as { active?: boolean }).active === false) {
+    return false
+  }
+  if ((field as { isActive?: boolean }).isActive === false) {
+    return false
+  }
+  return true
+}
+
 const isUnauthorizedError = (error: unknown): error is Error =>
   error instanceof Error &&
   (error.message === 'Unauthorized' ||
@@ -513,13 +526,9 @@ export default function NewListing() {
     getValues,
     reset,
     setError,
-    clearErrors,
     trigger,
     formState: { errors, dirtyFields }
   } = methods
-  const handoverModes = watch('details.handover_modes') as string[] | undefined
-  const handoverError = (errors as any)?.details?.handover_modes?.message as string | undefined
-
   const {
     categories,
     rootCategories,
@@ -822,7 +831,17 @@ export default function NewListing() {
    
 
     dynamicSteps.forEach(step => {
-      const coordinateLike = isCoordinateStep(step)
+      const stepFields = (step.fields ?? []).filter(field => isSchemaFieldEnabled(field as SchemaField))
+      if (!stepFields.length) {
+        return
+      }
+
+      const filteredStep = {
+        ...step,
+        fields: stepFields
+      } as SchemaStep
+
+      const coordinateLike = isCoordinateStep(filteredStep)
       const mapStep = coordinateLike && !hasCoordinateStep
       if (mapStep) {
         hasCoordinateStep = true
@@ -833,7 +852,7 @@ export default function NewListing() {
         label: step.label ?? step.name ?? t('listings.new.step.fallback'),
         info: toInfoEntries(step.info),
         kind: 'dynamic',
-        formStep: step,
+        formStep: filteredStep,
         isMapStep: mapStep
       })
     })
@@ -862,7 +881,7 @@ export default function NewListing() {
     [wizardSteps]
   )
 
-  const hasDynamicSteps = Boolean(schema?.steps?.length)
+  const hasDynamicSteps = wizardSteps.some(step => step.kind === 'dynamic')
 
   const currentWizardStep = wizardSteps[activeDynamicStepIndex] ?? null
   const activeDynamicStepId = currentWizardStep?.id ?? null
@@ -900,6 +919,10 @@ export default function NewListing() {
 
   const shouldDisplayDynamicField = useCallback(
     (field: SchemaField) => {
+      if (!isSchemaFieldEnabled(field)) {
+        return false
+      }
+
       const visibility = (field as unknown as { visibility?: VisibilityCondition[] }).visibility
       if (!visibility || visibility.length === 0) {
         return true
@@ -1130,7 +1153,6 @@ export default function NewListing() {
 
   useEffect(() => {
     if (!selectedRootCategoryId) {
-      setValue('categoryId', '', { shouldDirty: false, shouldValidate: true })
       return
     }
 
@@ -1139,6 +1161,15 @@ export default function NewListing() {
     )
     const currentCategoryId = getValues('categoryId')
     const isLoadingChildren = Boolean(childrenLoading[selectedRootCategoryId])
+    const hasResolvedChildren = Object.prototype.hasOwnProperty.call(
+      childrenByParent,
+      selectedRootCategoryId
+    )
+
+    // Avoid clearing or forcing category while children are not loaded yet.
+    if (!hasResolvedChildren && !isLoadingChildren) {
+      return
+    }
 
     if (!childCategories.length) {
       if (isLoadingChildren) {
@@ -1148,6 +1179,11 @@ export default function NewListing() {
         setValue('categoryId', selectedRootCategoryId, { shouldDirty: true, shouldValidate: true })
         setValue('adType', '', { shouldDirty: false, shouldValidate: false })
       }
+      return
+    }
+
+    const isCurrentRootSelection = currentCategoryId === selectedRootCategoryId
+    if (isCurrentRootSelection) {
       return
     }
 
@@ -1184,7 +1220,7 @@ export default function NewListing() {
   useEffect(() => {
     setActiveDynamicStepIndex(0)
     setMaxUnlockedStepIndex(0)
-  }, [selectedCategoryId, totalWizardSteps])
+  }, [selectedCategoryId])
 
   useEffect(() => {
     const totalSteps = totalWizardSteps
@@ -1302,12 +1338,16 @@ export default function NewListing() {
       latitude,
       longitude,
       address,
+      cityId,
+      neighborhoodId,
       location: legacyLocation,
       ...restDetails
     } = details as {
       latitude?: unknown
       longitude?: unknown
       address?: unknown
+      cityId?: unknown
+      neighborhoodId?: unknown
       location?: unknown
       [key: string]: unknown
     }
@@ -1334,16 +1374,7 @@ export default function NewListing() {
           .filter(mode => mode === 'pickup' || mode === 'delivery')
       : []
 
-    if (!normalizedHandoverModes.length) {
-      setIsSubmitting(false)
-      setError('details.handover_modes' as never, {
-        type: 'manual',
-        message: t('listings.new.handover.required')
-      })
-      return
-    }
-
-    ;(newDetails as any).handover_modes = normalizedHandoverModes
+    ;(newDetails as any).handover_modes = normalizedHandoverModes.length ? normalizedHandoverModes : ['pickup']
 
     const latNumber =
       typeof latitude === 'number'
@@ -1467,6 +1498,8 @@ export default function NewListing() {
     const currency = toTrimmedString(values.currency)
     const city = toTrimmedString(values.city)
     const zipcode = toTrimmedString((values as any).zipcode)
+    const cityIdValue = toTrimmedString(cityId)
+    const neighborhoodIdValue = toTrimmedString(neighborhoodId)
 
     const email = toTrimmedString((values as any).email ?? (newDetails as any).email)
     const phone = toTrimmedString((values as any).phone ?? (newDetails as any).phone)
@@ -1498,6 +1531,8 @@ export default function NewListing() {
       description,
       ...(Number.isFinite(priceAmount) ? { price: { amount: Number(priceAmount), currency, newItemPrice } } : {}),
       location: {
+        cityId: cityIdValue || undefined,
+        neighborhoodId: neighborhoodIdValue || undefined,
         city: city || undefined,
         zipcode: zipcode || undefined,
         address: resolvedAddress || undefined,
@@ -1722,71 +1757,6 @@ export default function NewListing() {
           </section>
         ) : null}
 
-        {hasSelectedCategory ? (
-          <section className="dashboard-section">
-            <div className="dashboard-section__head">
-              <h2>{t('listings.new.handover.title')}</h2>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {[
-                {
-                  value: 'pickup',
-                  label: t('listings.new.handover.pickup'),
-                  description: t('listings.new.handover.pickupHelp')
-                },
-                {
-                  value: 'delivery',
-                  label: t('listings.new.handover.delivery'),
-                  description: t('listings.new.handover.deliveryHelp')
-                }
-              ].map(option => {
-                const checked = (handoverModes ?? []).includes(option.value)
-                return (
-                  <label
-                    key={option.value}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: '10px',
-                      padding: '12px 14px',
-                      border: '1px solid #e5e7eb',
-                      borderRadius: '12px',
-                      cursor: 'pointer',
-                      background: checked ? 'rgba(15,96,196,0.06)' : '#fff'
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={event => {
-                        const current = handoverModes ?? []
-                        const next = event.target.checked
-                          ? Array.from(new Set([...current, option.value]))
-                          : current.filter(mode => mode !== option.value)
-                        const currentDetails = (getValues('details') ?? {}) as Record<string, unknown>
-                        setValue('details', { ...currentDetails, handover_modes: next }, {
-                          shouldDirty: true,
-                          shouldValidate: true
-                        })
-                      }}
-                      style={{ marginTop: '4px' }}
-                    />
-                    <span>
-                      <div style={{ fontWeight: 600 }}>{option.label}</div>
-                      <div style={{ color: '#6b7280', fontSize: '0.9rem' }}>{option.description}</div>
-                    </span>
-                  </label>
-                )
-              })}
-              {handoverError ? (
-                <p className="form-field__error" role="alert" style={{ marginTop: '4px' }}>
-                  {handoverError}
-                </p>
-              ) : null}
-            </div>
-          </section>
-        ) : null}
-
         {hasSelectedCategory && !isLoadingSchema && !hasDynamicSteps && !schemaError ? (
           <section className="dashboard-section">
             <div className="dashboard-section__head">
@@ -1944,7 +1914,6 @@ export default function NewListing() {
             {currentWizardStep ? (
               currentWizardStep.kind === 'dynamic' ? (
                 <DynamicFormStep
-                  key={currentWizardStep.id}
                   step={currentWizardStep.formStep}
                   basePath="details"
                   stepIndex={activeDynamicStepIndex}

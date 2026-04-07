@@ -23,6 +23,7 @@ import { StartConversationDto } from './dto/start-conversation.dto';
 import { SendMessageDto } from './dto/send-message.dto';
 import { CreateQuickReplyDto } from './dto/create-quick-reply.dto';
 import { UpdateQuickReplyDto } from './dto/update-quick-reply.dto';
+import { TypingDto } from './dto/typing.dto';
 
 @Controller('messages')
 @UseGuards(JwtAuthGuard)
@@ -44,7 +45,7 @@ export class MessagesController {
 
   @Get('conversations/:id')
   getConversation(@Param('id') id: string, @CurrentUser() user: AuthUser) {
-    return this.messagesService.getConversation(id, user);
+    return this.messagesService.getConversationDetails(id, user);
   }
 
   @Get('conversations/:id/messages')
@@ -87,6 +88,15 @@ export class MessagesController {
   @Post('conversations/:id/read')
   markAsRead(@Param('id') id: string, @CurrentUser() user: AuthUser) {
     return this.messagesService.markAsRead(id, user);
+  }
+
+  @Post('conversations/:id/typing')
+  sendTyping(
+    @Param('id') id: string,
+    @Body() dto: TypingDto,
+    @CurrentUser() user: AuthUser
+  ) {
+    return this.messagesService.sendTyping(id, user, dto.isTyping);
   }
 
   @Post('conversations/:id/attachments')

@@ -10,10 +10,16 @@ import {
   deleteAdminPromotion,
   fetchAdminPromotions,
   transitionAdminPromotionStatus,
+  updateAdminPromotionPaymentStatus,
   updateAdminPromotion
 } from '../../utils/admin-api'
 import type { PromotionPayload } from '../../utils/admin-api'
-import type { AdminPromotion, PromotionStatus, PromotionType } from '../../types/admin'
+import type {
+  AdminPromotion,
+  PromotionPaymentStatus,
+  PromotionStatus,
+  PromotionType
+} from '../../types/admin'
 
 type PromotionFormState = {
   name: string
@@ -27,10 +33,11 @@ type PromotionFormState = {
 }
 
 type PromotionFormErrors = Partial<Record<keyof PromotionFormState, string>>
+type CampaignFormStep = 0 | 1 | 2
 
 const buildPromotionTypes = (
   t: (key: string, values?: Record<string, string | number>) => string
-): Array<{ value: PromotionType; label: string }> => [
+): { value: PromotionType; label: string }[] => [
   { value: 'featured', label: t('admin.promotions.types.featured') },
   { value: 'boost', label: t('admin.promotions.types.boost') },
   { value: 'premium', label: t('admin.promotions.types.premium') },
@@ -53,6 +60,13 @@ const STATUS_BADGES: Record<PromotionStatus, string> = {
   active: 'admin-status--approved',
   completed: 'admin-status--neutral',
   cancelled: 'admin-status--rejected'
+}
+
+const PAYMENT_BADGES: Record<PromotionPaymentStatus, string> = {
+  unpaid: 'admin-status--rejected',
+  pending: 'admin-status--pending',
+  paid: 'admin-status--approved',
+  failed: 'admin-status--rejected'
 }
 
 const STATUS_TRANSITIONS: Record<PromotionStatus, PromotionStatus[]> = {
@@ -83,7 +97,7 @@ const buildStatusTransitionLabels = (
 
 const buildStatusOptions = (
   statusLabels: Record<PromotionStatus, string>
-): Array<{ value: PromotionStatus; label: string }> => [
+): { value: PromotionStatus; label: string }[] => [
   { value: 'draft', label: statusLabels.draft },
   { value: 'scheduled', label: statusLabels.scheduled },
   { value: 'active', label: statusLabels.active },
@@ -158,10 +172,39 @@ export default function Promotions() {
   const [editingPromotion, setEditingPromotion] = useState<AdminPromotion | null>(null)
   const [form, setForm] = useState<PromotionFormState>(() => buildDefaultForm())
   const [formErrors, setFormErrors] = useState<PromotionFormErrors>({})
+  const [activeStep, setActiveStep] = useState<CampaignFormStep>(0)
   const [isSaving, setIsSaving] = useState(false)
   const [statusUpdatingId, setStatusUpdatingId] = useState<string | null>(null)
+  const [paymentUpdatingId, setPaymentUpdatingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const { addToast } = useToast()
+
+  const paymentLabels = useMemo<Record<PromotionPaymentStatus, string>>(
+    () =>
+      locale === 'fr'
+        ? {
+            unpaid: 'Non payé',
+            pending: 'En attente',
+            paid: 'Payé',
+            failed: 'Échoué'
+          }
+        : {
+            unpaid: 'Unpaid',
+            pending: 'Pending',
+            paid: 'Paid',
+            failed: 'Failed'
+          },
+    [locale]
+  )
+
+  const normalizePromotion = useCallback(
+    (promotion: AdminPromotion): AdminPromotion => ({
+      ...promotion,
+      paymentStatus: promotion.paymentStatus ?? 'unpaid',
+      paymentId: promotion.paymentId ?? null
+    }),
+    []
+  )
 
   const loadPromotions = useCallback(async () => {
     setIsLoading(true)
@@ -170,6 +213,7 @@ export default function Promotions() {
       const data = await fetchAdminPromotions()
       setPromotions(
         data
+          .map(normalizePromotion)
           .slice()
           .sort(
             (a, b) =>
@@ -191,7 +235,7 @@ export default function Promotions() {
     } finally {
       setIsLoading(false)
     }
-  }, [addToast, t])
+  }, [addToast, normalizePromotion, t])
 
   useEffect(() => {
     void loadPromotions()
@@ -210,6 +254,7 @@ export default function Promotions() {
     setEditingPromotion(null)
     setForm(buildDefaultForm())
     setFormErrors({})
+    setActiveStep(0)
     setIsModalOpen(true)
   }
 
@@ -226,6 +271,7 @@ export default function Promotions() {
       listingId: promotion.listingId ?? ''
     })
     setFormErrors({})
+    setActiveStep(0)
     setIsModalOpen(true)
   }
 
@@ -244,6 +290,7 @@ export default function Promotions() {
       listingId: promotion.listingId ?? ''
     })
     setFormErrors({})
+    setActiveStep(0)
     setIsModalOpen(true)
   }
 
@@ -252,6 +299,7 @@ export default function Promotions() {
     setEditingPromotion(null)
     setForm(buildDefaultForm())
     setFormErrors({})
+    setActiveStep(0)
   }
 
   const handleFormChange = <Key extends keyof PromotionFormState>(
@@ -263,8 +311,23 @@ export default function Promotions() {
 
   const validateForm = (): { payload: PromotionPayload | null; errors: PromotionFormErrors } => {
     const errors: PromotionFormErrors = {}
+    const now = new Date()
+    const invalidListingMessage =
+      locale === 'fr'
+        ? 'Identifiant annonce invalide (UUID attendu).'
+        : 'Invalid listing id (UUID expected).'
+
     if (!form.name.trim()) {
       errors.name = t('admin.promotions.form.errors.name')
+    }
+    if (
+      (form.status === 'scheduled' || form.status === 'active') &&
+      (!editingPromotion || editingPromotion.paymentStatus !== 'paid')
+    ) {
+      errors.status =
+        locale === 'fr'
+          ? 'La campagne doit être payée avant planification/activation.'
+          : 'Campaign must be paid before scheduling/activation.'
     }
     if (!form.startDate) {
       errors.startDate = t('admin.promotions.form.errors.startDate')
@@ -279,9 +342,42 @@ export default function Promotions() {
       errors.endDate = t('admin.promotions.form.errors.endAfterStart')
     }
 
+    if (start && form.status === 'scheduled' && start <= now) {
+      errors.startDate =
+        locale === 'fr'
+          ? 'Une campagne planifiée doit démarrer dans le futur.'
+          : 'A scheduled campaign must start in the future.'
+    }
+
+    if (start && form.status === 'active' && start > now) {
+      errors.startDate =
+        locale === 'fr'
+          ? 'Une campagne active ne peut pas démarrer dans le futur.'
+          : 'An active campaign cannot start in the future.'
+    }
+
+    if (
+      end &&
+      (form.status === 'completed' || form.status === 'cancelled') &&
+      end > now
+    ) {
+      errors.endDate =
+        locale === 'fr'
+          ? 'Ce statut nécessite une date de fin passée.'
+          : 'This status requires an end date in the past.'
+    }
+
     const budgetValue = Number.parseFloat(form.budget)
     if (Number.isNaN(budgetValue) || budgetValue < 0) {
       errors.budget = t('admin.promotions.form.errors.budget')
+    }
+
+    if (form.listingId.trim()) {
+      const uuidRegex =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+      if (!uuidRegex.test(form.listingId.trim())) {
+        errors.listingId = invalidListingMessage
+      }
     }
 
     if (Object.keys(errors).length) {
@@ -302,6 +398,26 @@ export default function Promotions() {
     return { payload, errors }
   }
 
+  const validateStep = (step: CampaignFormStep): boolean => {
+    const { errors } = validateForm()
+    const stepFields: Record<CampaignFormStep, (keyof PromotionFormState)[]> = {
+      0: ['name', 'type', 'status'],
+      1: ['listingId', 'description'],
+      2: ['startDate', 'endDate', 'budget']
+    }
+    const scopedErrors = Object.fromEntries(
+      Object.entries(errors).filter(([key]) =>
+        stepFields[step].includes(key as keyof PromotionFormState)
+      )
+    ) as PromotionFormErrors
+
+    if (Object.keys(scopedErrors).length) {
+      setFormErrors(previous => ({ ...previous, ...scopedErrors }))
+      return false
+    }
+    return true
+  }
+
   const handleSubmit = async () => {
     const { payload, errors } = validateForm()
     setFormErrors(errors)
@@ -313,7 +429,7 @@ export default function Promotions() {
     try {
       let saved: AdminPromotion
       if (editingPromotion) {
-        saved = await updateAdminPromotion(editingPromotion.id, payload)
+        saved = normalizePromotion(await updateAdminPromotion(editingPromotion.id, payload))
         setPromotions(prev =>
           prev.map(promotion =>
             promotion.id === saved.id ? saved : promotion
@@ -325,7 +441,7 @@ export default function Promotions() {
           message: t('admin.promotions.toast.updatedMessage')
         })
       } else {
-        saved = await createAdminPromotion(payload)
+        saved = normalizePromotion(await createAdminPromotion(payload))
         setPromotions(prev =>
           [saved, ...prev].sort(
             (a, b) =>
@@ -352,6 +468,59 @@ export default function Promotions() {
       })
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  const handlePaymentStatusUpdate = async (
+    promotion: AdminPromotion,
+    paymentStatus: PromotionPaymentStatus
+  ) => {
+    setPaymentUpdatingId(promotion.id)
+    try {
+      let paymentId: string | null | undefined = undefined
+      if (paymentStatus === 'paid') {
+        const input = window.prompt(
+          locale === 'fr'
+            ? 'Référence de paiement (UUID) requise pour marquer cette campagne comme payée.'
+            : 'Payment reference (UUID) is required to mark this campaign as paid.',
+          promotion.paymentId ?? ''
+        )
+        if (input === null) {
+          setPaymentUpdatingId(null)
+          return
+        }
+        paymentId = input.trim() || null
+      }
+
+      const updated = normalizePromotion(
+        await updateAdminPromotionPaymentStatus(promotion.id, {
+          paymentStatus,
+          paymentId
+        })
+      )
+      setPromotions(prev => prev.map(item => (item.id === updated.id ? updated : item)))
+      addToast({
+        variant: 'success',
+        title: locale === 'fr' ? 'Paiement mis à jour' : 'Payment updated',
+        message:
+          locale === 'fr'
+            ? `La campagne est désormais: ${paymentLabels[updated.paymentStatus]}.`
+            : `Campaign is now: ${paymentLabels[updated.paymentStatus]}.`
+      })
+    } catch (err) {
+      console.error('Unable to update campaign payment status', err)
+      addToast({
+        variant: 'error',
+        title: t('admin.promotions.toast.statusErrorTitle'),
+        message:
+          err instanceof Error
+            ? err.message
+            : locale === 'fr'
+              ? 'Impossible de mettre à jour le statut de paiement.'
+              : 'Unable to update payment status.'
+      })
+    } finally {
+      setPaymentUpdatingId(null)
     }
   }
 
@@ -418,14 +587,36 @@ export default function Promotions() {
     }
   }
 
+  const goToNextStep = () => {
+    if (!validateStep(activeStep)) {
+      return
+    }
+    setActiveStep(previous => (previous < 2 ? ((previous + 1) as CampaignFormStep) : previous))
+  }
+
+  const goToPreviousStep = () => {
+    setActiveStep(previous => (previous > 0 ? ((previous - 1) as CampaignFormStep) : previous))
+  }
+
   const modalFooter = (
     <div className="auth-form__actions" style={{ justifyContent: 'flex-end', gap: '12px' }}>
-      <Button variant="ghost" onClick={closeModal} disabled={isSaving}>
+      <Button type="button" variant="ghost" onClick={closeModal} disabled={isSaving}>
         {t('actions.cancel')}
       </Button>
-      <Button onClick={handleSubmit} disabled={isSaving}>
-        {isSaving ? t('admin.promotions.saving') : t('actions.save')}
-      </Button>
+      {activeStep > 0 ? (
+        <Button type="button" variant="outline" onClick={goToPreviousStep} disabled={isSaving}>
+          {t('actions.previousStep')}
+        </Button>
+      ) : null}
+      {activeStep < 2 ? (
+        <Button type="button" onClick={goToNextStep} disabled={isSaving}>
+          {t('actions.nextStep')}
+        </Button>
+      ) : (
+        <Button type="button" onClick={handleSubmit} disabled={isSaving}>
+          {isSaving ? t('admin.promotions.saving') : t('actions.save')}
+        </Button>
+      )}
     </div>
   )
 
@@ -437,7 +628,16 @@ export default function Promotions() {
             <h1>{t('admin.promotions.title')}</h1>
             <p>{t('admin.promotions.subtitle')}</p>
           </div>
-          <Button onClick={openCreateModal}>{t('admin.promotions.create')}</Button>
+          <Button
+            type="button"
+            onClick={event => {
+              event.preventDefault()
+              event.stopPropagation()
+              openCreateModal()
+            }}
+          >
+            {t('admin.promotions.create')}
+          </Button>
         </header>
 
         {error ? (
@@ -455,23 +655,33 @@ export default function Promotions() {
         <section className="admin-grid">
           {sortedPromotions.length ? (
             sortedPromotions.map(promotion => (
-              <article key={promotion.id} className="admin-card">
-                <div className="admin-card__meta">
-                  <div>
-                    <strong>{promotion.name}</strong>
-                    <p style={{ color: '#6c757d', marginTop: '4px' }}>
+              <article key={promotion.id} className="admin-card admin-promo-card">
+                <div className="admin-card__meta admin-promo-card__meta">
+                  <div className="admin-promo-card__identity">
+                    <strong className="admin-promo-card__title">{promotion.name}</strong>
+                    <p className="admin-promo-card__type">
                       {promotionTypes.find(option => option.value === promotion.type)?.label ??
                         promotion.type.toUpperCase()}
                     </p>
                   </div>
                   <span
                     className={`admin-status ${STATUS_BADGES[promotion.status]}`}
-                    style={{ textTransform: 'capitalize' }}
+                    style={{ textTransform: 'capitalize', alignSelf: 'center' }}
                   >
                     {statusLabels[promotion.status]}
                   </span>
                 </div>
-                <ul className="admin-card__details">
+                <div className="admin-card__meta admin-promo-card__payment-row">
+                  <span className="admin-promo-card__payment-label">
+                    {locale === 'fr' ? 'Paiement campagne' : 'Campaign payment'}
+                  </span>
+                  <span
+                    className={`admin-status admin-promo-card__payment-badge ${PAYMENT_BADGES[promotion.paymentStatus ?? 'unpaid']}`}
+                  >
+                    {paymentLabels[promotion.paymentStatus ?? 'unpaid']}
+                  </span>
+                </div>
+                <ul className="admin-card__details admin-promo-card__details">
                   <li>
                     <span>{t('admin.promotions.details.period')}</span>
                     <strong>{formatSchedule(promotion.startDate, promotion.endDate, dateTimeFormatter)}</strong>
@@ -488,19 +698,20 @@ export default function Promotions() {
                   ) : null}
                 </ul>
                 {promotion.description ? (
-                  <p style={{ color: '#6c757d', fontSize: '0.9rem' }}>
+                  <p className="admin-promo-card__description">
                     {promotion.description}
                   </p>
                 ) : null}
 
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '12px' }}>
-                  <Button variant="outline" onClick={() => openEditModal(promotion)}>
+                <div className="admin-promo-card__actions">
+                  <Button type="button" variant="outline" onClick={() => openEditModal(promotion)}>
                     {t('admin.promotions.actions.edit')}
                   </Button>
-                  <Button variant="ghost" onClick={() => openDuplicateModal(promotion)}>
+                  <Button type="button" variant="ghost" onClick={() => openDuplicateModal(promotion)}>
                     {t('admin.promotions.actions.duplicate')}
                   </Button>
                   <Button
+                    type="button"
                     variant="danger"
                     onClick={() => handleDelete(promotion)}
                     disabled={deletingId === promotion.id}
@@ -509,21 +720,29 @@ export default function Promotions() {
                       ? t('admin.promotions.deleting')
                       : t('admin.promotions.actions.delete')}
                   </Button>
+                  {promotion.paymentStatus !== 'paid' ? (
+                    <Button
+                      type="button"
+                      variant="accent"
+                      onClick={() => handlePaymentStatusUpdate(promotion, 'paid')}
+                      disabled={paymentUpdatingId === promotion.id}
+                    >
+                      {paymentUpdatingId === promotion.id
+                        ? locale === 'fr'
+                          ? 'Mise à jour paiement…'
+                          : 'Updating payment…'
+                        : locale === 'fr'
+                          ? 'Marquer payé'
+                          : 'Mark as paid'}
+                    </Button>
+                  ) : null}
                 </div>
 
                 {STATUS_TRANSITIONS[promotion.status].length ? (
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexWrap: 'wrap',
-                      gap: '8px',
-                      marginTop: '16px',
-                      borderTop: '1px solid #e5e7eb',
-                      paddingTop: '12px'
-                    }}
-                  >
+                  <div className="admin-promo-card__transitions">
                     {STATUS_TRANSITIONS[promotion.status].map(nextStatus => (
                       <Button
+                        type="button"
                         key={nextStatus}
                         variant={nextStatus === 'cancelled' ? 'ghost' : 'outline'}
                         onClick={() => handleStatusTransition(promotion, nextStatus)}
@@ -549,6 +768,7 @@ export default function Promotions() {
         <Modal
           open={isModalOpen}
           onClose={isSaving ? undefined : closeModal}
+          closeOnBackdrop={false}
           title={
             editingPromotion
               ? t('admin.promotions.modal.editTitle')
@@ -557,124 +777,156 @@ export default function Promotions() {
           footer={modalFooter}
         >
           <div style={{ display: 'grid', gap: '16px' }}>
-            <FormField
-              label={t('admin.promotions.form.name')}
-              required
-              htmlFor="promotion-name"
-              error={formErrors.name}
-            >
-              <input
-                id="promotion-name"
-                className="input"
-                value={form.name}
-                onChange={event => handleFormChange('name', event.target.value)}
-                placeholder={t('admin.promotions.form.namePlaceholder')}
-              />
-            </FormField>
-            <FormField label={t('admin.promotions.form.type')} required htmlFor="promotion-type">
-              <select
-                id="promotion-type"
-                className="input"
-                value={form.type}
-                onChange={event =>
-                  handleFormChange('type', event.target.value as PromotionType)
-                }
-              >
-                {promotionTypes.map(option => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </FormField>
-            <FormField
-              label={t('admin.promotions.form.status')}
-              required
-              htmlFor="promotion-status"
-              hint={t('admin.promotions.form.statusHint')}
-            >
-              <select
-                id="promotion-status"
-                className="input"
-                value={form.status}
-                onChange={event =>
-                  handleFormChange('status', event.target.value as PromotionStatus)
-                }
-                disabled={Boolean(editingPromotion && !['draft', 'scheduled'].includes(editingPromotion.status))}
-              >
-                {statusOptions.map(option => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </FormField>
-            <FormField
-              label={t('admin.promotions.form.startDate')}
-              required
-              htmlFor="promotion-start"
-              error={formErrors.startDate}
-            >
-              <input
-                id="promotion-start"
-                type="datetime-local"
-                className="input"
-                value={form.startDate}
-                onChange={event => handleFormChange('startDate', event.target.value)}
-              />
-            </FormField>
-            <FormField
-              label={t('admin.promotions.form.endDate')}
-              required
-              htmlFor="promotion-end"
-              error={formErrors.endDate}
-            >
-              <input
-                id="promotion-end"
-                type="datetime-local"
-                className="input"
-                value={form.endDate}
-                onChange={event => handleFormChange('endDate', event.target.value)}
-              />
-            </FormField>
-            <FormField
-              label={t('admin.promotions.form.budget')}
-              required
-              htmlFor="promotion-budget"
-              error={formErrors.budget}
-            >
-              <input
-                id="promotion-budget"
-                className="input"
-                type="number"
-                step="0.01"
-                min="0"
-                value={form.budget}
-                onChange={event => handleFormChange('budget', event.target.value)}
-              />
-            </FormField>
-            <FormField
-              label={t('admin.promotions.form.listing')}
-              htmlFor="promotion-listing"
-              hint={t('admin.promotions.form.listingHint')}
-            >
-              <input
-                id="promotion-listing"
-                className="input"
-                value={form.listingId}
-                onChange={event => handleFormChange('listingId', event.target.value)}
-              />
-            </FormField>
-            <FormField label={t('admin.promotions.form.description')} htmlFor="promotion-description">
-              <textarea
-                id="promotion-description"
-                className="input"
-                rows={3}
-                value={form.description}
-                onChange={event => handleFormChange('description', event.target.value)}
-                placeholder={t('admin.promotions.form.descriptionPlaceholder')}
-              />
-            </FormField>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {[
+                t('admin.promotions.form.name'),
+                t('admin.promotions.form.listing'),
+                t('admin.promotions.form.startDate')
+              ].map((label, index) => (
+                <span
+                  key={label}
+                  className={`admin-status ${activeStep === index ? 'admin-status--approved' : 'admin-status--pending'}`}
+                  style={{ textTransform: 'none' }}
+                >
+                  {index + 1}. {label}
+                </span>
+              ))}
+            </div>
+
+            {activeStep === 0 ? (
+              <>
+                <FormField
+                  label={t('admin.promotions.form.name')}
+                  required
+                  htmlFor="promotion-name"
+                  error={formErrors.name}
+                >
+                  <input
+                    id="promotion-name"
+                    className="input"
+                    value={form.name}
+                    onChange={event => handleFormChange('name', event.target.value)}
+                    placeholder={t('admin.promotions.form.namePlaceholder')}
+                  />
+                </FormField>
+                <FormField label={t('admin.promotions.form.type')} required htmlFor="promotion-type">
+                  <select
+                    id="promotion-type"
+                    className="input"
+                    value={form.type}
+                    onChange={event =>
+                      handleFormChange('type', event.target.value as PromotionType)
+                    }
+                  >
+                    {promotionTypes.map(option => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </FormField>
+                <FormField
+                  label={t('admin.promotions.form.status')}
+                  required
+                  htmlFor="promotion-status"
+                  hint={t('admin.promotions.form.statusHint')}
+                  error={formErrors.status}
+                >
+                  <select
+                    id="promotion-status"
+                    className="input"
+                    value={form.status}
+                    onChange={event =>
+                      handleFormChange('status', event.target.value as PromotionStatus)
+                    }
+                    disabled={Boolean(editingPromotion && !['draft', 'scheduled'].includes(editingPromotion.status))}
+                  >
+                    {statusOptions.map(option => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </FormField>
+              </>
+            ) : null}
+
+            {activeStep === 1 ? (
+              <>
+                <FormField
+                  label={t('admin.promotions.form.listing')}
+                  htmlFor="promotion-listing"
+                  hint={t('admin.promotions.form.listingHint')}
+                  error={formErrors.listingId}
+                >
+                  <input
+                    id="promotion-listing"
+                    className="input"
+                    value={form.listingId}
+                    onChange={event => handleFormChange('listingId', event.target.value)}
+                  />
+                </FormField>
+                <FormField label={t('admin.promotions.form.description')} htmlFor="promotion-description">
+                  <textarea
+                    id="promotion-description"
+                    className="input"
+                    rows={3}
+                    value={form.description}
+                    onChange={event => handleFormChange('description', event.target.value)}
+                    placeholder={t('admin.promotions.form.descriptionPlaceholder')}
+                  />
+                </FormField>
+              </>
+            ) : null}
+
+            {activeStep === 2 ? (
+              <>
+                <FormField
+                  label={t('admin.promotions.form.startDate')}
+                  required
+                  htmlFor="promotion-start"
+                  error={formErrors.startDate}
+                >
+                  <input
+                    id="promotion-start"
+                    type="datetime-local"
+                    className="input"
+                    value={form.startDate}
+                    onChange={event => handleFormChange('startDate', event.target.value)}
+                  />
+                </FormField>
+                <FormField
+                  label={t('admin.promotions.form.endDate')}
+                  required
+                  htmlFor="promotion-end"
+                  error={formErrors.endDate}
+                >
+                  <input
+                    id="promotion-end"
+                    type="datetime-local"
+                    className="input"
+                    value={form.endDate}
+                    onChange={event => handleFormChange('endDate', event.target.value)}
+                  />
+                </FormField>
+                <FormField
+                  label={t('admin.promotions.form.budget')}
+                  required
+                  htmlFor="promotion-budget"
+                  error={formErrors.budget}
+                >
+                  <input
+                    id="promotion-budget"
+                    className="input"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={form.budget}
+                    onChange={event => handleFormChange('budget', event.target.value)}
+                  />
+                </FormField>
+              </>
+            ) : null}
           </div>
         </Modal>
       </div>

@@ -10,6 +10,7 @@ import type { ListingStatus } from '../../types/listing-status'
 import { useToast } from '../../components/ui/Toast'
 import { useAuth } from '../../hooks/useAuth'
 import { useI18n } from '../../contexts/I18nContext'
+import { useFeatureFlagsContext } from '../../contexts/FeatureFlagContext'
 import { formatListingLocation } from '../../utils/location'
 
 type ListingWithMeta = Listing & {
@@ -198,6 +199,8 @@ export default function MyListings() {
   const navigate = useNavigate()
   const { addToast } = useToast()
   const { isPro, user } = useAuth()
+  const { isEnabled } = useFeatureFlagsContext()
+  const promotionsEnabled = isEnabled('proPromotions')
   const { locale, t } = useI18n()
   const numberLocale = locale === 'fr' ? 'fr-FR' : 'en-US'
   const numberFormatter = useMemo(() => new Intl.NumberFormat(numberLocale), [numberLocale])
@@ -684,35 +687,6 @@ export default function MyListings() {
             />
           </div>
 
-          {!isPro ? (
-            <div
-              className="card"
-              style={{
-                padding: '14px 16px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '12px',
-                flexWrap: 'wrap'
-              }}
-            >
-              <div>
-                <strong>{t('dashboard.listings.proCallout.title')}</strong>
-                <p style={{ margin: '6px 0 0', color: '#6c757d' }}>
-                  {t('dashboard.listings.proCallout.body')}
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  navigate('/dashboard/pro')
-                }}
-              >
-                {t('dashboard.listings.proCallout.cta')}
-              </Button>
-            </div>
-          ) : null}
-
           {selectedIds.length ? (
             <div
               className="card"
@@ -758,7 +732,7 @@ export default function MyListings() {
                     )
                   }
                 />
-                {isPro ? (
+                {promotionsEnabled ? (
                   <ActionChipButton
                     kind="promote"
                     icon="🚀"
@@ -977,7 +951,7 @@ export default function MyListings() {
                             <span aria-hidden style={{ fontSize: '1rem' }}>✏️</span>
                             <span>{t('dashboard.listings.action.edit')}</span>
                           </Link>
-                          {isPro ? (
+                          {promotionsEnabled ? (
                             <ActionChipButton
                               kind="promote"
                               icon="🚀"

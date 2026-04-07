@@ -484,7 +484,8 @@ export class HomeService {
         ? listing.publishedAt.toISOString()
         : null,
       isFeatured: listing.isFeatured,
-      isBoosted: listing.isBoosted
+      isBoosted: listing.isBoosted,
+      isPremium: listing.isPremium
     };
   }
 
@@ -493,6 +494,10 @@ export class HomeService {
     index: number,
     ribbons: HomeLocaleStrings['ribbons']
   ): string {
+    if (listing.isPremium) {
+      return ribbons.premium;
+    }
+
     if (listing.isBoosted) {
       return ribbons.boosted;
     }

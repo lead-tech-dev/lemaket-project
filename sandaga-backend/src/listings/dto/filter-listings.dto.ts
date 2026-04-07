@@ -1,7 +1,10 @@
 import { Transform, Type } from 'class-transformer';
 import {
+  Max,
+  IsArray,
   IsBoolean,
   IsEnum,
+  IsInt,
   IsNumber,
   IsObject,
   IsOptional,
@@ -10,6 +13,7 @@ import {
   MaxLength,
   Min
 } from 'class-validator';
+import { BadRequestException } from '@nestjs/common';
 import { PaginationQueryDto } from '../../common/dtos/pagination-query.dto';
 import { ListingStatus } from '../../common/enums/listing-status.enum';
 import { ListingFlow } from '../listing.entity';
@@ -25,7 +29,40 @@ export enum SellerTypeFilter {
   INDIVIDUAL = 'individual'
 }
 
+function transformStringArray(value: unknown): string[] | undefined {
+  if (value === null || value === undefined || value === '') {
+    return undefined;
+  }
+
+  const values = Array.isArray(value)
+    ? value
+    : typeof value === 'string'
+      ? value.split(',')
+      : [value];
+
+  const normalized = values
+    .flatMap(entry => (typeof entry === 'string' ? entry.split(',') : [entry]))
+    .map(entry => (typeof entry === 'string' ? entry.trim() : ''))
+    .filter(Boolean);
+
+  return normalized.length > 0 ? normalized : undefined;
+}
+
 export class FilterListingsDto extends PaginationQueryDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100000)
+  page?: number = 1;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number = 20;
+
   @IsOptional()
   @IsString()
   @MaxLength(255)
@@ -52,6 +89,7 @@ export class FilterListingsDto extends PaginationQueryDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(120)
   categorySlug?: string;
 
   @IsOptional()
@@ -64,11 +102,32 @@ export class FilterListingsDto extends PaginationQueryDto {
   city?: string;
 
   @IsOptional()
+  @IsUUID()
+  cityId?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => transformStringArray(value))
+  @IsArray()
+  @IsUUID('4', { each: true })
+  cityIds?: string[];
+
+  @IsOptional()
+  @IsUUID()
+  neighborhoodId?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => transformStringArray(value))
+  @IsArray()
+  @IsUUID('4', { each: true })
+  neighborhoodIds?: string[];
+
+  @IsOptional()
   @IsEnum(ListingStatus)
   status?: ListingStatus;
 
   @IsOptional()
   @IsString()
+  @MaxLength(120)
   tag?: string;
 
   @IsOptional()
@@ -123,10 +182,17 @@ export class FilterListingsDto extends PaginationQueryDto {
     }
     if (typeof value === 'string') {
       try {
-        return JSON.parse(value);
+        const parsed = JSON.parse(value);
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          throw new BadRequestException('attributes must be a valid JSON object.');
+        }
+        return parsed;
       } catch {
-        return value;
+        throw new BadRequestException('attributes must be a valid JSON object.');
       }
+    }
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      throw new BadRequestException('attributes must be a valid JSON object.');
     }
     return value;
   })
@@ -135,16 +201,21 @@ export class FilterListingsDto extends PaginationQueryDto {
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
+  @Min(-90)
+  @Max(90)
   lat?: number;
 
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
+  @Min(-180)
+  @Max(180)
   lng?: number;
 
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(0)
+  @Max(500)
   radiusKm?: number;
 }

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import Header from './Header';
 import { I18nProvider } from '../contexts/I18nContext';
 
@@ -26,10 +26,24 @@ vi.mock('../hooks/useCategories', () => ({
   useCategories: vi.fn(),
 }));
 
+vi.mock('../utils/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../utils/api')>()
+  return {
+    ...actual,
+    apiGet: vi.fn()
+  }
+})
+
 import * as AuthMod from '../hooks/useAuth'
 import * as NotifMod from '../hooks/useMessageNotifications'
 import * as FFMod from '../contexts/FeatureFlagContext'
 import * as CategoriesMod from '../hooks/useCategories'
+import * as ApiMod from '../utils/api'
+
+function LocationEcho() {
+  const location = useLocation()
+  return <div data-testid="location-echo">{`${location.pathname}${location.search}`}</div>
+}
 
 describe('Header', () => {
   beforeEach(() => {
@@ -127,6 +141,7 @@ describe('Header', () => {
       error: null,
       refresh: vi.fn(),
     } as any)
+    vi.mocked(ApiMod.apiGet).mockResolvedValue([] as any)
   });
   it('renders the header with user information', () => {
     render(
@@ -192,5 +207,128 @@ describe('Header', () => {
 
     await user.click(within(dialog).getByRole('button', { name: /fermer le menu|close menu/i }))
     expect(screen.queryByRole('dialog', { name: /menu/i })).not.toBeInTheDocument()
+  })
+
+  it('shows query suggestions from server when typing in search', async () => {
+    const user = userEvent.setup()
+    vi.mocked(ApiMod.apiGet).mockImplementation((path: string) => {
+      if (path.startsWith('/search/suggestions')) {
+        return Promise.resolve([
+          {
+            id: 's1',
+            label: 'Colocation Douala',
+            query: 'colocation douala',
+            resultCount: 42,
+            hits: 12
+          }
+        ] as any)
+      }
+      if (path === '/home/trending-searches') {
+        return Promise.resolve([] as any)
+      }
+      return Promise.resolve([] as any)
+    })
+
+    render(
+      <MemoryRouter>
+        <I18nProvider>
+          <Header />
+        </I18nProvider>
+      </MemoryRouter>
+    )
+
+    await user.click(screen.getByRole('button', { name: /Rechercher une annonce|Search listings/i }))
+    const input = screen.getByPlaceholderText(/Rechercher une annonce|Search listings/i)
+    await user.type(input, 'coloc')
+
+    expect(await screen.findByText('Colocation Douala')).toBeInTheDocument()
+  })
+
+  it('deduplicates normalized suggestions and hides noisy values', async () => {
+    const user = userEvent.setup()
+    vi.mocked(ApiMod.apiGet).mockImplementation((path: string) => {
+      if (path.startsWith('/search/suggestions')) {
+        return Promise.resolve([
+          {
+            id: 's1',
+            label: 'Téléphone Douala',
+            query: 'telephone douala',
+            resultCount: 20,
+            hits: 5
+          },
+          {
+            id: 's2',
+            label: 'telephone douala',
+            query: 'téléphone douala',
+            resultCount: 18,
+            hits: 3
+          },
+          {
+            id: 's3',
+            label: '12345',
+            query: '12345',
+            resultCount: 99,
+            hits: 99
+          }
+        ] as any)
+      }
+      if (path === '/home/trending-searches') {
+        return Promise.resolve([] as any)
+      }
+      return Promise.resolve([] as any)
+    })
+
+    render(
+      <MemoryRouter>
+        <I18nProvider>
+          <Header />
+        </I18nProvider>
+      </MemoryRouter>
+    )
+
+    await user.click(screen.getByRole('button', { name: /Rechercher une annonce|Search listings/i }))
+    const input = screen.getByPlaceholderText(/Rechercher une annonce|Search listings/i)
+    await user.type(input, 'tele')
+
+    expect(await screen.findByText('Téléphone Douala')).toBeInTheDocument()
+    expect(screen.queryByText('12345')).not.toBeInTheDocument()
+    expect(screen.getAllByText(/téléphone douala/i)).toHaveLength(1)
+  })
+
+  it('applies clicked query suggestion and updates route query string', async () => {
+    const user = userEvent.setup()
+    vi.mocked(ApiMod.apiGet).mockImplementation((path: string) => {
+      if (path.startsWith('/search/suggestions')) {
+        return Promise.resolve([
+          {
+            id: 's1',
+            label: 'Colocation Douala',
+            query: 'colocation douala',
+            resultCount: 42,
+            hits: 12
+          }
+        ] as any)
+      }
+      if (path === '/home/trending-searches') {
+        return Promise.resolve([] as any)
+      }
+      return Promise.resolve([] as any)
+    })
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <I18nProvider>
+          <Header />
+          <LocationEcho />
+        </I18nProvider>
+      </MemoryRouter>
+    )
+
+    await user.click(screen.getByRole('button', { name: /Rechercher une annonce|Search listings/i }))
+    const input = screen.getByPlaceholderText(/Rechercher une annonce|Search listings/i)
+    await user.type(input, 'coloc')
+    await user.click(await screen.findByRole('button', { name: /Colocation Douala/i }))
+
+    await expect.poll(() => screen.getByTestId('location-echo').textContent).toContain('/search?q=colocation+douala')
   })
 });

@@ -32,6 +32,7 @@ import { UserFollow } from './user-follow.entity';
 import { Review } from '../reviews/review.entity';
 import { ReviewStatus } from '../common/enums/review-status.enum';
 import { Message } from '../messages/message.entity';
+import { PresenceService } from '../presence/presence.service';
 
 const SALT_ROUNDS = 12;
 const PREFERRED_CONTACT_CHANNELS = ['email', 'sms', 'phone', 'whatsapp', 'in_app'] as const;
@@ -53,7 +54,8 @@ export class UsersService {
     @InjectRepository(Review)
     private readonly reviewsRepository: Repository<Review>,
     @InjectRepository(Message)
-    private readonly messagesRepository: Repository<Message>
+    private readonly messagesRepository: Repository<Message>,
+    private readonly presenceService: PresenceService
   ) {}
 
   async create(createUserDto: CreateUserDto): Promise<User> {
@@ -184,6 +186,7 @@ export class UsersService {
       location: user.location ?? null,
       createdAt: user.created_at,
       lastLoginAt: user.lastLoginAt ?? null,
+      isOnline: this.presenceService.isOnline(user.id),
       hasPhoneNumber: Boolean(user.phoneNumber),
       averageRating: Number.isFinite(averageRating) ? averageRating : 0,
       reviewsCount: Number.isFinite(reviewsCount) ? reviewsCount : 0,

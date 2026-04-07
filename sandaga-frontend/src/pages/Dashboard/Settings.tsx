@@ -26,6 +26,7 @@ import { Modal } from '../../components/ui/Modal'
 import { useUnsavedChangesPrompt } from '../../hooks/useUnsavedChangesPrompt'
 import { Skeleton } from '../../components/ui/Skeleton'
 import { useI18n } from '../../contexts/I18nContext'
+import { geoGeocodeFirst } from '../../utils/geo'
 
 type ToggleSettingKey =
   | 'showPhoneToApprovedOnly'
@@ -564,31 +565,14 @@ export default function Settings(){
       })
       return
     }
-    const token = import.meta.env.VITE_MAPBOX_TOKEN
-    if (!token) {
-      addToast({
-        variant: 'error',
-        title: 'Localisation livreur',
-        message: 'Token Mapbox manquant.'
-      })
-      return
-    }
     setCourierGeocoding(true)
     try {
-      const query = encodeURIComponent([zipcode, city].filter(Boolean).join(' '))
-      const response = await fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${query}.json?limit=1&types=place,postcode&access_token=${token}`
-      )
-      if (!response.ok) {
-        throw new Error('Geocoding failed')
-      }
-      const data = await response.json()
-      const center = data?.features?.[0]?.center
-      if (Array.isArray(center) && center.length === 2) {
+      const center = await geoGeocodeFirst([zipcode, city].filter(Boolean).join(' '))
+      if (center) {
         setSettings(prev => ({
           ...prev,
-          courierLng: center[0].toString(),
-          courierLat: center[1].toString()
+          courierLng: center.lng.toString(),
+          courierLat: center.lat.toString()
         }))
         addToast({
           variant: 'success',

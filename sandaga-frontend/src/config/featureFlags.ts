@@ -1,4 +1,8 @@
 export type FeatureFlagName =
+  | 'dashboardOrders'
+  | 'dashboardDeliveries'
+  | 'dashboardWallet'
+  | 'homeStorefronts'
   | 'proOverview'
   | 'proMessaging'
   | 'proPayments'
@@ -12,15 +16,20 @@ export type FeatureFlagName =
 export type FeatureFlags = Record<FeatureFlagName, boolean>
 
 export const defaultFeatureFlags: FeatureFlags = {
-  proOverview: true,
+  dashboardOrders: false,
+  dashboardDeliveries: false,
+  dashboardWallet: false,
+  homeStorefronts: false,
+  // V1 launch scope: advanced Pro/Admin modules are disabled by default.
+  proOverview: false,
   proMessaging: true,
   proPayments: true,
-  proPortal: true,
+  proPortal: false,
   proPromotions: true,
   adminConsole: true,
-  adminSettings: true,
+  adminSettings: false,
   adminPromotions: true,
-  adminLogs: true
+  adminLogs: false
 }
 
 export function parseFeatureFlagRecord(value: unknown): Partial<FeatureFlags> {

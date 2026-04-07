@@ -22,6 +22,9 @@ export type FormSchemaDTO = {
       name: string
       label: string
       type: string
+      disabled?: boolean
+      active?: boolean
+      isActive?: boolean
       unit?: string | null
       info?: string[]
       description?: string | null

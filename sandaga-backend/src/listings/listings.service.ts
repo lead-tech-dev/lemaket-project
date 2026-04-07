@@ -5,7 +5,7 @@ import {
   NotFoundException
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository, SelectQueryBuilder } from 'typeorm';
+import { Brackets, In, Repository, SelectQueryBuilder } from 'typeorm';
 import { Listing } from './listing.entity';
 import { ListingImage } from './listing-image.entity';
 import { Category } from '../categories/category.entity';
@@ -30,14 +30,74 @@ import { ListingResponseDTO } from './dto/listing-response.dto';
 import { PriceSuggestionQueryDto } from './dto/price-suggestion-query.dto';
 import { ListingPdfDto } from './dto/listing-pdf.dto';
 import PDFDocument from 'pdfkit';
-import { SearchLogsService } from '../search-logs/search-logs.service';
+import { SearchLogsService, SearchSynonymsMap } from '../search-logs/search-logs.service';
+import { SearchRelevanceSettingsService } from '../search-logs/search-relevance-settings.service';
 import { CompanyVerificationStatus } from '../users/enums/company-verification-status.enum';
 import { NotificationsService } from '../notifications/notifications.service';
+import { GeoService } from '../geo/geo.service';
+import { PromotionsService } from '../promotions/promotions.service';
+import { MonitoringMetricsService } from '../monitoring/monitoring.metrics.service';
 
 const FREE_LISTINGS_LIMIT = Number(process.env.FREE_LISTINGS_LIMIT ?? 5);
 const MAX_FREE_LISTINGS = Number.isFinite(FREE_LISTINGS_LIMIT)
   ? Math.max(0, FREE_LISTINGS_LIMIT)
   : 5;
+const MAX_LISTINGS_PAGE_SIZE = 100;
+const SEARCH_SYNONYMS: Record<string, string[]> = {
+  voiture: ['automobile', 'auto', 'vehicule', 'véhicule', 'car'],
+  auto: ['automobile', 'voiture', 'vehicule', 'véhicule', 'car'],
+  appartement: ['appart', 'flat', 'logement'],
+  maison: ['villa', 'habitation', 'domicile'],
+  telephone: ['téléphone', 'smartphone', 'mobile', 'tel', 'tél'],
+  smartphone: ['telephone', 'téléphone', 'mobile'],
+  ordinateur: ['pc', 'laptop', 'computer'],
+  emploi: ['job', 'travail', 'poste'],
+  moto: ['motocyclette', 'scooter', 'motorbike'],
+  location: ['louer', 'locatif', 'rent'],
+  louer: ['location', 'locatif', 'rent']
+};
+const SEARCH_STOP_WORDS = new Set([
+  'a',
+  'au',
+  'aux',
+  'avec',
+  'ce',
+  'ces',
+  'dans',
+  'de',
+  'des',
+  'du',
+  'en',
+  'et',
+  'la',
+  'le',
+  'les',
+  'ou',
+  'par',
+  'pour',
+  'sur',
+  'the',
+  'un',
+  'une'
+]);
+
+type ParsedSearchQuery = {
+  includeTerms: string[];
+  excludeTerms: string[];
+  includePhrases: string[];
+  excludePhrases: string[];
+};
+
+type SearchBusinessRankConfig = {
+  popularCityBoost: number;
+  proSellerBoost: number;
+  categoryPriorityWeights: Record<string, number>;
+};
+
+type ListingsSearchMeta = {
+  appliedFilters: Record<string, unknown>;
+  warnings?: string[];
+};
 
 @Injectable()
 export class ListingsService {
@@ -53,7 +113,11 @@ export class ListingsService {
     private readonly categoriesService: CategoriesService,
     private readonly usersService: UsersService,
     private readonly searchLogsService: SearchLogsService,
-    private readonly notificationsService: NotificationsService
+    private readonly searchRelevanceSettingsService: SearchRelevanceSettingsService,
+    private readonly notificationsService: NotificationsService,
+    private readonly geoService: GeoService,
+    private readonly promotionsService: PromotionsService,
+    private readonly monitoringMetricsService: MonitoringMetricsService
   ) {}
 
   async findPublicForOg(id: string): Promise<Listing> {
@@ -113,6 +177,10 @@ export class ListingsService {
     const locationDto = createListingDto.location ?? {};
     const contactDto = createListingDto.contact ?? {};
     const attributes = createListingDto.attributes ?? {};
+    const resolvedGeoSelection = await this.geoService.resolveSelection(
+      locationDto.cityId,
+      locationDto.neighborhoodId
+    );
 
       const locationString =
         locationDto.address ||
@@ -133,7 +201,9 @@ export class ListingsService {
         lng: locationDto.lng,
         address: locationDto.address,
         city: locationDto.city,
-        zipcode: locationDto.zipcode
+        zipcode: locationDto.zipcode,
+        cityId: resolvedGeoSelection.cityId,
+        neighborhoodId: resolvedGeoSelection.neighborhoodId
       },
       _meta: createListingDto.meta ?? {}
     };
@@ -150,9 +220,13 @@ export class ListingsService {
       currency,
       location: {
         ...locationDto,
+        cityId: resolvedGeoSelection.cityId,
+        neighborhoodId: resolvedGeoSelection.neighborhoodId,
         address: locationDto.address ?? (locationString || undefined),
         hideExact: locationDto.hideExact ?? false
       },
+      cityId: resolvedGeoSelection.cityId ?? null,
+      neighborhoodId: resolvedGeoSelection.neighborhoodId ?? null,
       contact: {
         email: contactDto.email,
         phone: contactDto.phone,
@@ -300,8 +374,18 @@ export class ListingsService {
       const resolveNumber = (v: unknown) =>
         typeof v === 'number' && Number.isFinite(v) ? v : undefined;
 
-      const mappedSteps = steps.map(step => {
-        const fields = (step.fields ?? []).map(field => {
+      const isFieldEnabled = (field: Record<string, unknown>): boolean => {
+        if (field.disabled === true) return false;
+        if (field.active === false) return false;
+        if (field.isActive === false) return false;
+        return true;
+      };
+
+      const mappedSteps = steps
+        .map(step => {
+          const fields = (step.fields ?? [])
+            .filter(field => isFieldEnabled(field as unknown as Record<string, unknown>))
+            .map(field => {
           const rules = (field.rules ?? {}) as Record<string, unknown>;
           const info = (field.info ?? {}) as Record<string, unknown>;
           const rawValues = field.values ?? (field.rules as any)?.options;
@@ -325,47 +409,48 @@ export class ListingsService {
 
           const options = conditionalOptions ? undefined : mapOptions(rawValues);
 
-          return {
-            id: field.id,
-            name: field.name,
-            label: field.label,
-            type: (field.type as any) ?? 'text',
-            unit: field.unit ?? undefined,
-            info: Array.isArray(field.info) ? (field.info as string[]) : undefined,
-            rules: {
-              mandatory: typeof rules.mandatory === 'boolean' ? rules.mandatory : undefined,
-              max_length: resolveNumber(rules.max_length),
-              min_length: resolveNumber(rules.min_length),
-              min: resolveNumber(rules.min),
-              max: resolveNumber(rules.max),
-              regexp: typeof rules.regexp === 'string' ? rules.regexp : undefined,
-              err_mandatory: typeof rules.err_mandatory === 'string' ? rules.err_mandatory : undefined,
-              err_regexp: typeof rules.err_regexp === 'string' ? rules.err_regexp : undefined
-            },
-            options,
-            conditionalOptions,
-            dependsOn,
-            ui: {
-              placeholder:
-                typeof rules.placeholder === 'string'
-                  ? rules.placeholder
-                  : typeof info.placeholder === 'string'
-                  ? (info.placeholder as string)
-                  : undefined
-            }
-          };
-        });
+            return {
+              id: field.id,
+              name: field.name,
+              label: field.label,
+              type: (field.type as any) ?? 'text',
+              unit: field.unit ?? undefined,
+              info: Array.isArray(field.info) ? (field.info as string[]) : undefined,
+              rules: {
+                mandatory: typeof rules.mandatory === 'boolean' ? rules.mandatory : undefined,
+                max_length: resolveNumber(rules.max_length),
+                min_length: resolveNumber(rules.min_length),
+                min: resolveNumber(rules.min),
+                max: resolveNumber(rules.max),
+                regexp: typeof rules.regexp === 'string' ? rules.regexp : undefined,
+                err_mandatory: typeof rules.err_mandatory === 'string' ? rules.err_mandatory : undefined,
+                err_regexp: typeof rules.err_regexp === 'string' ? rules.err_regexp : undefined
+              },
+              options,
+              conditionalOptions,
+              dependsOn,
+              ui: {
+                placeholder:
+                  typeof rules.placeholder === 'string'
+                    ? rules.placeholder
+                    : typeof info.placeholder === 'string'
+                    ? (info.placeholder as string)
+                    : undefined
+              }
+            };
+          });
 
-        return {
-          id: step.id,
-          name: step.name,
-          label: step.label,
-          order: step.order ?? 0,
-          info: Array.isArray(step.info) ? (step.info as string[]) : undefined,
-          flow: step.flow ?? null,
-          fields
-        };
-      });
+          return {
+            id: step.id,
+            name: step.name,
+            label: step.label,
+            order: step.order ?? 0,
+            info: Array.isArray(step.info) ? (step.info as string[]) : undefined,
+            flow: step.flow ?? null,
+            fields
+          };
+        })
+        .filter(step => step.fields.length > 0);
 
       const dto: FormSchemaDTO = {
         categoryId: category.id,
@@ -385,32 +470,39 @@ export class ListingsService {
       subCategoryId: fallback.categoryId,
       flow: null,
       adTypes,
-      steps: (fallback.steps || []).map(step => ({
-        id: step.id,
-        name: (step as any).name ?? step.title ?? step.id,
-        label: step.title ?? (step as any).label ?? step.id,
-        order: (step as any).order ?? 0,
-        info: (step as any).description ? [String((step as any).description)] : undefined,
-        flow: (step as any).flow ?? null,
-        fields: (step.fields || []).map(field => ({
-          id: (field as any).id ?? `${step.id}-${field.name}`,
-          name: field.name,
-          label: field.label,
-          type: (field as any).type ?? 'text',
-          info: Array.isArray((field as any).info) ? (field as any).info : undefined,
-          rules: {
-            mandatory: (field as any).required,
-            max_length: (field as any).maxLength,
-            min_length: (field as any).minLength,
-            min: (field as any).min,
-            max: (field as any).max
-          },
-          options: (field as any).options,
-          ui: {
-            placeholder: (field as any).placeholder
-          }
+      steps: (fallback.steps || [])
+        .map(step => ({
+          id: step.id,
+          name: (step as any).name ?? step.title ?? step.id,
+          label: step.title ?? (step as any).label ?? step.id,
+          order: (step as any).order ?? 0,
+          info: (step as any).description ? [String((step as any).description)] : undefined,
+          flow: (step as any).flow ?? null,
+          fields: (step.fields || [])
+            .filter(field => {
+              const raw = field as unknown as Record<string, unknown>;
+              return raw.disabled !== true && raw.active !== false && raw.isActive !== false;
+            })
+            .map(field => ({
+              id: (field as any).id ?? `${step.id}-${field.name}`,
+              name: field.name,
+              label: field.label,
+              type: (field as any).type ?? 'text',
+              info: Array.isArray((field as any).info) ? (field as any).info : undefined,
+              rules: {
+                mandatory: (field as any).required,
+                max_length: (field as any).maxLength,
+                min_length: (field as any).minLength,
+                min: (field as any).min,
+                max: (field as any).max
+              },
+              options: (field as any).options,
+              ui: {
+                placeholder: (field as any).placeholder
+              }
+            }))
         }))
-      }))
+        .filter(step => step.fields.length > 0)
     };
     return dto;
   }
@@ -429,7 +521,9 @@ export class ListingsService {
     }
 
     if (query.city) {
-      qb.andWhere('listing.city ILIKE :city', { city: `%${query.city}%` });
+      qb.andWhere(`COALESCE(listing.location->>'city', '') ILIKE :city`, {
+        city: `%${query.city}%`
+      });
     }
 
     const limit = query.sampleSize ?? 200;
@@ -606,9 +700,35 @@ export class ListingsService {
 
   async findAll(
     filter: FilterListingsDto
-  ): Promise<PaginatedResult<Listing>> {
-    const page = filter.page ?? 1;
-    const limit = filter.limit ?? 20;
+  ): Promise<PaginatedResult<Listing, ListingsSearchMeta>> {
+    await this.refreshPromotionAutomations();
+    const page = Math.max(filter.page ?? 1, 1);
+    const limit = Math.min(Math.max(filter.limit ?? 20, 1), MAX_LISTINGS_PAGE_SIZE);
+    const normalizedSearch = this.normalizeTextFilter(filter.search, 255);
+    const normalizedCity = this.normalizeTextFilter(filter.city, 120);
+
+    this.validatePriceRange(filter.minPrice, filter.maxPrice);
+    this.validateGeoRadiusFilter(filter.lat, filter.lng, filter.radiusKm);
+
+    const cityIds = Array.from(
+      new Set([filter.cityId, ...(filter.cityIds ?? [])].filter((value): value is string => Boolean(value)))
+    );
+    const neighborhoodIds = Array.from(
+      new Set(
+        [filter.neighborhoodId, ...(filter.neighborhoodIds ?? [])].filter((value): value is string => Boolean(value))
+      )
+    );
+    const warnings = this.buildAppliedFilterWarnings(filter.search, normalizedSearch, filter.city, normalizedCity);
+    const appliedFilters = this.buildAppliedFiltersMeta(
+      filter,
+      normalizedSearch,
+      normalizedCity,
+      cityIds,
+      neighborhoodIds,
+      page,
+      limit
+    );
+
     const categoryScopeIds = filter.categorySlug
       ? await this.resolveCategoryScopeIds(filter.categorySlug)
       : null;
@@ -618,7 +738,11 @@ export class ListingsService {
         data: [],
         total: 0,
         page,
-        limit
+        limit,
+        meta: {
+          appliedFilters,
+          ...(warnings.length ? { warnings } : {})
+        }
       };
     }
 
@@ -628,17 +752,20 @@ export class ListingsService {
       .leftJoinAndSelect('listing.category', 'category')
       .leftJoinAndSelect('listing.owner', 'owner');
 
-    if (filter.search) {
-      if (filter.titleOnly) {
-        query.andWhere(`listing.title ILIKE :search`, {
-          search: `%${filter.search}%`
-        });
-      } else {
-        query.andWhere(
-          `(listing.title ILIKE :search OR listing.description ILIKE :search OR listing.location->>'city' ILIKE :search)`,
-          { search: `%${filter.search}%` }
-        );
-      }
+    if (normalizedSearch) {
+      const [searchSynonymsMap, searchRelevanceSettings] = await Promise.all([
+        this.searchLogsService.getSearchSynonymsMap(),
+        this.searchRelevanceSettingsService.getSettings()
+      ]);
+      query.leftJoin('geo_cities', 'geoCity', 'geoCity.id = listing.city_id');
+      const searchBusinessRankConfig = this.buildSearchBusinessRankConfig(searchRelevanceSettings);
+      this.applySearchFilter(
+        query,
+        normalizedSearch,
+        Boolean(filter.titleOnly),
+        searchSynonymsMap,
+        searchBusinessRankConfig
+      );
     }
 
     if (categoryScopeIds && categoryScopeIds.length > 0) {
@@ -653,7 +780,40 @@ export class ListingsService {
       });
     }
 
-    if (filter.city) {
+    if (cityIds.length > 0 || neighborhoodIds.length > 0) {
+      query.andWhere(
+        new Brackets(locationQuery => {
+          if (cityIds.length > 0) {
+            locationQuery.where('listing.city_id IN (:...cityIds)', {
+              cityIds
+            });
+          }
+
+          if (neighborhoodIds.length > 0) {
+            const clause = 'listing.neighborhood_id IN (:...neighborhoodIds)';
+            if (cityIds.length > 0) {
+              locationQuery.orWhere(clause, {
+                neighborhoodIds
+              });
+            } else {
+              locationQuery.where(clause, {
+                neighborhoodIds
+              });
+            }
+          }
+        })
+      );
+    } else if (filter.cityId) {
+      query.andWhere('listing.city_id = :cityId', {
+        cityId: filter.cityId
+      });
+    } else if (filter.neighborhoodId) {
+      query.andWhere('listing.neighborhood_id = :neighborhoodId', {
+        neighborhoodId: filter.neighborhoodId
+      });
+    }
+
+    if (normalizedCity) {
       query.andWhere(
         `(
           COALESCE(listing.location->>'city', '') ILIKE :city
@@ -661,7 +821,7 @@ export class ListingsService {
           OR COALESCE(listing.location->>'label', '') ILIKE :city
         )`,
         {
-          city: `%${filter.city}%`
+          city: `%${normalizedCity}%`
         }
       );
     }
@@ -776,22 +936,33 @@ export class ListingsService {
       });
     }
 
-    this.applySortOrder(query, filter.sort);
+    this.applySortOrder(query, filter.sort, 'listing.publishedAt', Boolean(normalizedSearch));
 
     query.skip((page - 1) * limit).take(limit);
 
+    const searchStart = process.hrtime.bigint()
     const [data, total] = await query.getManyAndCount();
+    const searchDurationSeconds = Number(process.hrtime.bigint() - searchStart) / 1e9
+    this.monitoringMetricsService.observeSearchListingsQuery(
+      Boolean(normalizedSearch),
+      searchDurationSeconds,
+      total
+    )
     data.forEach(listing => this.applyLocationMask(listing));
 
-    if (filter.search && (filter.page ?? 1) === 1) {
-      void this.searchLogsService.recordSearch(filter.search, total)
+    if (normalizedSearch && page === 1) {
+      void this.searchLogsService.recordSearch(normalizedSearch, total);
     }
 
     return {
       data,
       total,
       page,
-      limit
+      limit,
+      meta: {
+        appliedFilters,
+        ...(warnings.length ? { warnings } : {})
+      }
     };
   }
 
@@ -862,6 +1033,7 @@ export class ListingsService {
   }
 
   async findOne(id: string): Promise<Listing> {
+    await this.refreshPromotionAutomations();
     const listing = await this.listingsRepository.findOne({
       where: { id },
       relations: {
@@ -926,14 +1098,26 @@ export class ListingsService {
     }
 
     const locationDto = updateListingDto.location;
+    const hasLocationCityId =
+      !!locationDto && Object.prototype.hasOwnProperty.call(locationDto, 'cityId');
+    const hasLocationNeighborhoodId =
+      !!locationDto && Object.prototype.hasOwnProperty.call(locationDto, 'neighborhoodId');
     if (locationDto) {
       if ((locationDto.address || locationDto.city || locationDto.zipcode) &&
         (locationDto.lat === undefined || locationDto.lng === undefined)) {
         throw new BadRequestException('Latitude et longitude sont requises pour une adresse.');
       }
+      const resolvedGeoSelection = await this.geoService.resolveSelection(
+        hasLocationCityId ? locationDto.cityId : listing.cityId ?? undefined,
+        hasLocationNeighborhoodId ? locationDto.neighborhoodId : listing.neighborhoodId ?? undefined
+      );
+      listing.cityId = resolvedGeoSelection.cityId ?? null;
+      listing.neighborhoodId = resolvedGeoSelection.neighborhoodId ?? null;
       listing.location = {
         ...(listing.location ?? {}),
-        ...locationDto
+        ...locationDto,
+        cityId: listing.cityId ?? undefined,
+        neighborhoodId: listing.neighborhoodId ?? undefined
       };
     }
 
@@ -960,6 +1144,8 @@ export class ListingsService {
         address: locationDto.address ?? (details as any)._geo?.address,
         city: locationDto.city ?? (details as any)._geo?.city,
         zipcode: locationDto.zipcode ?? (details as any)._geo?.zipcode,
+        cityId: listing.cityId ?? undefined,
+        neighborhoodId: listing.neighborhoodId ?? undefined,
         hideExact:
           locationDto.hideExact ?? (details as any)._geo?.hideExact ?? (listing.location as any)?.hideExact
       };
@@ -1030,6 +1216,7 @@ export class ListingsService {
     sort: ListingSort = ListingSort.RECENT,
     sellerType?: SellerTypeFilter
   ): Promise<Listing[]> {
+    await this.refreshPromotionAutomations();
     const query = this.listingsRepository
       .createQueryBuilder('listing')
       .leftJoinAndSelect('listing.images', 'image')
@@ -1058,6 +1245,7 @@ export class ListingsService {
     sort: ListingSort = ListingSort.RECENT,
     sellerType?: SellerTypeFilter
   ): Promise<Listing[]> {
+    await this.refreshPromotionAutomations();
     const query = this.listingsRepository
       .createQueryBuilder('listing')
       .leftJoinAndSelect('listing.images', 'image')
@@ -1225,21 +1413,527 @@ export class ListingsService {
   private applySortOrder(
     query: SelectQueryBuilder<Listing>,
     sort?: ListingSort,
-    defaultField: string = 'listing.created_at'
+    defaultField: string = 'listing.publishedAt',
+    hasSearch = false
   ): void {
-    query.orderBy('listing.isFeatured', 'DESC');
+    if (hasSearch) {
+      query.orderBy('search_rank', 'DESC');
+    } else {
+      query.orderBy('listing.isPremium', 'DESC');
+    }
+    query.addOrderBy('listing.isPremium', 'DESC');
+    query.addOrderBy('listing.isFeatured', 'DESC');
     query.addOrderBy('listing.isBoosted', 'DESC');
     switch (sort) {
       case ListingSort.PRICE_ASC:
         query.addOrderBy('listing.price', 'ASC');
         query.addOrderBy(defaultField, 'DESC');
+        query.addOrderBy('listing.created_at', 'DESC');
+        query.addOrderBy('listing.id', 'DESC');
         break;
       case ListingSort.PRICE_DESC:
         query.addOrderBy('listing.price', 'DESC');
         query.addOrderBy(defaultField, 'DESC');
+        query.addOrderBy('listing.created_at', 'DESC');
+        query.addOrderBy('listing.id', 'DESC');
         break;
       default:
         query.addOrderBy(defaultField, 'DESC');
+        query.addOrderBy('listing.created_at', 'DESC');
+        query.addOrderBy('listing.id', 'DESC');
+    }
+  }
+
+  private applySearchFilter(
+    query: SelectQueryBuilder<Listing>,
+    searchTerm: string,
+    titleOnly: boolean,
+    searchSynonymsMap: SearchSynonymsMap,
+    searchBusinessRankConfig: SearchBusinessRankConfig
+  ): void {
+    const parsedSearch = this.parseSearchQuery(searchTerm);
+    const fallbackIncludeTerms =
+      parsedSearch.includeTerms.length === 0 && parsedSearch.includePhrases.length === 0
+        ? this.tokenizeSearchTerms(searchTerm.replace(/[-!]/g, ' '))
+        : [];
+    const includeTerms = parsedSearch.includeTerms.length
+      ? parsedSearch.includeTerms
+      : fallbackIncludeTerms;
+    const normalizedSearch = this.normalizeSearchToken(searchTerm);
+    const normalizedPhraseParamName = 'searchNormalizedPhrase';
+    const normalizedRankTerm = this.resolveSearchRankTerm(normalizedSearch, parsedSearch);
+    const normalizedPhraseValue = `%${normalizedRankTerm}%`;
+    const searchExactParamName = 'searchNormalizedExact';
+    const searchPrefixParamName = 'searchNormalizedPrefix';
+    const searchContainsParamName = 'searchNormalizedContains';
+    const searchFields = titleOnly
+      ? ['listing.title']
+      : [
+          'listing.title',
+          'listing.description',
+          `COALESCE(listing.location->>'city', '')`,
+          `COALESCE(listing.location->>'address', '')`,
+          `COALESCE(listing.location->>'label', '')`
+        ];
+    const normalizedSearchFields = searchFields.map(field => this.toNormalizedSearchExpression(field));
+
+    includeTerms.forEach((token, index) => {
+      const normalizedToken = this.normalizeSearchToken(token);
+      const candidates = this.expandSearchToken(token, searchSynonymsMap)
+        .map(candidate => this.normalizeSearchToken(candidate))
+        .filter(candidate => candidate.length > 0);
+      const uniqueCandidates = Array.from(new Set(candidates));
+
+      if (!uniqueCandidates.length && !normalizedToken) {
+        return;
+      }
+
+      const params = Object.fromEntries(
+        uniqueCandidates.map((candidate, candidateIndex) => [
+          `searchToken${index}_${candidateIndex}`,
+          `%${candidate}%`
+        ])
+      );
+
+      query.andWhere(
+        new Brackets(tokenQuery => {
+          let hasClause = false;
+
+          normalizedSearchFields.forEach(field => {
+            uniqueCandidates.forEach((_, candidateIndex) => {
+              const tokenParamName = `searchToken${index}_${candidateIndex}`;
+              const clause = `${field} LIKE :${tokenParamName}`;
+
+              if (!hasClause) {
+                tokenQuery.where(clause, params);
+                hasClause = true;
+              } else {
+                tokenQuery.orWhere(clause);
+              }
+            });
+          });
+
+          if (normalizedToken) {
+            const fuzzyParamName = `searchTokenFuzzy${index}`;
+            const fuzzyThresholdParamName = `searchTokenFuzzyThreshold${index}`;
+            const fuzzyThreshold = this.resolveTokenSimilarityThreshold(normalizedToken);
+            const fuzzyParams = {
+              [fuzzyParamName]: normalizedToken,
+              [fuzzyThresholdParamName]: fuzzyThreshold
+            };
+
+            const fuzzyClauses = [
+              `lemaket_similarity(${this.toNormalizedSearchExpression('listing.title')}, :${fuzzyParamName}) >= :${fuzzyThresholdParamName}`
+            ];
+
+            if (!titleOnly) {
+              fuzzyClauses.push(
+                `lemaket_similarity(${this.toNormalizedSearchExpression(`COALESCE(listing.description, '')`)}, :${fuzzyParamName}) >= :${fuzzyThresholdParamName}`
+              );
+            }
+
+            fuzzyClauses.forEach(clause => {
+              if (!hasClause) {
+                tokenQuery.where(clause, fuzzyParams);
+                hasClause = true;
+              } else {
+                tokenQuery.orWhere(clause, fuzzyParams);
+              }
+            });
+          }
+        })
+      );
+    });
+
+    parsedSearch.includePhrases.forEach((phrase, index) => {
+      const normalizedPhrase = this.normalizeSearchToken(phrase);
+      if (!normalizedPhrase) {
+        return;
+      }
+
+      const phraseParamName = `searchIncludePhrase${index}`;
+      const params = { [phraseParamName]: `%${normalizedPhrase}%` };
+      const clauses = normalizedSearchFields.map(field => `${field} LIKE :${phraseParamName}`);
+      query.andWhere(`(${clauses.join(' OR ')})`, params);
+    });
+
+    parsedSearch.excludeTerms.forEach((token, index) => {
+      const candidates = this.expandSearchToken(token, searchSynonymsMap)
+        .map(candidate => this.normalizeSearchToken(candidate))
+        .filter(candidate => candidate.length > 0);
+      const uniqueCandidates = Array.from(new Set(candidates));
+      if (!uniqueCandidates.length) {
+        return;
+      }
+
+      const params: Record<string, string> = {};
+      const clauses: string[] = [];
+      uniqueCandidates.forEach((candidate, candidateIndex) => {
+        const tokenParamName = `searchExcludeToken${index}_${candidateIndex}`;
+        params[tokenParamName] = `%${candidate}%`;
+        normalizedSearchFields.forEach(field => {
+          clauses.push(`${field} LIKE :${tokenParamName}`);
+        });
+      });
+
+      if (clauses.length > 0) {
+        query.andWhere(`NOT (${clauses.join(' OR ')})`, params);
+      }
+    });
+
+    parsedSearch.excludePhrases.forEach((phrase, index) => {
+      const normalizedPhrase = this.normalizeSearchToken(phrase);
+      if (!normalizedPhrase) {
+        return;
+      }
+      const phraseParamName = `searchExcludePhrase${index}`;
+      const params = { [phraseParamName]: `%${normalizedPhrase}%` };
+      const clauses = normalizedSearchFields.map(field => `${field} LIKE :${phraseParamName}`);
+      query.andWhere(`NOT (${clauses.join(' OR ')})`, params);
+    });
+
+    const normalizedTitleExpression = this.toNormalizedSearchExpression('listing.title');
+    const normalizedDescriptionExpression = this.toNormalizedSearchExpression(`COALESCE(listing.description, '')`);
+    const normalizedCityExpression = this.toNormalizedSearchExpression(`COALESCE(listing.location->>'city', '')`);
+    const normalizedAddressExpression = this.toNormalizedSearchExpression(`COALESCE(listing.location->>'address', '')`);
+    const normalizedLabelExpression = this.toNormalizedSearchExpression(`COALESCE(listing.location->>'label', '')`);
+    const normalizedCategorySlugExpression = this.toCompactNormalizedSearchExpression(`COALESCE(category.slug, '')`);
+    const categoryPriorityCase = this.buildCategoryPriorityCaseExpression(
+      normalizedCategorySlugExpression,
+      searchBusinessRankConfig.categoryPriorityWeights
+    );
+
+    query.addSelect(
+      `
+        (
+          CASE WHEN ${normalizedTitleExpression} = :${searchExactParamName} THEN 400 ELSE 0 END
+          + CASE WHEN ${normalizedTitleExpression} LIKE :${searchPrefixParamName} THEN 250 ELSE 0 END
+          + CASE WHEN ${normalizedTitleExpression} LIKE :${searchContainsParamName} THEN 150 ELSE 0 END
+          + CASE WHEN ${normalizedDescriptionExpression} LIKE :${searchContainsParamName} THEN 80 ELSE 0 END
+          + CASE WHEN ${normalizedCityExpression} LIKE :${searchContainsParamName} THEN 40 ELSE 0 END
+          + CASE WHEN ${normalizedAddressExpression} LIKE :${searchContainsParamName} THEN 30 ELSE 0 END
+          + CASE WHEN ${normalizedLabelExpression} LIKE :${searchContainsParamName} THEN 30 ELSE 0 END
+          + CASE WHEN ${normalizedTitleExpression} LIKE :${normalizedPhraseParamName} THEN 20 ELSE 0 END
+          + (lemaket_similarity(${normalizedTitleExpression}, :${searchExactParamName}) * 120)
+          + (lemaket_similarity(${normalizedDescriptionExpression}, :${searchExactParamName}) * 50)
+          + CASE WHEN COALESCE(geoCity.is_popular, false) = true THEN :searchPopularCityBoost ELSE 0 END
+          + CASE WHEN owner."isPro" = true THEN :searchProSellerBoost ELSE 0 END
+          + ${categoryPriorityCase.expression}
+        )
+      `,
+      'search_rank'
+    );
+
+    query.setParameters({
+      [searchExactParamName]: normalizedRankTerm,
+      [searchPrefixParamName]: `${normalizedRankTerm}%`,
+      [searchContainsParamName]: `%${normalizedRankTerm}%`,
+      [normalizedPhraseParamName]: normalizedPhraseValue,
+      searchPopularCityBoost: searchBusinessRankConfig.popularCityBoost,
+      searchProSellerBoost: searchBusinessRankConfig.proSellerBoost,
+      ...categoryPriorityCase.params
+    });
+  }
+
+  private expandSearchToken(token: string, searchSynonymsMap: SearchSynonymsMap): string[] {
+    const normalized = this.normalizeSearchToken(token);
+    if (!normalized) {
+      return token.trim() ? [token.trim()] : [];
+    }
+
+    const staticSynonyms = SEARCH_SYNONYMS[normalized] ?? [];
+    const dynamicSynonyms = searchSynonymsMap[normalized] ?? [];
+    const synonyms = [...staticSynonyms, ...dynamicSynonyms];
+    const merged = new Set<string>([token, normalized, ...synonyms.map(entry => entry.trim()).filter(Boolean)]);
+    return Array.from(merged);
+  }
+
+  private normalizeSearchToken(token: string): string {
+    return token
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]/g, '')
+      .trim();
+  }
+
+  private tokenizeSearchTerms(
+    searchTerm: string,
+    options?: { fallbackToFullQuery?: boolean }
+  ): string[] {
+    const fallbackToFullQuery = options?.fallbackToFullQuery ?? true;
+    const rawTokens = searchTerm
+      .split(/\s+/)
+      .map(token => token.trim())
+      .filter(token => token.length > 0);
+
+    const meaningfulTokens = rawTokens.filter(token => {
+      const normalizedToken = this.normalizeSearchToken(token);
+      if (normalizedToken.length < 2) {
+        return false;
+      }
+      return !SEARCH_STOP_WORDS.has(normalizedToken);
+    });
+
+    if (meaningfulTokens.length > 0) {
+      return meaningfulTokens;
+    }
+
+    if (fallbackToFullQuery && searchTerm.trim()) {
+      return [searchTerm.trim()];
+    }
+
+    return [];
+  }
+
+  private parseSearchQuery(searchTerm: string): ParsedSearchQuery {
+    const includePhrases: string[] = [];
+    const excludePhrases: string[] = [];
+    const phraseMatches = Array.from(searchTerm.matchAll(/(-?)"([^"]+)"/g));
+
+    phraseMatches.forEach(match => {
+      const prefix = match[1];
+      const phrase = this.normalizeTextFilter(match[2], 120);
+      if (!phrase) {
+        return;
+      }
+      if (prefix === '-') {
+        excludePhrases.push(phrase);
+      } else {
+        includePhrases.push(phrase);
+      }
+    });
+
+    const withoutQuotedPhrases = searchTerm.replace(/(-?)"([^"]+)"/g, ' ');
+    const includeRawTokens: string[] = [];
+    const excludeRawTokens: string[] = [];
+
+    withoutQuotedPhrases
+      .split(/\s+/)
+      .map(token => token.trim())
+      .filter(Boolean)
+      .forEach(token => {
+        if ((token.startsWith('-') || token.startsWith('!')) && token.length > 1) {
+          excludeRawTokens.push(token.slice(1));
+          return;
+        }
+        includeRawTokens.push(token);
+      });
+
+    return {
+      includeTerms: this.tokenizeSearchTerms(includeRawTokens.join(' ')),
+      excludeTerms: this.tokenizeSearchTerms(excludeRawTokens.join(' '), { fallbackToFullQuery: false }),
+      includePhrases,
+      excludePhrases
+    };
+  }
+
+  private resolveSearchRankTerm(normalizedSearch: string, parsedSearch: ParsedSearchQuery): string {
+    for (const phrase of parsedSearch.includePhrases) {
+      const normalizedPhrase = this.normalizeSearchToken(phrase);
+      if (normalizedPhrase) {
+        return normalizedPhrase;
+      }
+    }
+
+    for (const term of parsedSearch.includeTerms) {
+      const normalizedTerm = this.normalizeSearchToken(term);
+      if (normalizedTerm) {
+        return normalizedTerm;
+      }
+    }
+
+    return normalizedSearch || 'search';
+  }
+
+  private toNormalizedSearchExpression(fieldExpression: string): string {
+    return `LOWER(lemaket_unaccent(COALESCE(${fieldExpression}, '')))`;
+  }
+
+  private toCompactNormalizedSearchExpression(fieldExpression: string): string {
+    return `REGEXP_REPLACE(${this.toNormalizedSearchExpression(fieldExpression)}, '[^a-z0-9]', '', 'g')`;
+  }
+
+  private buildSearchBusinessRankConfig(
+    settings: {
+      enableBusinessBoost: boolean;
+      popularCityBoost: number;
+      proSellerBoost: number;
+      categoryPriorityWeights: Record<string, number>;
+    }
+  ): SearchBusinessRankConfig {
+    const isEnabled = Boolean(settings.enableBusinessBoost);
+    return {
+      popularCityBoost: isEnabled ? settings.popularCityBoost : 0,
+      proSellerBoost: isEnabled ? settings.proSellerBoost : 0,
+      categoryPriorityWeights: isEnabled ? settings.categoryPriorityWeights : {}
+    };
+  }
+
+  private buildCategoryPriorityCaseExpression(
+    normalizedCategorySlugExpression: string,
+    weights: Record<string, number>
+  ): { expression: string; params: Record<string, string[]> } {
+    const grouped = new Map<number, string[]>();
+    Object.entries(weights).forEach(([slug, weight]) => {
+      const normalized = this.normalizeSearchToken(slug);
+      if (!normalized || !Number.isFinite(weight) || weight <= 0) {
+        return;
+      }
+      if (!grouped.has(weight)) {
+        grouped.set(weight, []);
+      }
+      grouped.get(weight)?.push(normalized);
+    });
+
+    if (!grouped.size) {
+      return {
+        expression: '0',
+        params: {}
+      };
+    }
+
+    const params: Record<string, string[]> = {};
+    const clauses: string[] = [];
+    Array.from(grouped.entries())
+      .sort((a, b) => b[0] - a[0])
+      .forEach(([weight, slugs], index) => {
+        const paramName = `searchCategoryPriorityGroup${index}`;
+        params[paramName] = Array.from(new Set(slugs));
+        clauses.push(`WHEN ${normalizedCategorySlugExpression} IN (:...${paramName}) THEN ${weight}`);
+      });
+
+    return {
+      expression: `(CASE ${clauses.join(' ')} ELSE 0 END)`,
+      params
+    };
+  }
+
+  private resolveTokenSimilarityThreshold(token: string): number {
+    if (token.length <= 4) {
+      return 0.75;
+    }
+    if (token.length <= 7) {
+      return 0.55;
+    }
+    return 0.34;
+  }
+
+  private normalizeTextFilter(value?: string | null, maxLength = 255): string | undefined {
+    if (typeof value !== 'string') {
+      return undefined;
+    }
+
+    const normalized = value
+      .trim()
+      .replace(/\s+/g, ' ')
+      .slice(0, maxLength);
+
+    return normalized.length > 0 ? normalized : undefined;
+  }
+
+  private buildAppliedFilterWarnings(
+    rawSearch: string | undefined,
+    normalizedSearch: string | undefined,
+    rawCity: string | undefined,
+    normalizedCity: string | undefined
+  ): string[] {
+    const warnings: string[] = [];
+    if (
+      typeof rawSearch === 'string' &&
+      rawSearch.trim().length > 0 &&
+      normalizedSearch &&
+      normalizedSearch !== rawSearch
+    ) {
+      warnings.push('search query was normalized.');
+    }
+
+    if (typeof rawCity === 'string' && rawCity.trim().length > 0 && normalizedCity && normalizedCity !== rawCity) {
+      warnings.push('city filter was normalized.');
+    }
+
+    return warnings;
+  }
+
+  private buildAppliedFiltersMeta(
+    filter: FilterListingsDto,
+    normalizedSearch: string | undefined,
+    normalizedCity: string | undefined,
+    cityIds: string[],
+    neighborhoodIds: string[],
+    page: number,
+    limit: number
+  ): Record<string, unknown> {
+    const applied: Record<string, unknown> = {
+      search: normalizedSearch,
+      titleOnly: normalizedSearch ? Boolean(filter.titleOnly) : undefined,
+      categorySlug: this.normalizeTextFilter(filter.categorySlug, 120),
+      categoryId: filter.categoryId,
+      city: normalizedCity,
+      cityIds: cityIds.length > 0 ? cityIds : undefined,
+      neighborhoodIds: neighborhoodIds.length > 0 ? neighborhoodIds : undefined,
+      minPrice: filter.minPrice,
+      maxPrice: filter.maxPrice,
+      sellerType: filter.sellerType,
+      adType: filter.adType,
+      sort: filter.sort ?? ListingSort.RECENT,
+      lat: filter.lat,
+      lng: filter.lng,
+      radiusKm: filter.radiusKm,
+      attributes:
+        filter.attributes && Object.keys(filter.attributes).length > 0
+          ? filter.attributes
+          : undefined,
+      page,
+      limit
+    };
+
+    return Object.fromEntries(
+      Object.entries(applied).filter(([, value]) => {
+        if (value === undefined || value === null) {
+          return false;
+        }
+        if (typeof value === 'string') {
+          return value.trim().length > 0;
+        }
+        if (Array.isArray(value)) {
+          return value.length > 0;
+        }
+        return true;
+      })
+    );
+  }
+
+  private validatePriceRange(minPrice?: number, maxPrice?: number): void {
+    if (
+      minPrice !== undefined &&
+      maxPrice !== undefined &&
+      Number.isFinite(minPrice) &&
+      Number.isFinite(maxPrice) &&
+      minPrice > maxPrice
+    ) {
+      throw new BadRequestException('minPrice must be less than or equal to maxPrice.');
+    }
+  }
+
+  private validateGeoRadiusFilter(lat?: number, lng?: number, radiusKm?: number): void {
+    const hasLat = lat !== undefined;
+    const hasLng = lng !== undefined;
+
+    if (hasLat !== hasLng) {
+      throw new BadRequestException('lat and lng must be provided together.');
+    }
+
+    if (radiusKm !== undefined && radiusKm > 0 && (!hasLat || !hasLng)) {
+      throw new BadRequestException('lat and lng are required when radiusKm is provided.');
+    }
+  }
+
+  private async refreshPromotionAutomations(): Promise<void> {
+    try {
+      await this.promotionsService.runAutomationsIfDue();
+    } catch (error) {
+      console.error('Unable to refresh promotion automations', error);
     }
   }
 
@@ -1388,6 +2082,16 @@ export class ListingsService {
         : undefined;
 
     const location = {
+      cityId:
+        listing.cityId ??
+        (typeof (listing.location as any)?.cityId === 'string'
+          ? (listing.location as any).cityId
+          : null),
+      neighborhoodId:
+        listing.neighborhoodId ??
+        (typeof (listing.location as any)?.neighborhoodId === 'string'
+          ? (listing.location as any).neighborhoodId
+          : null),
       address:
         listing.location?.address ??
         geo.address ??
@@ -1475,6 +2179,9 @@ export class ListingsService {
       images,
       attributes,
       meta: meta ?? {},
+      isFeatured: Boolean(listing.isFeatured),
+      isBoosted: Boolean(listing.isBoosted),
+      isPremium: Boolean(listing.isPremium),
       publishedAt: listing.publishedAt ?? null,
       expiresAt: listing.expiresAt ?? null,
       created_at: listing.created_at,

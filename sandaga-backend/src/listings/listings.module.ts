@@ -10,6 +10,8 @@ import { MediaModule } from '../media/media.module';
 import { FormStep } from '../forms/entities/form-step.entity';
 import { SearchLogsModule } from '../search-logs/search-logs.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { GeoModule } from '../geo/geo.module';
+import { PromotionsModule } from '../promotions/promotions.module';
 
 @Module({
   imports: [
@@ -18,7 +20,9 @@ import { NotificationsModule } from '../notifications/notifications.module';
     UsersModule,
     MediaModule,
     SearchLogsModule,
-    NotificationsModule
+    NotificationsModule,
+    GeoModule,
+    PromotionsModule
   ],
   controllers: [ListingsController],
   providers: [ListingsService],

@@ -17,6 +17,7 @@ import { WalletTransaction } from './wallet-transaction.entity';
 import { WalletsService } from './wallets.service';
 import { User } from '../users/user.entity';
 import { MessagesModule } from '../messages/messages.module';
+import { Category } from '../categories/category.entity';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { MessagesModule } from '../messages/messages.module';
       PaymentMethodEntity,
       Subscription,
       Listing,
+      Category,
       Promotion,
       Delivery,
       WalletTransaction,

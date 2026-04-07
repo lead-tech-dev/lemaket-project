@@ -44,6 +44,14 @@ function formatCategory(category: string): string {
   return category.charAt(0).toUpperCase() + category.slice(1)
 }
 
+function isMobileMoneyMethod(method: PaymentMethod): boolean {
+  if (method.type !== 'wallet') {
+    return false
+  }
+  const provider = (method.provider ?? '').toLowerCase()
+  return provider === 'mtn' || provider === 'orange'
+}
+
 type CheckoutModalProps = {
   open: boolean
   promotion: PaymentPromotionOption | null
@@ -125,7 +133,11 @@ function CheckoutModal({
                 method.last4 ? `**** ${method.last4}` : ''
               }`.trim()
             : method.type === 'wallet'
-              ? t('dashboard.promotions.payment.wallet')
+              ? method.provider?.toLowerCase() === 'orange'
+                ? 'Orange Money'
+                : method.provider?.toLowerCase() === 'mtn'
+                  ? 'MTN Mobile Money'
+                  : t('dashboard.promotions.payment.wallet')
               : method.type === 'transfer'
                 ? t('dashboard.promotions.payment.transfer')
                 : method.type === 'cash'
@@ -301,6 +313,9 @@ export default function PromotionsPage() {
             Object.entries(sanitized).every(
               ([key, value]) => prevState?.[key as keyof PromotionCheckoutSelection] === value
             )
+          if (sameAsPrev && prevState) {
+            return prevState
+          }
           if (!sameAsPrev) {
             setPromotionCheckoutSelection(sanitized)
           }
@@ -313,7 +328,7 @@ export default function PromotionsPage() {
         return null
       })
     },
-    [clearPromotionCheckoutSelection, setPromotionCheckoutSelection]
+    []
   )
 
   const fetchPromotionOptions = useCallback(async () => {
@@ -387,19 +402,13 @@ export default function PromotionsPage() {
           apiGet<PaymentMethod[]>('/payments/methods')
         ])
 
-        const normalizedCategories =
-          targetPromotion?.categories.map(category => category.toLowerCase()) ?? null
-
-        const eligibleListings = normalizedCategories
-          ? listingsData.filter(listing =>
-              normalizedCategories.includes(listing.category.slug.toLowerCase())
-            )
-          : listingsData
+        const eligibleListings = listingsData
+        const mobileMoneyMethods = methodsData.filter(isMobileMoneyMethod)
 
         setListings(eligibleListings)
-        setPaymentMethods(methodsData)
+        setPaymentMethods(mobileMoneyMethods)
 
-        if (targetPromotion && normalizedCategories && eligibleListings.length === 0) {
+        if (targetPromotion && eligibleListings.length === 0) {
           addToast({
             variant: 'info',
             title: t('dashboard.promotions.toast.noEligibleTitle'),
@@ -418,12 +427,13 @@ export default function PromotionsPage() {
           persistSelection({ listingId: '' })
         }
 
-        if (methodsData.length > 0) {
+        if (mobileMoneyMethods.length > 0) {
           const cachedMethodId = checkoutSelection?.paymentMethodId
           const methodMatches =
-            cachedMethodId && methodsData.some(method => method.id === cachedMethodId)
+            cachedMethodId && mobileMoneyMethods.some(method => method.id === cachedMethodId)
           if (!methodMatches) {
-            const defaultMethod = methodsData.find(method => method.isDefault) ?? methodsData[0]
+            const defaultMethod =
+              mobileMoneyMethods.find(method => method.isDefault) ?? mobileMoneyMethods[0]
             if (defaultMethod) {
               persistSelection({ paymentMethodId: defaultMethod.id })
             }

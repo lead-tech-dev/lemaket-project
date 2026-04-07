@@ -170,6 +170,13 @@ const toBoolean = (value: unknown): boolean => {
   return false
 }
 
+const isSchemaFieldEnabled = (field: { disabled?: boolean; active?: boolean; isActive?: boolean }): boolean => {
+  if (field.disabled === true) return false
+  if (field.active === false) return false
+  if (field.isActive === false) return false
+  return true
+}
+
 const sanitizeDetails = (details: Record<string, unknown>) => {
   return Object.entries(details).reduce<Record<string, unknown>>((acc, [key, value]) => {
     if (value === undefined || value === null) {
@@ -426,9 +433,23 @@ const mapListingToForm = (
       address: locationAddress,
       city: locationCity || existingLocation.city,
       zipcode: locationZip || (existingLocation as any).zipcode || (existingLocation as any).zipCode,
+      cityId:
+        (dtoLocation as any).cityId ??
+        (existingLocation as any).cityId,
+      neighborhoodId:
+        (dtoLocation as any).neighborhoodId ??
+        (existingLocation as any).neighborhoodId,
       lat: dtoLocation.lat ?? (existingLocation as any).lat,
       lng: dtoLocation.lng ?? (existingLocation as any).lng
     }
+    detailsWithRoots.cityId =
+      detailsWithRoots.cityId ??
+      (dtoLocation as any).cityId ??
+      (existingLocation as any).cityId
+    detailsWithRoots.neighborhoodId =
+      detailsWithRoots.neighborhoodId ??
+      (dtoLocation as any).neighborhoodId ??
+      (existingLocation as any).neighborhoodId
     const latVal = dtoLocation.lat ?? (existingLocation as any).lat
     const lngVal = dtoLocation.lng ?? (existingLocation as any).lng
     if (latVal !== undefined) {
@@ -519,7 +540,7 @@ export default function EditListing() {
     getValues,
     reset,
     trigger,
-    formState: { isSubmitting: hookIsSubmitting, errors, dirtyFields }
+    formState: { isSubmitting: hookIsSubmitting, dirtyFields }
   } = methods
 
   const [isLoadingListing, setIsLoadingListing] = useState(true)
@@ -560,8 +581,6 @@ export default function EditListing() {
 
   const selectedCategoryId = watch('categoryId')
   const watchedCity = watch('city')
-  const handoverModes = watch('details.handover_modes') as string[] | undefined
-  const handoverError = (errors as any)?.details?.handover_modes?.message as string | undefined
 
   useEffect(() => {
     ensureCategoryLoaded(selectedCategoryId).catch(() => {
@@ -608,13 +627,16 @@ export default function EditListing() {
   }, [categoriesError, categories.length, pageError])
 
   useEffect(() => {
+    if (categoriesLoading) {
+      return
+    }
     if (
       selectedRootCategoryId &&
       !rootCategories.some(category => category.id === selectedRootCategoryId)
     ) {
       setSelectedRootCategoryId('')
     }
-  }, [rootCategories, selectedRootCategoryId])
+  }, [categoriesLoading, rootCategories, selectedRootCategoryId])
 
   const { schema, isLoading: isSchemaLoading, error: schemaError } = useListingFormSchema(
     schemaCategoryId
@@ -640,20 +662,6 @@ export default function EditListing() {
 
   const hasSelectedCategory = Boolean(selectedCategoryId)
 
-  const availableHandoverModes = useMemo(() => {
-    const source = (rawDetails as Record<string, unknown>).handover_modes
-    if (Array.isArray(source)) {
-      const normalized = source.map(mode => String(mode)).filter(Boolean)
-      return normalized.length ? Array.from(new Set(normalized)) : ['pickup']
-    }
-    if (typeof source === 'string' && source.trim()) {
-      return [source.trim()]
-    }
-    return ['pickup']
-  }, [rawDetails])
-
-  const shouldShowHandoverModes = hasSelectedCategory
-
   const wizardSteps = useMemo<WizardStep[]>(() => {
     const steps: WizardStep[] = []
     let hasCoordinateStep = false
@@ -670,7 +678,14 @@ export default function EditListing() {
     })
 
     filtered.forEach(step => {
-      const coordinateLike = isCoordinateStep(step)
+      const stepFields = (step.fields ?? []).filter(field => isSchemaFieldEnabled(field as any))
+      if (!stepFields.length) {
+        return
+      }
+
+      const filteredStep = { ...step, fields: stepFields } as SchemaStep
+
+      const coordinateLike = isCoordinateStep(filteredStep)
       const mapStep = coordinateLike && !hasCoordinateStep
       if (mapStep) {
         hasCoordinateStep = true
@@ -685,7 +700,7 @@ export default function EditListing() {
           ? [String(step.info)]
           : [],
         kind: 'dynamic',
-        formStep: step,
+        formStep: filteredStep,
         isMapStep: mapStep
       })
     })
@@ -817,6 +832,15 @@ useEffect(() => {
     const childList = childrenByParent[selectedRootCategoryId] ?? []
     const currentCategoryId = getValues('categoryId')
     const isLoadingChildren = Boolean(childrenLoading[selectedRootCategoryId])
+    const hasResolvedChildren = Object.prototype.hasOwnProperty.call(
+      childrenByParent,
+      selectedRootCategoryId
+    )
+
+    // Keep current category stable until children are effectively resolved.
+    if (!hasResolvedChildren && !isLoadingChildren) {
+      return
+    }
 
     if (!childList.length) {
       if (isLoadingChildren) {
@@ -825,6 +849,11 @@ useEffect(() => {
       if (currentCategoryId !== selectedRootCategoryId) {
         setValue('categoryId', selectedRootCategoryId, { shouldDirty: false, shouldValidate: true })
       }
+      return
+    }
+
+    const isCurrentRootSelection = currentCategoryId === selectedRootCategoryId
+    if (isCurrentRootSelection) {
       return
     }
 
@@ -839,7 +868,9 @@ useEffect(() => {
     }
 
     schemaSteps.forEach(step => {
-      step.fields.forEach(field => {
+      step.fields
+        .filter(field => isSchemaFieldEnabled(field as any))
+        .forEach(field => {
         const fieldName = field.name
         if (!fieldName) {
           return
@@ -921,7 +952,15 @@ useEffect(() => {
 
   useEffect(() => {
     setActiveStepIndex(0)
-  }, [selectedCategoryId, wizardSteps.length])
+  }, [selectedCategoryId])
+
+  useEffect(() => {
+    if (wizardSteps.length === 0) {
+      setActiveStepIndex(0)
+      return
+    }
+    setActiveStepIndex(prev => (prev >= wizardSteps.length ? wizardSteps.length - 1 : prev))
+  }, [wizardSteps.length])
 
   const onSubmit = useCallback(
     async (values: EditListingFormValues) => {
@@ -938,12 +977,16 @@ useEffect(() => {
         latitude,
         longitude,
         address,
+        cityId,
+        neighborhoodId,
         location: legacyLocation,
         ...restDetails
       } = detailsInput as {
         latitude?: unknown
         longitude?: unknown
         address?: unknown
+        cityId?: unknown
+        neighborhoodId?: unknown
         location?: unknown
         [key: string]: unknown
       }
@@ -1040,6 +1083,8 @@ useEffect(() => {
         (dirtyFields as any)?.location ||
           (dirtyFields as any)?.city ||
           (dirtyFields as any)?.locationHideExact ||
+          (dirtyFields as any)?.details?.cityId ||
+          (dirtyFields as any)?.details?.neighborhoodId ||
           (dirtyFields as any)?.details?.address ||
           (dirtyFields as any)?.details?.latitude ||
           (dirtyFields as any)?.details?.longitude ||
@@ -1070,6 +1115,8 @@ useEffect(() => {
       }
 
       const cityForLocation = toTrimmedString(values.city)
+      const cityIdForLocation = toTrimmedString(cityId)
+      const neighborhoodIdForLocation = toTrimmedString(neighborhoodId)
       const zipcode = toTrimmedString(
         (mergedDetails as any).zipcode ??
           (mergedDetails as any).postal_code ??
@@ -1081,6 +1128,8 @@ useEffect(() => {
         }
         if (locationPayload) {
           return {
+            cityId: cityIdForLocation || undefined,
+            neighborhoodId: neighborhoodIdForLocation || undefined,
             address: locationPayload.address,
             lat: locationPayload.latitude,
             lng: locationPayload.longitude,
@@ -1089,16 +1138,24 @@ useEffect(() => {
             hideExact: locationPayload.hideExact ?? false
           }
         }
-        return { hideExact }
+        return {
+          cityId: cityIdForLocation || undefined,
+          neighborhoodId: neighborhoodIdForLocation || undefined,
+          hideExact
+        }
       })()
 
-      const hasSubjectField = schemaSteps.some(step =>
+      const enabledSchemaSteps = schemaSteps.map(step => ({
+        ...step,
+        fields: (step.fields ?? []).filter(field => isSchemaFieldEnabled(field as any))
+      }))
+      const hasSubjectField = enabledSchemaSteps.some(step =>
         step.fields.some(field => field.name === 'subject')
       )
-      const hasBodyField = schemaSteps.some(step =>
+      const hasBodyField = enabledSchemaSteps.some(step =>
         step.fields.some(field => field.name === 'body')
       )
-      const hasDescriptionField = schemaSteps.some(step =>
+      const hasDescriptionField = enabledSchemaSteps.some(step =>
         step.fields.some(field => field.name === 'description')
       )
 
@@ -1178,17 +1235,9 @@ useEffect(() => {
         ? [rawHandoverModes.trim()]
         : []
 
-      if (normalizedHandoverModes.length === 0) {
-        setError('details.handover_modes' as never, {
-          type: 'manual',
-          message: t('listings.new.handover.required')
-        })
-        setIsSubmitting(false)
-        setPageError(t('listings.new.handover.required'))
-        return
-      }
-
-      ;(mergedDetails as any).handover_modes = normalizedHandoverModes
+      ;(mergedDetails as any).handover_modes = normalizedHandoverModes.length
+        ? normalizedHandoverModes
+        : ['pickup']
 
       const sanitizedDetails = sanitizeDetails(mergedDetails)
       ;[
@@ -1444,7 +1493,6 @@ useEffect(() => {
 
   return (
     <DynamicFormStep
-      key={currentStep.id}
       step={currentStep.formStep}
       basePath="details"
       stepIndex={activeStepIndex}
@@ -1543,71 +1591,6 @@ useEffect(() => {
             ) : null}
 
             {hasSelectedCategory ? renderCurrentStep() : null}
-
-            {hasSelectedCategory && shouldShowHandoverModes ? (
-              <section className="dashboard-section">
-                <div className="dashboard-section__head">
-                  <h2>{t('listings.new.handover.title')}</h2>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {[
-                    {
-                      value: 'pickup',
-                      label: t('listings.new.handover.pickup'),
-                      description: t('listings.new.handover.pickupHelp')
-                    },
-                    {
-                      value: 'delivery',
-                      label: t('listings.new.handover.delivery'),
-                      description: t('listings.new.handover.deliveryHelp')
-                    }
-                  ].map(option => {
-                    const checked = (handoverModes ?? []).includes(option.value)
-                    return (
-                      <label
-                        key={option.value}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'flex-start',
-                          gap: '10px',
-                          padding: '12px 14px',
-                          border: '1px solid #e5e7eb',
-                          borderRadius: '12px',
-                          cursor: 'pointer',
-                          background: checked ? 'rgba(15,96,196,0.06)' : '#fff'
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={event => {
-                            const current = handoverModes ?? []
-                            const next = event.target.checked
-                              ? Array.from(new Set([...current, option.value]))
-                              : current.filter(mode => mode !== option.value)
-                            const currentDetails = (getValues('details') ?? {}) as Record<string, unknown>
-                            setValue('details', { ...currentDetails, handover_modes: next }, {
-                              shouldDirty: true,
-                              shouldValidate: true
-                            })
-                          }}
-                          style={{ marginTop: '4px' }}
-                        />
-                        <span>
-                          <div style={{ fontWeight: 600 }}>{option.label}</div>
-                          <div style={{ color: '#6b7280', fontSize: '0.9rem' }}>{option.description}</div>
-                        </span>
-                      </label>
-                    )
-                  })}
-                  {handoverError ? (
-                    <p className="form-field__error" role="alert" style={{ marginTop: '4px' }}>
-                      {handoverError}
-                    </p>
-                  ) : null}
-                </div>
-              </section>
-            ) : null}
 
             <section className="dashboard-section">
               <div className="dashboard-section__head">

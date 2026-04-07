@@ -121,6 +121,7 @@ function formatParticipantName(participant?: { firstName: string; lastName: stri
   return full || participant.firstName || participant.lastName || '—'
 }
 
+
 function getConversationUnreadForUser(
   conversation: ConversationSummary,
   userId?: string
@@ -205,6 +206,8 @@ export default function Messages() {
         setConversations([])
         setNextCursor(null)
         setUnreadTotal(0)
+        setIsLoading(false)
+        setIsLoadingMore(false)
         return
       }
       if (!silent && !append) {
@@ -215,13 +218,17 @@ export default function Messages() {
         setIsLoadingMore(true)
       }
 
+      const controller = new AbortController()
+      const timeoutId = window.setTimeout(() => controller.abort(), 12000)
+
       try {
         const params = new URLSearchParams()
         if (cursor) {
           params.set('cursor', cursor)
         }
         const response = await apiGet<ConversationsResponse>(
-          params.size ? `/messages/conversations?${params.toString()}` : '/messages/conversations'
+          params.size ? `/messages/conversations?${params.toString()}` : '/messages/conversations',
+          { signal: controller.signal, silent: silent || append }
         )
 
         setNextCursor(response.nextCursor)
@@ -272,21 +279,23 @@ export default function Messages() {
       } catch (err) {
         console.error('Unable to load conversations', err)
         if (!silent) {
-          setError(
-            err instanceof Error
+          const resolvedMessage =
+            err instanceof DOMException && err.name === 'AbortError'
+              ? t('dashboard.messages.loadError')
+              : err instanceof Error
               ? err.message
               : t('dashboard.messages.loadError')
+          setError(
+            resolvedMessage
           )
           addToast({
             variant: 'error',
             title: t('dashboard.messages.loadTitle'),
-            message:
-              err instanceof Error
-                ? err.message
-                : t('dashboard.messages.loadError')
+            message: resolvedMessage
           })
         }
       } finally {
+        window.clearTimeout(timeoutId)
         setIsLoading(false)
         setIsLoadingMore(false)
       }
@@ -301,6 +310,22 @@ export default function Messages() {
   }, [fetchConversations])
 
   useEffect(() => {
+    if (!isLoading || conversations.length > 0) {
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setIsLoading(false)
+      setIsLoadingMore(false)
+      if (!error) {
+        setError(t('dashboard.messages.loadError'))
+      }
+    }, 14000)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [conversations.length, error, isLoading, t])
+
+  useEffect(() => {
     if (!user) {
       return
     }
@@ -312,14 +337,27 @@ export default function Messages() {
     return () => window.clearInterval(interval)
   }, [fetchConversations, user])
 
+  // Realtime disabled; polling handles updates.
+
   useEffect(() => {
     if (!user) {
       setQuickReplies([])
       return
     }
-    apiGet<QuickReply[]>('/messages/quick-replies')
+    const controller = new AbortController()
+    const timeoutId = window.setTimeout(() => controller.abort(), 12000)
+
+    apiGet<QuickReply[]>('/messages/quick-replies', { signal: controller.signal })
       .then(data => setQuickReplies(data))
-      .catch(err => console.error('Unable to load quick replies', err))
+      .catch(err => {
+        if (err instanceof DOMException && err.name === 'AbortError') {
+          return
+        }
+        console.error('Unable to load quick replies', err)
+      })
+      .finally(() => {
+        window.clearTimeout(timeoutId)
+      })
   }, [user])
 
   useEffect(() => {

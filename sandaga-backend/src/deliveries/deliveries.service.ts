@@ -567,6 +567,22 @@ export class DeliveriesService {
     });
   }
 
+  async getById(user: AuthUser, id: string): Promise<Delivery & { sellerPayoutReady: boolean }> {
+    const delivery = await this.findOrFail(id);
+    const isParticipant =
+      delivery.buyerId === user.id || delivery.sellerId === user.id || delivery.courierId === user.id;
+
+    if (!isParticipant) {
+      throw new ForbiddenException('Accès refusé.');
+    }
+
+    const sellerPayoutReady = await this.isSellerPayoutReady(delivery.sellerId);
+    return {
+      ...delivery,
+      sellerPayoutReady
+    } as Delivery & { sellerPayoutReady: boolean };
+  }
+
   async acceptDelivery(id: string, user: AuthUser): Promise<Delivery> {
     const delivery = await this.findOrFail(id);
     if (delivery.status !== DeliveryStatus.REQUESTED || delivery.courierId) {

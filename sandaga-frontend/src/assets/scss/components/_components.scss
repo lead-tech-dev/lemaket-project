@@ -3,7 +3,7 @@
 @use 'spinner';
 @use '../abstracts/variables' as *;
 
-$listing-placeholder-image: url('/listing-placeholder.svg');
+$listing-placeholder-image: url('/listing-placeholder.png');
 
 
 .rich-textarea {
@@ -414,8 +414,9 @@ $listing-placeholder-image: url('/listing-placeholder.svg');
 .form-field__error{
   margin:0;
   color:var(--color-danger,#dc2626);
-  font-size:.85rem;
-  font-weight:600;
+  font-size:.72rem;
+  line-height:1.2;
+  font-weight:500;
 }
 
 .form-field--error .input{
@@ -1027,6 +1028,9 @@ button.lbc-header__pill{
   gap:calc($spacing*.5);
 }
 .lbc-search-panel__item--recent{
+  align-items:flex-start;
+}
+.lbc-search-panel__item--search-query{
   align-items:flex-start;
 }
 .lbc-search-panel__item--query .lbc-search-panel__label{
@@ -2546,7 +2550,7 @@ button.lbc-header__pill{
   display:flex;
   align-items:center;
   justify-content:center;
-  z-index:60;
+  z-index:2100;
 }
 .modal__backdrop{
   position:absolute;

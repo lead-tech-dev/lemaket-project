@@ -8,9 +8,33 @@ import { FormField } from '../../components/ui/FormField'
 import { useToast } from '../../components/ui/Toast'
 import { useAuth } from '../../hooks/useAuth'
 import type { Listing } from '../../types/listing'
+import { geoGeocodeFirst } from '../../utils/geo'
 type MapboxMap = import('mapbox-gl').Map
 type MapboxMarker = import('mapbox-gl').Marker
 import 'mapbox-gl/dist/mapbox-gl.css'
+
+const OSM_RASTER_STYLE = {
+  version: 8,
+  sources: {
+    osm: {
+      type: 'raster',
+      tiles: [
+        'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png'
+      ],
+      tileSize: 256,
+      attribution: '© OpenStreetMap contributors'
+    }
+  },
+  layers: [
+    {
+      id: 'osm',
+      type: 'raster',
+      source: 'osm'
+    }
+  ]
+} as const
 
 type EscrowInitResponse = {
   paymentId: string
@@ -25,6 +49,7 @@ type Courier = {
   avatarUrl: string | null
   location: string | null
   lastLoginAt: string | null
+  isOnline?: boolean
   lat: number | null
   lng: number | null
   city: string | null
@@ -185,40 +210,33 @@ export default function ListingCheckout() {
       setDropoffCoords(null)
       return
     }
-    const token = import.meta.env.VITE_MAPBOX_TOKEN
     const address = checkoutForm.dropoffAddress.trim()
-    if (!token || address.length < 3) {
+    if (address.length < 3) {
       setDropoffCoords(null)
       return
     }
-    const controller = new AbortController()
+    let cancelled = false
     const timeout = window.setTimeout(async () => {
       try {
-        const encoded = encodeURIComponent(address)
-        const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encoded}.json?limit=1&types=address,place,postcode&access_token=${token}`
-        const response = await fetch(url, { signal: controller.signal })
-        if (!response.ok) {
-          throw new Error(`Mapbox ${response.status}`)
+        const center = await geoGeocodeFirst(address)
+        if (cancelled) {
+          return
         }
-        const data = (await response.json()) as {
-          features?: Array<{ center?: [number, number] }>
-        }
-        const center = data.features?.[0]?.center
-        if (center && center.length === 2) {
-          setDropoffCoords({ lng: center[0], lat: center[1] })
+        if (center) {
+          setDropoffCoords({ lng: center.lng, lat: center.lat })
         } else {
           setDropoffCoords(null)
         }
       } catch (err) {
-        if (err instanceof DOMException && err.name === 'AbortError') return
+        if (cancelled) return
         console.warn('Unable to geocode dropoff address', err)
         setDropoffCoords(null)
       }
     }, 450)
 
     return () => {
+      cancelled = true
       window.clearTimeout(timeout)
-      controller.abort()
     }
   }, [checkoutForm.dropoffAddress, handoverMode])
 
@@ -249,18 +267,16 @@ export default function ListingCheckout() {
   }, [estimatedDeliveryFee, handoverMode])
 
   useEffect(() => {
-    const token = import.meta.env.VITE_MAPBOX_TOKEN
-    if (handoverMode !== 'delivery' || !token || !mapContainerRef.current || !referenceCoords) {
+    if (handoverMode !== 'delivery' || !mapContainerRef.current || !referenceCoords) {
       return
     }
     let map: MapboxMap | null = mapRef.current
     if (!map) {
       import('mapbox-gl')
         .then(mapbox => {
-          mapbox.default.accessToken = token
           map = new mapbox.default.Map({
             container: mapContainerRef.current as HTMLElement,
-            style: 'mapbox://styles/mapbox/streets-v12',
+            style: OSM_RASTER_STYLE as any,
             center: [referenceCoords.lng, referenceCoords.lat],
             zoom: 11
           })
@@ -482,8 +498,10 @@ export default function ListingCheckout() {
                                 <small>Distance inconnue</small>
                               )}
                               <small>
-                                {courier.lastLoginAt
-                                  ? `Actif récemment`
+                                {courier.isOnline
+                                  ? 'En ligne'
+                                  : courier.lastLoginAt
+                                  ? 'Actif récemment'
                                   : 'Disponible'}
                               </small>
                             </div>

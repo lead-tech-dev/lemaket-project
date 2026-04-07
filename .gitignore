@@ -54,6 +54,7 @@ deploy/**/*.tgz
 deploy/**/*.tar
 deploy/**/*.gz
 *.sql.gz
+*.osm.pbf
 
 # Local clone / deprecated folders
 sandaga-backend1/

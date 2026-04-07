@@ -27,6 +27,7 @@ import {
 } from '../../types/home'
 import { useToast } from '../../components/ui/Toast'
 import { useI18n } from '../../contexts/I18nContext'
+import { useFeatureFlagsContext } from '../../contexts/FeatureFlagContext'
 import { resolveMediaUrl } from '../../utils/media'
 import { formatListingLocation } from '../../utils/location'
 import { useFollowedSellers } from '../../hooks/useFollowedSellers'
@@ -151,8 +152,11 @@ export default function Home() {
   const { preferences, setPreference } = useUserPreferences()
   const { addToast } = useToast()
   const { locale, t } = useI18n()
+  const { isEnabled } = useFeatureFlagsContext()
   const { isAuthenticated } = useAuth()
   const { isFollowing, followSeller, unfollowSeller } = useFollowedSellers()
+  const storefrontsEnabled = isEnabled('homeStorefronts')
+  const proHomeSectionsEnabled = isEnabled('proOverview')
   const [query, setQuery] = useState({ term: '', location: '' })
   const numberLocale = locale === 'fr' ? 'fr-FR' : 'en-US'
   const numberFormatter = useMemo(() => new Intl.NumberFormat(numberLocale), [numberLocale])
@@ -397,6 +401,13 @@ export default function Home() {
   }, [addToast, locale])
 
   useEffect(() => {
+    if (!proHomeSectionsEnabled) {
+      setSellerSplit(null)
+      setSellerSplitLoading(false)
+      setSellerSplitError(false)
+      return
+    }
+
     const controller = new AbortController()
     setSellerSplitLoading(true)
     setSellerSplitError(false)
@@ -421,7 +432,7 @@ export default function Home() {
       .finally(() => setSellerSplitLoading(false))
 
     return () => controller.abort()
-  }, [addToast, locale])
+  }, [addToast, locale, proHomeSectionsEnabled])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -528,6 +539,13 @@ export default function Home() {
   }, [addToast, locale])
 
   useEffect(() => {
+    if (!storefrontsEnabled) {
+      setStorefronts([])
+      setStorefrontsLoading(false)
+      setStorefrontsError(null)
+      return
+    }
+
     const controller = new AbortController()
     setStorefrontsLoading(true)
     setStorefrontsError(null)
@@ -555,7 +573,7 @@ export default function Home() {
       .finally(() => setStorefrontsLoading(false))
 
     return () => controller.abort()
-  }, [addToast, t])
+  }, [addToast, storefrontsEnabled, t])
 
  
   const heroData = hero
@@ -912,6 +930,7 @@ export default function Home() {
           )}
         </section>
 
+        {storefrontsEnabled ? (
         <section className="lbc-section lbc-section--storefronts">
           <div className="lbc-section__head">
             <div>
@@ -1001,6 +1020,7 @@ export default function Home() {
             )
           )}
         </section>
+        ) : null}
 
         <section className="lbc-section lbc-section--trending">
           <div className="lbc-section__head">
@@ -1229,9 +1249,11 @@ export default function Home() {
         <section className="lbc-section lbc-section--testimonials">
           <div className="lbc-section__head">
             <h2>{t('home.section.testimonials')}</h2>
-            <Link to="/search?sellerType=pro" className="lbc-link">
-              {t('home.section.proListings')}
-            </Link>
+            {proHomeSectionsEnabled ? (
+              <Link to="/search?sellerType=pro" className="lbc-link">
+                {t('home.section.proListings')}
+              </Link>
+            ) : null}
           </div>
           <div className="lbc-testimonials">
             {testimonialLoading && !testimonials.length
@@ -1294,67 +1316,69 @@ export default function Home() {
           )}
         </section>
 
-        <section className="lbc-section">
-          <div className="lbc-section__head">
-            <h2>{t('home.section.sellerSplit')}</h2>
-          </div>
-          {sellerSplitLoading && !sellerSplitData ? (
-            <div className="lbc-seller-split">
-              {Array.from({ length: 2 }).map((_, index) => (
-                <Card key={index} className="lbc-seller-card is-loading">
-                  <Skeleton className="skeleton-line skeleton-line--wide" />
-                  <Skeleton className="skeleton-line" />
-                  <Skeleton className="skeleton-line skeleton-line--short" />
-                </Card>
-              ))}
+        {proHomeSectionsEnabled ? (
+          <section className="lbc-section">
+            <div className="lbc-section__head">
+              <h2>{t('home.section.sellerSplit')}</h2>
             </div>
-          ) : sellerSplitData ? (
-            <>
+            {sellerSplitLoading && !sellerSplitData ? (
               <div className="lbc-seller-split">
-                <Card className="lbc-seller-card lbc-seller-card--pro">
-                  <div className="lbc-seller-card__header">
-                    <span className="lbc-seller-card__badge">{t('home.sellerSplit.proBadge')}</span>
-                    <strong>{shareFormatter.format(sellerSplitData.proShare)}%</strong>
-                  </div>
-                  <p className="lbc-seller-card__count">
-                    {t('home.sellerSplit.proListings', {
-                      count: numberFormatter.format(sellerSplitData.proListings)
-                    })}
-                  </p>
-                  <p className="lbc-seller-card__hint">
-                    {t('home.sellerSplit.proHint')}
-                  </p>
-                </Card>
-                <Card className="lbc-seller-card lbc-seller-card--individual">
-                  <div className="lbc-seller-card__header">
-                    <span className="lbc-seller-card__badge">{t('home.sellerSplit.individualBadge')}</span>
-                    <strong>{shareFormatter.format(sellerSplitData.individualShare)}%</strong>
-                  </div>
-                  <p className="lbc-seller-card__count">
-                    {t('home.sellerSplit.individualListings', {
-                      count: numberFormatter.format(sellerSplitData.individualListings)
-                    })}
-                  </p>
-                  <p className="lbc-seller-card__hint">
-                    {t('home.sellerSplit.individualHint')}
-                  </p>
-                </Card>
+                {Array.from({ length: 2 }).map((_, index) => (
+                  <Card key={index} className="lbc-seller-card is-loading">
+                    <Skeleton className="skeleton-line skeleton-line--wide" />
+                    <Skeleton className="skeleton-line" />
+                    <Skeleton className="skeleton-line skeleton-line--short" />
+                  </Card>
+                ))}
               </div>
-              <p className="lbc-seller-split__summary">
-                {totalSellerListings
-                  ? t('home.sellerSplit.summary', {
-                      share: shareFormatter.format(sellerSplitData.proShare),
-                      count: numberFormatter.format(totalSellerListings)
-                    })
-                  : t('home.sellerSplit.summaryEmpty')}
+            ) : sellerSplitData ? (
+              <>
+                <div className="lbc-seller-split">
+                  <Card className="lbc-seller-card lbc-seller-card--pro">
+                    <div className="lbc-seller-card__header">
+                      <span className="lbc-seller-card__badge">{t('home.sellerSplit.proBadge')}</span>
+                      <strong>{shareFormatter.format(sellerSplitData.proShare)}%</strong>
+                    </div>
+                    <p className="lbc-seller-card__count">
+                      {t('home.sellerSplit.proListings', {
+                        count: numberFormatter.format(sellerSplitData.proListings)
+                      })}
+                    </p>
+                    <p className="lbc-seller-card__hint">
+                      {t('home.sellerSplit.proHint')}
+                    </p>
+                  </Card>
+                  <Card className="lbc-seller-card lbc-seller-card--individual">
+                    <div className="lbc-seller-card__header">
+                      <span className="lbc-seller-card__badge">{t('home.sellerSplit.individualBadge')}</span>
+                      <strong>{shareFormatter.format(sellerSplitData.individualShare)}%</strong>
+                    </div>
+                    <p className="lbc-seller-card__count">
+                      {t('home.sellerSplit.individualListings', {
+                        count: numberFormatter.format(sellerSplitData.individualListings)
+                      })}
+                    </p>
+                    <p className="lbc-seller-card__hint">
+                      {t('home.sellerSplit.individualHint')}
+                    </p>
+                  </Card>
+                </div>
+                <p className="lbc-seller-split__summary">
+                  {totalSellerListings
+                    ? t('home.sellerSplit.summary', {
+                        share: shareFormatter.format(sellerSplitData.proShare),
+                        count: numberFormatter.format(totalSellerListings)
+                      })
+                    : t('home.sellerSplit.summaryEmpty')}
+                </p>
+              </>
+            ) : (
+              <p className="ui-feedback ui-feedback--compact">
+                {t('home.sellerSplit.unavailable')}
               </p>
-            </>
-          ) : (
-            <p className="ui-feedback ui-feedback--compact">
-              {t('home.sellerSplit.unavailable')}
-            </p>
-          )}
-        </section>
+            )}
+          </section>
+        ) : null}
       </div>
     </MainLayout>
   )

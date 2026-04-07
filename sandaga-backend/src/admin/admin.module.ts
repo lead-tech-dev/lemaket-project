@@ -14,6 +14,7 @@ import { AdminExportService } from './admin-export.service';
 import { MessageNotificationLog } from '../messages/message-notification-log.entity';
 import { WalletTransaction } from '../payments/wallet-transaction.entity';
 import { Payment } from '../payments/payment.entity';
+import { SearchLogsModule } from '../search-logs/search-logs.module'
 
 @Module({
   imports: [
@@ -27,7 +28,8 @@ import { Payment } from '../payments/payment.entity';
       MessageNotificationLog,
       WalletTransaction,
       Payment
-    ])
+    ]),
+    SearchLogsModule
   ],
   providers: [AdminService, AdminExportService],
   controllers: [AdminController, AdminModerationController, AdminExportController],

@@ -12,6 +12,7 @@ export type PaymentMethod = {
   holderName?: string
   label?: string
   provider?: string
+  externalId?: string
   isDefault: boolean
   verificationStatus: PaymentMethodVerificationStatus
   verifiedAt?: string | null

@@ -1,3 +1,5 @@
+import type { CategoryExtraField } from './category'
+
 export type HomeHeroStat = {
   label: string
   value: string
@@ -11,8 +13,6 @@ export type HomeHero = {
   tags: string[]
   stats: HomeHeroStat[]
 }
-
-import type { CategoryExtraField } from './category'
 
 export type HomeCategory = {
   id: string
@@ -63,6 +63,7 @@ export type HomeListing = {
   publishedAt: string | null
   isFeatured: boolean
   isBoosted: boolean
+  isPremium?: boolean
 }
 
 export type HomeService = {

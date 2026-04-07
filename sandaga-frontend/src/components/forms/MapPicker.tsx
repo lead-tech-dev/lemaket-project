@@ -8,6 +8,8 @@ import { Input } from '../ui/Input'
 import { LocationPinIcon } from '../ui/LocationPinIcon'
 import type { FormField as CategoryFormField } from '../../types/category'
 import { useI18n } from '../../contexts/I18nContext'
+import { geoAutocomplete, geoReverse } from '../../utils/geo'
+import type { GeoSuggestion } from '../../utils/geo'
 
 import 'mapbox-gl/dist/mapbox-gl.css'
 
@@ -25,6 +27,30 @@ type MapPickerProps = {
 }
 
 const DEFAULT_CENTER: [number, number] = [-17.4375, 14.6937] // Dakar
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN?.trim() ?? ''
+const MAPBOX_STREETS_STYLE = 'mapbox://styles/mapbox/streets-v12'
+const OSM_RASTER_STYLE = {
+  version: 8,
+  sources: {
+    osm: {
+      type: 'raster',
+      tiles: [
+        'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png'
+      ],
+      tileSize: 256,
+      attribution: '© OpenStreetMap contributors'
+    }
+  },
+  layers: [
+    {
+      id: 'osm',
+      type: 'raster',
+      source: 'osm'
+    }
+  ]
+} as const
 
 const mapContainerStyle: CSSProperties = {
   width: '100%',
@@ -135,16 +161,7 @@ const suggestionArrowStyle: CSSProperties = {
   flexShrink: 0
 }
 
-type Suggestion = {
-  id: string
-  label: string
-  context: string | null
-  coordinates: [number, number]
-  city?: string
-  zipcode?: string
-}
-
-const MAPBOX_LOCATION_TYPES = 'neighborhood,locality,place,district,address,postcode'
+type Suggestion = GeoSuggestion
 
 const resolveMandatoryMessage = (field: CategoryFormField | undefined, fallback: string): string => {
   if (!field?.rules) {
@@ -187,12 +204,12 @@ const parseCoordinate = (value: unknown, fallback: number): number => {
 };
 
 export function MapPicker({ latitude, longitude, address, locationField, basePath }: MapPickerProps) {
-  const { locale, t } = useI18n()
+  const { t } = useI18n()
   const {
     register,
     watch,
     setValue,
-    formState: { errors }
+    formState: { errors, dirtyFields }
   } = useFormContext()
 
   const defaultLocationError = t('forms.mapPicker.errors.locationRequired')
@@ -224,7 +241,9 @@ export function MapPicker({ latitude, longitude, address, locationField, basePat
   const [isSearching, setIsSearching] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
   const [hoveredSuggestionId, setHoveredSuggestionId] = useState<string | null>(null)
+  const [mapReady, setMapReady] = useState(false)
   const locationObjectValue = watch(locationField?.path ?? `${basePath}.location`)
+  const didFallbackToOsmRef = useRef(false)
 
   
 
@@ -232,6 +251,24 @@ export function MapPicker({ latitude, longitude, address, locationField, basePat
   const longitudeErrorMessage = resolveMandatoryMessage(longitude?.field, defaultLocationError)
   const addressFieldForMessage = address?.field ?? locationField?.field
   const addressErrorMessage = resolveMandatoryMessage(addressFieldForMessage, defaultAddressError)
+
+  const isPathDirty = useCallback(
+    (path: string | undefined): boolean => {
+      if (!path) {
+        return false
+      }
+      const segments = path.split('.')
+      let current: unknown = dirtyFields
+      for (const segment of segments) {
+        if (!current || typeof current !== 'object') {
+          return false
+        }
+        current = (current as Record<string, unknown>)[segment]
+      }
+      return Boolean(current)
+    },
+    [dirtyFields]
+  )
 
   useEffect(() => {
     if (typeof addressValue === 'string') {
@@ -242,6 +279,9 @@ export function MapPicker({ latitude, longitude, address, locationField, basePat
   // Hydrate address/coords from location object if address is empty
   useEffect(() => {
     if (typeof addressValue === 'string' && addressValue.trim()) {
+      return
+    }
+    if (isPathDirty(addressPath) || isPathDirty(latitudePath) || isPathDirty(longitudePath)) {
       return
     }
     if (!locationObjectValue || typeof locationObjectValue !== 'object') {
@@ -280,13 +320,26 @@ export function MapPicker({ latitude, longitude, address, locationField, basePat
     if (lngEmpty && lngCandidate !== undefined) {
       setValue(longitudePath, lngCandidate, { shouldDirty: false, shouldValidate: false })
     }
-  }, [addressValue, locationObjectValue, addressPath, setValue, latValue, lngValue, latitudePath, longitudePath])
+  }, [
+    addressValue,
+    locationObjectValue,
+    addressPath,
+    latitudePath,
+    longitudePath,
+    setValue,
+    latValue,
+    lngValue,
+    isPathDirty
+  ])
 
   const updateMarker = useCallback(
-    (lngLat: [number, number], fly = true) => {
+    (lngLat: [number, number], options?: { fly?: boolean; minZoom?: number }) => {
       if (!mapRef.current || !mapboxLibRef.current) {
         return
       }
+      mapRef.current.resize()
+      const fly = options?.fly ?? true
+      const minZoom = options?.minZoom ?? 14
       markerRef.current =
         markerRef.current ??
         new mapboxLibRef.current.Marker({ color: '#ff6e14' })
@@ -294,15 +347,14 @@ export function MapPicker({ latitude, longitude, address, locationField, basePat
           .addTo(mapRef.current)
       markerRef.current.setLngLat(lngLat)
       if (fly) {
-        mapRef.current.easeTo({ center: lngLat, zoom: Math.max(mapRef.current.getZoom(), 14) })
+        mapRef.current.easeTo({ center: lngLat, zoom: Math.max(mapRef.current.getZoom(), minZoom) })
       }
     },
     []
   )
 
   useEffect(() => {
-    const token = import.meta.env.VITE_MAPBOX_TOKEN
-    if (!token || typeof window === 'undefined') {
+    if (typeof window === 'undefined') {
       return
     }
 
@@ -313,10 +365,11 @@ export function MapPicker({ latitude, longitude, address, locationField, basePat
       const mapboxgl = (module.default ?? module) as unknown as typeof import('mapbox-gl')
       if (cancelled) return
       mapboxLibRef.current = mapboxgl
+      if (MAPBOX_TOKEN) {
+        ;(mapboxgl as unknown as { accessToken?: string }).accessToken = MAPBOX_TOKEN
+      }
 
       if (!mapContainerRef.current) return
-
-      ;(mapboxgl as any).accessToken = token
 
       const initialLng = parseCoordinate(lngValue, DEFAULT_CENTER[0]);
       const initialLat = parseCoordinate(latValue, DEFAULT_CENTER[1]);
@@ -325,7 +378,7 @@ export function MapPicker({ latitude, longitude, address, locationField, basePat
 
       const map = new mapboxgl.Map({
         container: mapContainerRef.current,
-        style: 'mapbox://styles/mapbox/streets-v11',
+        style: MAPBOX_TOKEN ? MAPBOX_STREETS_STYLE : (OSM_RASTER_STYLE as any),
         center: [initialLng, initialLat],
         zoom:
           latValue !== undefined &&
@@ -339,55 +392,84 @@ export function MapPicker({ latitude, longitude, address, locationField, basePat
       })
 
       map.on('load', () => {
+        // Ensure map paints correctly when the container size stabilizes.
+        map.resize()
+        window.requestAnimationFrame(() => map.resize())
+        window.setTimeout(() => map.resize(), 120)
+        setMapReady(true)
         const latStr = toTrimmedString(latValue)
         const lngStr = toTrimmedString(lngValue)
         const initialLat = Number(latStr)
         const initialLng = Number(lngStr)
 
         if (Number.isFinite(initialLat) && Number.isFinite(initialLng)) {
-          updateMarker([initialLng, initialLat], false)
+          updateMarker([initialLng, initialLat], { fly: false })
         } else if (markerRef.current) {
           markerRef.current.remove()
           markerRef.current = null
         }
       })
 
+      map.on('error', event => {
+        const message = String((event as { error?: { message?: string } }).error?.message ?? '')
+        const shouldFallback =
+          MAPBOX_TOKEN &&
+          !didFallbackToOsmRef.current &&
+          (message.toLowerCase().includes('unauthorized') ||
+            message.toLowerCase().includes('forbidden') ||
+            message.toLowerCase().includes('access token') ||
+            message.toLowerCase().includes('401') ||
+            message.toLowerCase().includes('403'))
+
+        if (shouldFallback) {
+          didFallbackToOsmRef.current = true
+          map.setStyle(OSM_RASTER_STYLE as any)
+        }
+      })
+
       map.on('click', event => {
         setValue(latitudePath, Number(event.lngLat.lat), { shouldDirty: true, shouldValidate: true })
         setValue(longitudePath, Number(event.lngLat.lng), { shouldDirty: true, shouldValidate: true })
-        updateMarker([event.lngLat.lng, event.lngLat.lat])
+        updateMarker([event.lngLat.lng, event.lngLat.lat], { minZoom: 16 })
         setSuggestions([])
-        const tokenInner = import.meta.env.VITE_MAPBOX_TOKEN
-        if (!tokenInner) return
-        void fetch(
-          `https://api.mapbox.com/geocoding/v5/mapbox.places/${event.lngLat.lng},${event.lngLat.lat}.json?access_token=${tokenInner}&limit=1`
-        )
-          .then(res => (res.ok ? res.json() : null))
-          .then(data => {
-            const feature = data?.features?.[0]
-            if (feature) {
-              setSearchQuery(feature.place_name)
-              setValue(addressPath, feature.place_name, { shouldDirty: true, shouldValidate: true })
-              const city =
-                feature.context?.find((ctx: any) => typeof ctx.id === 'string' && ctx.id.startsWith('place'))
-                  ?.text ?? undefined
-              const zipcode =
-                feature.context?.find((ctx: any) => typeof ctx.id === 'string' && ctx.id.startsWith('postcode'))
-                  ?.text ?? undefined
-              if (city) {
-                setValue('city', city, { shouldDirty: true, shouldValidate: false })
-              }
-              if (zipcode) {
-                setValue(`${basePath}.zipcode`, zipcode, { shouldDirty: true, shouldValidate: false })
-              }
+        void geoReverse(event.lngLat.lat, event.lngLat.lng)
+          .then(result => {
+            if (!result) {
+              return
+            }
+            const nextAddress = result.address || result.label || ''
+            if (nextAddress) {
+              setSearchQuery(nextAddress)
+              setValue(addressPath, nextAddress, { shouldDirty: true, shouldValidate: true })
+            }
+            if (result.city) {
+              setValue('city', result.city, { shouldDirty: true, shouldValidate: false })
+            }
+            if (result.zipcode) {
+              setValue(`${basePath}.zipcode`, result.zipcode, { shouldDirty: true, shouldValidate: false })
+            }
+            if (result.cityId) {
+              setValue(`${basePath}.cityId`, result.cityId, { shouldDirty: true, shouldValidate: false })
+            }
+            if (result.neighborhoodId) {
+              setValue(`${basePath}.neighborhoodId`, result.neighborhoodId, {
+                shouldDirty: true,
+                shouldValidate: false
+              })
             }
           })
           .catch(() => {
-            /* ignore reverse geocode errors */
+            /* ignore reverse lookup errors */
           })
       })
 
       mapRef.current = map
+
+      const resizeObserver = new ResizeObserver(() => {
+        map.resize()
+      })
+      resizeObserver.observe(mapContainerRef.current)
+      map.on('remove', () => resizeObserver.disconnect())
     }
 
     void initialize()
@@ -404,13 +486,14 @@ export function MapPicker({ latitude, longitude, address, locationField, basePat
         mapRef.current.remove()
         mapRef.current = null
       }
+      setMapReady(false)
       markerRef.current = null
       mapboxLibRef.current = null
     }
   }, [])
 
   useEffect(() => {
-    if (!mapRef.current || !mapboxLibRef.current) {
+    if (!mapReady || !mapRef.current || !mapboxLibRef.current) {
       return
     }
     const latStr = toTrimmedString(latValue)
@@ -421,19 +504,9 @@ export function MapPicker({ latitude, longitude, address, locationField, basePat
     const latNum = Number(latStr)
     const lngNum = Number(lngStr)
     if (Number.isFinite(latNum) && Number.isFinite(lngNum)) {
-      updateMarker([lngNum, latNum], false)
+      updateMarker([lngNum, latNum], { fly: true, minZoom: 15 })
     }
-  }, [latValue, lngValue, updateMarker])
-
-  const accessToken = import.meta.env.VITE_MAPBOX_TOKEN
-  if (!accessToken) {
-    return (
-      <div className="alert alert--warning">
-        <strong>{t('forms.mapPicker.errors.missingTokenTitle')}</strong>{' '}
-        {t('forms.mapPicker.errors.missingTokenMessage', { envVar: 'VITE_MAPBOX_TOKEN' })}
-      </div>
-    )
-  }
+  }, [latValue, lngValue, mapReady, updateMarker])
 
   const getFieldError = useCallback(
     (path: string | undefined) => {
@@ -483,32 +556,10 @@ export function MapPicker({ latitude, longitude, address, locationField, basePat
       try {
         const controller = new AbortController()
         searchAbortRef.current = controller
-        const response = await fetch(
-          `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
-            query
-          )}.json?access_token=${accessToken}&autocomplete=true&limit=6&country=cm&types=${MAPBOX_LOCATION_TYPES}&language=${locale}`,
-          { signal: controller.signal }
-        )
-        if (!response.ok) {
-          throw new Error(t('forms.mapPicker.errors.mapbox', { status: response.status }))
+        const items: Suggestion[] = await geoAutocomplete(query, 6)
+        if (controller.signal.aborted) {
+          return
         }
-        const data = await response.json()
-        const items: Suggestion[] = (data.features ?? []).map((feature: any) => ({
-          id: feature.id,
-          label: feature.place_name,
-          context:
-            feature.context
-              ?.map((ctx: any) => ctx.text)
-              .filter(Boolean)
-              .join(' · ') ?? null,
-          coordinates: feature.center,
-          city:
-            feature.context?.find((ctx: any) => typeof ctx.id === 'string' && ctx.id.startsWith('place'))
-              ?.text ?? undefined,
-          zipcode:
-            feature.context?.find((ctx: any) => typeof ctx.id === 'string' && ctx.id.startsWith('postcode'))
-              ?.text ?? undefined
-        }))
         setSuggestions(items)
         setHoveredSuggestionId(items.length ? items[0].id : null)
       } catch (error) {
@@ -525,22 +576,36 @@ export function MapPicker({ latitude, longitude, address, locationField, basePat
     return () => {
       window.clearTimeout(timeoutId)
     }
-  }, [searchQuery, accessToken, locale, t])
+  }, [searchQuery, t])
 
   const handleSuggestionSelect = useCallback(
     (suggestion: Suggestion) => {
+      if (!suggestion.coordinates || suggestion.coordinates.length !== 2) {
+        return
+      }
       setSuggestions([])
       setHoveredSuggestionId(null)
       setSearchQuery(suggestion.label)
       setValue(addressPath, suggestion.label, { shouldDirty: true, shouldValidate: true })
       setValue(latitudePath, suggestion.coordinates[1], { shouldDirty: true, shouldValidate: true })
       setValue(longitudePath, suggestion.coordinates[0], { shouldDirty: true, shouldValidate: true })
-      updateMarker(suggestion.coordinates)
+      updateMarker(suggestion.coordinates, {
+        minZoom: suggestion.kind === 'neighborhood' ? 16 : 14
+      })
       if (suggestion.city) {
         setValue('city', suggestion.city, { shouldDirty: true, shouldValidate: false })
       }
       if (suggestion.zipcode) {
         setValue(`${basePath}.zipcode`, suggestion.zipcode, { shouldDirty: true, shouldValidate: false })
+      }
+      if (suggestion.cityId) {
+        setValue(`${basePath}.cityId`, suggestion.cityId, { shouldDirty: true, shouldValidate: false })
+      }
+      if (suggestion.neighborhoodId) {
+        setValue(`${basePath}.neighborhoodId`, suggestion.neighborhoodId, {
+          shouldDirty: true,
+          shouldValidate: false
+        })
       }
     },
     [addressPath, basePath, latitudePath, longitudePath, setValue, updateMarker]
@@ -576,7 +641,19 @@ export function MapPicker({ latitude, longitude, address, locationField, basePat
   return (
     <div style={mapWrapperStyle}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-        <h3 style={{ margin: 0, fontSize: '1.05rem', color: '#0f172a' }}>{t('forms.mapPicker.title')}</h3>
+        <h3
+          style={{
+            margin: 0,
+            fontSize: '1.05rem',
+            color: '#0f172a',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}
+        >
+          <LocationPinIcon variant="filled" />
+          {t('forms.mapPicker.title')}
+        </h3>
         <p style={{ margin: 0, color: '#64748b', fontSize: '0.9rem' }}>
           {t('forms.mapPicker.subtitle')}
         </p>

@@ -22,15 +22,17 @@ export function AdminSidebar(){
 
   const overviewLinks: AdminSidebarLink[] = [
     { to: '/admin', labelKey: 'admin.sidebar.links.overview', icon: '📊', feature: 'adminConsole' },
+    { to: '/admin/monitoring', labelKey: 'admin.sidebar.links.monitoring', icon: '📡', feature: 'adminConsole' },
+    { to: '/admin/search-relevance', labelKey: 'admin.sidebar.links.searchRelevance', icon: '🔎', feature: 'adminConsole' },
     { to: '/admin/listings', labelKey: 'admin.sidebar.links.moderation', icon: '🛡️', feature: 'adminConsole' },
     { to: '/admin/reports', labelKey: 'admin.sidebar.links.reports', icon: '🚨', feature: 'adminConsole' },
   ]
 
   const managementLinks: AdminSidebarLink[] = [
     { to: '/admin/users', labelKey: 'admin.sidebar.links.users', icon: '👥', feature: 'adminConsole' },
-    { to: '/admin/company-verifications', labelKey: 'admin.sidebar.links.companyVerifications', icon: '✅', feature: 'adminConsole' },
-    { to: '/admin/courier-verifications', labelKey: 'admin.sidebar.links.courierVerifications', icon: '🛵', feature: 'adminConsole' },
-    { to: '/admin/platform-wallet', labelKey: 'admin.sidebar.links.platformWallet', icon: '💼', feature: 'adminConsole' },
+    { to: '/admin/company-verifications', labelKey: 'admin.sidebar.links.companyVerifications', icon: '✅', feature: 'adminSettings' },
+    { to: '/admin/courier-verifications', labelKey: 'admin.sidebar.links.courierVerifications', icon: '🛵', feature: 'adminSettings' },
+    { to: '/admin/platform-wallet', labelKey: 'admin.sidebar.links.platformWallet', icon: '💼', feature: 'adminSettings' },
     { to: '/admin/zikopay-transactions', labelKey: 'admin.sidebar.links.zikopayTransactions', icon: '💳', feature: 'adminConsole' },
     { to: '/admin/categories', labelKey: 'admin.sidebar.links.categories', icon: '🗂️', feature: 'adminConsole' },
     { to: '/admin/promotions', labelKey: 'admin.sidebar.links.promotions', icon: '📣', feature: 'adminPromotions' },
@@ -99,7 +101,6 @@ export function AdminSidebar(){
 
       <div className="sidebar__cta">
         <Link to="/admin/listings" className="btn btn--accent btn--full">{t('admin.sidebar.cta.supervision')}</Link>
-        <Link to="/admin/promotions" className="btn btn--outline btn--full">{t('admin.sidebar.cta.createCampaign')}</Link>
         <Link to="/auth/logout" className="btn btn--ghost btn--full">
           {t('admin.sidebar.cta.logout')}
         </Link>

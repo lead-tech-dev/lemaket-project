@@ -2,8 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { request } from 'https';
-import { URL } from 'url';
-import { URLSearchParams } from 'url';
+import { URL, URLSearchParams } from 'url';
 import { Repository } from 'typeorm';
 import { Conversation } from './conversation.entity';
 import { Message } from './message.entity';
@@ -22,6 +21,7 @@ type NotificationContext = {
 @Injectable()
 export class MessageNotificationService {
   private readonly logger = new Logger(MessageNotificationService.name);
+  private readonly providerAuthWarnings = new Set<string>();
 
   constructor(
     private readonly configService: ConfigService,
@@ -182,6 +182,11 @@ export class MessageNotificationService {
     subject: string,
     body: string
   ): Promise<DeliveryAttemptResult> {
+    const sendgridEnabled = this.configService.get<string>('SENDGRID_ENABLED');
+    if (sendgridEnabled === 'false') {
+      return { status: 'skipped', error: 'sendgrid disabled' };
+    }
+
     const apiKey = this.configService.get<string>('SENDGRID_API_KEY');
     const fromEmail = this.configService.get<string>('SENDGRID_FROM_EMAIL');
     if (!apiKey || !fromEmail) {
@@ -258,7 +263,17 @@ export class MessageNotificationService {
         res => {
           const status = res.statusCode ?? 0;
           if (status < 200 || status >= 300) {
-            this.logger.warn(`${label} failed with status ${status}`);
+            if (status === 401 || status === 403) {
+              const key = `${label}:${status}`;
+              if (!this.providerAuthWarnings.has(key)) {
+                this.logger.warn(
+                  `${label} failed with status ${status} (auth). Check provider credentials or disable this channel in env.`
+                );
+                this.providerAuthWarnings.add(key);
+              }
+            } else {
+              this.logger.warn(`${label} failed with status ${status}`);
+            }
             res.resume();
             resolve({ status: 'failed', error: `status ${status}` });
             return;

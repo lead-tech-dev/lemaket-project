@@ -11,13 +11,15 @@ import { ListingsModule } from '../listings/listings.module';
 import { MediaModule } from '../media/media.module';
 import { UsersModule } from '../users/users.module';
 import { MessageNotificationService } from './message-notification.service';
+import { PresenceModule } from '../presence/presence.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Conversation, Message, MessageAttachment, QuickReply, MessageNotificationLog]),
     ListingsModule,
     MediaModule,
-    UsersModule
+    UsersModule,
+    PresenceModule
   ],
   providers: [MessagesService, MessageNotificationService],
   controllers: [MessagesController],

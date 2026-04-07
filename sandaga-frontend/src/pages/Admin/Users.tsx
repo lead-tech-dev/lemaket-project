@@ -269,11 +269,11 @@ export default function Users() {
               {error}
             </p>
           ) : null}
-          <table className="admin-table">
+          <table className="admin-table admin-table--users">
             <thead>
               <tr>
                 <th>{t('admin.users.table.name')}</th>
-                <th>{t('admin.users.table.email')}</th>
+                <th className="admin-users__col-email">{t('admin.users.table.email')}</th>
                 <th>{t('admin.users.table.role')}</th>
                 <th>{t('admin.users.table.signup')}</th>
                 <th>{t('admin.users.table.status')}</th>
@@ -291,7 +291,11 @@ export default function Users() {
                 filteredUsers.map(user => (
                   <tr key={user.id}>
                     <td>{`${user.firstName} ${user.lastName}`.trim() || user.email}</td>
-                    <td>{user.email}</td>
+                    <td className="admin-users__col-email">
+                      <span className="admin-users__email" title={user.email}>
+                        {user.email}
+                      </span>
+                    </td>
                     <td>{user.role.toUpperCase()}</td>
                     <td>{auditDateFormatter.format(new Date(user.created_at))}</td>
                     <td>
@@ -304,29 +308,64 @@ export default function Users() {
                       </span>
                     </td>
                     <td>
-                      <div className="auth-form__actions" style={{ gap: '12px' }}>
+                      <div className="admin-users__actions" role="group" aria-label={t('admin.users.table.action')}>
                         <Button
                           variant="outline"
                           onClick={() => handleToggleActive(user)}
                           disabled={updatingId === user.id}
+                          className="admin-users__icon-btn"
+                          title={user.isActive ? t('admin.users.actions.suspend') : t('admin.users.actions.reactivate')}
+                          aria-label={user.isActive ? t('admin.users.actions.suspend') : t('admin.users.actions.reactivate')}
+                          data-tooltip={user.isActive ? t('admin.users.actions.suspend') : t('admin.users.actions.reactivate')}
                         >
-                          {user.isActive ? t('admin.users.actions.suspend') : t('admin.users.actions.reactivate')}
+                          {user.isActive ? (
+                            <svg viewBox="0 0 24 24" aria-hidden="true" className="admin-users__icon">
+                              <path d="M8 6v12M16 6v12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                            </svg>
+                          ) : (
+                            <svg viewBox="0 0 24 24" aria-hidden="true" className="admin-users__icon">
+                              <path d="M9 7l8 5-8 5z" fill="currentColor" />
+                            </svg>
+                          )}
+                          <span className="sr-only">
+                            {user.isActive ? t('admin.users.actions.suspend') : t('admin.users.actions.reactivate')}
+                          </span>
                         </Button>
                         {!user.isPro ? (
                           <Button
                             variant="ghost"
                             onClick={() => handlePromote(user.id)}
                             disabled={updatingId === user.id}
+                            className="admin-users__icon-btn"
+                            title={t('admin.users.actions.promote')}
+                            aria-label={t('admin.users.actions.promote')}
+                            data-tooltip={t('admin.users.actions.promote')}
                           >
-                            {t('admin.users.actions.promote')}
+                            <svg viewBox="0 0 24 24" aria-hidden="true" className="admin-users__icon">
+                              <path
+                                d="M12 3l2.65 5.36 5.92.86-4.29 4.18 1.01 5.9L12 16.8l-5.29 2.78 1.01-5.9-4.29-4.18 5.92-.86L12 3z"
+                                fill="currentColor"
+                              />
+                            </svg>
+                            <span className="sr-only">{t('admin.users.actions.promote')}</span>
                           </Button>
                         ) : null}
                         <Button
                           variant="danger"
                           onClick={() => handleDelete(user.id)}
                           disabled={updatingId === user.id}
+                          className="admin-users__icon-btn"
+                          title={t('admin.users.actions.delete')}
+                          aria-label={t('admin.users.actions.delete')}
+                          data-tooltip={t('admin.users.actions.delete')}
                         >
-                          {t('admin.users.actions.delete')}
+                          <svg viewBox="0 0 24 24" aria-hidden="true" className="admin-users__icon">
+                            <path
+                              d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z"
+                              fill="currentColor"
+                            />
+                          </svg>
+                          <span className="sr-only">{t('admin.users.actions.delete')}</span>
                         </Button>
                       </div>
                     </td>

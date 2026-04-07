@@ -19,6 +19,7 @@ import { AdminService } from '../admin/admin.service';
 import { CurrentUser, AuthUser } from '../common/decorators/current-user.decorator';
 import { Promotion } from './promotion.entity';
 import { UpdatePromotionStatusDto } from './dto/update-promotion-status.dto';
+import { UpdatePromotionPaymentStatusDto } from './dto/update-promotion-payment-status.dto';
 
 @Controller('admin/promotions')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -88,6 +89,26 @@ export class PromotionsController {
     return this.mapPromotion(promotion);
   }
 
+  @Patch(':id/payment-status')
+  async updatePaymentStatus(
+    @Param('id') id: string,
+    @Body() dto: UpdatePromotionPaymentStatusDto,
+    @CurrentUser() user: AuthUser
+  ) {
+    const promotion = await this.promotionsService.updatePaymentStatus(
+      id,
+      dto.paymentStatus,
+      dto.paymentId
+    );
+    await this.adminService.recordLog({
+      action: 'promotions.payment_status',
+      actorName: user.email,
+      actorRole: user.role,
+      details: `Paiement campagne ${promotion.paymentStatus} appliqué à "${promotion.name}" (${promotion.id})`
+    });
+    return this.mapPromotion(promotion);
+  }
+
   @Delete(':id')
   async remove(
     @Param('id') id: string,
@@ -114,6 +135,11 @@ export class PromotionsController {
       endDate: promotion.endDate?.toISOString?.() ?? promotion.endDate,
       budget: Number(promotion.budget),
       description: promotion.description,
+      sourceOptionId: promotion.sourceOptionId ?? null,
+      paymentStatus: promotion.paymentStatus ?? 'unpaid',
+      paymentId: promotion.paymentId ?? null,
+      autoBumpIntervalHours: promotion.autoBumpIntervalHours ?? null,
+      nextAutoBumpAt: promotion.nextAutoBumpAt?.toISOString?.() ?? promotion.nextAutoBumpAt ?? null,
       listingId: promotion.listingId,
       listing: promotion.listing
         ? {

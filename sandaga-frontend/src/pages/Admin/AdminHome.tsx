@@ -1,51 +1,129 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import AdminLayout from '../../layouts/AdminLayout'
 import { Button } from '../../components/ui/Button'
-import { apiGet } from '../../utils/api'
 import { useToast } from '../../components/ui/Toast'
-import type { AdminActivity, AdminMetric } from '../../types/admin'
+import type {
+  AdminActivity,
+  AdminMetric,
+  SearchAlertDispatchResult,
+  SearchOperationalStatus
+} from '../../types/admin'
 import { useI18n } from '../../contexts/I18nContext'
+import {
+  dispatchSearchOperationalAlerts,
+  fetchSearchOperationalStatus
+} from '../../utils/admin-api'
+import { apiGet } from '../../utils/api'
 
 export default function AdminHome() {
   const [metrics, setMetrics] = useState<AdminMetric[]>([])
   const [activities, setActivities] = useState<AdminActivity[]>([])
+  const [searchStatus, setSearchStatus] = useState<SearchOperationalStatus | null>(null)
+  const [lastDispatch, setLastDispatch] = useState<SearchAlertDispatchResult | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshingSearch, setIsRefreshingSearch] = useState(false)
+  const [isDispatching, setIsDispatching] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const { addToast } = useToast()
   const { t } = useI18n()
 
-  useEffect(() => {
-    let active = true
-    setIsLoading(true)
-    setError(null)
-
+  const loadOverview = useCallback(async (activeRef?: { current: boolean }) => {
+    const isActive = () => (activeRef ? activeRef.current : true)
     const metricsPromise = apiGet<AdminMetric[]>('/admin/metrics')
     const activitiesPromise = apiGet<AdminActivity[]>('/admin/activities')
+    const searchStatusPromise = fetchSearchOperationalStatus()
 
-    Promise.all([metricsPromise, activitiesPromise])
-      .then(([metricsData, activitiesData]) => {
-        if (!active) return
+    return Promise.all([metricsPromise, activitiesPromise, searchStatusPromise])
+      .then(([metricsData, activitiesData, searchData]) => {
+        if (!isActive()) return
         setMetrics(metricsData)
         setActivities(activitiesData)
+        setSearchStatus(searchData)
       })
       .catch(err => {
         console.error('Unable to load admin overview', err)
-        if (!active) return
+        if (!isActive()) return
         const message =
           err instanceof Error ? err.message : t('admin.home.loadError')
         setError(message)
         addToast({ variant: 'error', title: t('admin.home.toast.errorTitle'), message })
       })
       .finally(() => {
-        if (active) {
+        if (isActive()) {
           setIsLoading(false)
         }
       })
+  }, [addToast, t])
+
+  useEffect(() => {
+    const activeRef = { current: true }
+    setIsLoading(true)
+    setError(null)
+    void loadOverview(activeRef)
 
     return () => {
-      active = false
+      activeRef.current = false
     }
-  }, [addToast])
+  }, [loadOverview])
+
+  const statusChip = useMemo(() => {
+    if (!searchStatus) {
+      return { label: 'INCONNU', color: '#6c757d', background: '#f1f3f5' }
+    }
+    if (searchStatus.status === 'critical') {
+      return { label: 'CRITIQUE', color: '#b42318', background: '#fee4e2' }
+    }
+    if (searchStatus.status === 'degraded') {
+      return { label: 'DEGRADE', color: '#b54708', background: '#fffaeb' }
+    }
+    return { label: 'OK', color: '#027a48', background: '#ecfdf3' }
+  }, [searchStatus])
+
+  const formatPercent = (value: number) => `${(value * 100).toFixed(2)}%`
+
+  const handleRefreshSearch = async () => {
+    setIsRefreshingSearch(true)
+    try {
+      const data = await fetchSearchOperationalStatus()
+      setSearchStatus(data)
+      addToast({
+        variant: 'success',
+        title: 'Monitoring actualisé',
+        message: 'Statut recherche mis à jour.'
+      })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erreur de rafraichissement.'
+      addToast({
+        variant: 'error',
+        title: 'Monitoring indisponible',
+        message
+      })
+    } finally {
+      setIsRefreshingSearch(false)
+    }
+  }
+
+  const handleDispatch = async () => {
+    setIsDispatching(true)
+    try {
+      const result = await dispatchSearchOperationalAlerts(true)
+      setLastDispatch(result)
+      addToast({
+        variant: result.dispatched ? 'success' : 'info',
+        title: result.dispatched ? 'Alerte envoyee' : 'Alerte non envoyee',
+        message: result.message
+      })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Erreur d'envoi d'alerte."
+      addToast({
+        variant: 'error',
+        title: "Echec d'envoi",
+        message
+      })
+    } finally {
+      setIsDispatching(false)
+    }
+  }
 
   return (
     <AdminLayout>
@@ -108,6 +186,102 @@ export default function AdminHome() {
               </p>
             )}
           </div>
+        </section>
+
+        <section className="dashboard-section">
+          <div className="dashboard-section__head">
+            <h2>Monitoring recherche</h2>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Button
+                variant="ghost"
+                onClick={handleRefreshSearch}
+                disabled={isRefreshingSearch || isLoading}
+              >
+                {isRefreshingSearch ? 'Rafraichissement...' : 'Rafraichir'}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleDispatch}
+                disabled={isDispatching || isLoading}
+              >
+                {isDispatching ? 'Envoi...' : 'Envoyer alerte'}
+              </Button>
+            </div>
+          </div>
+
+          {searchStatus ? (
+            <div className="message-list" style={{ gap: 12 }}>
+              <div className="message-item" style={{ alignItems: 'flex-start', gap: 8 }}>
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    padding: '2px 10px',
+                    borderRadius: 999,
+                    fontWeight: 700,
+                    fontSize: 12,
+                    color: statusChip.color,
+                    background: statusChip.background
+                  }}
+                >
+                  {statusChip.label}
+                </span>
+                <span className="message-item__snippet">
+                  Derniere mesure: {new Date(searchStatus.generatedAt).toLocaleString()}
+                </span>
+              </div>
+
+              <div className="message-item" style={{ alignItems: 'flex-start', gap: 6 }}>
+                <span className="message-item__title">Listings (avec recherche)</span>
+                <span className="message-item__snippet">
+                  requetes: {searchStatus.snapshot.listings.withSearch.total} | p95:{' '}
+                  {searchStatus.snapshot.listings.withSearch.p95LatencyMs.toFixed(2)} ms | erreurs:{' '}
+                  {formatPercent(searchStatus.snapshot.listings.withSearch.errorRate)}
+                </span>
+              </div>
+
+              <div className="message-item" style={{ alignItems: 'flex-start', gap: 6 }}>
+                <span className="message-item__title">Suggestions</span>
+                <span className="message-item__snippet">
+                  requetes: {searchStatus.snapshot.suggestions.total} | p95:{' '}
+                  {searchStatus.snapshot.suggestions.p95LatencyMs.toFixed(2)} ms | erreurs:{' '}
+                  {formatPercent(searchStatus.snapshot.suggestions.errorRate)}
+                </span>
+              </div>
+
+              {searchStatus.alerts.length ? (
+                <div className="message-item" style={{ alignItems: 'flex-start', gap: 6 }}>
+                  <span className="message-item__title">Alertes actives ({searchStatus.alerts.length})</span>
+                  {searchStatus.alerts.map((alert, index) => (
+                    <span key={`${alert.component}-${alert.metric}-${index}`} className="message-item__snippet">
+                      [{alert.severity}] {alert.message}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <div className="message-item" style={{ alignItems: 'flex-start', gap: 6 }}>
+                  <span className="message-item__title">Alertes actives</span>
+                  <span className="message-item__snippet">Aucune alerte.</span>
+                </div>
+              )}
+
+              {lastDispatch ? (
+                <div className="message-item" style={{ alignItems: 'flex-start', gap: 6 }}>
+                  <span className="message-item__title">Dernier dispatch</span>
+                  <span className="message-item__snippet">{lastDispatch.message}</span>
+                  {lastDispatch.channels.length ? (
+                    <span className="message-item__snippet">
+                      Canaux: {lastDispatch.channels.map(channel => `${channel.channel}:${channel.sent ? 'ok' : 'ko'}`).join(', ')}
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <p style={{ padding: '1rem', color: '#6c757d' }}>
+              {isLoading ? 'Chargement monitoring...' : 'Monitoring indisponible.'}
+            </p>
+          )}
         </section>
       </div>
     </AdminLayout>

@@ -24,6 +24,11 @@ export class DeliveriesController {
     return this.deliveriesService.listMine(user);
   }
 
+  @Get(':id')
+  getOne(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.deliveriesService.getById(user, id);
+  }
+
   @Get('listing/:listingId')
   getForListing(@Param('listingId') listingId: string, @CurrentUser() user: AuthUser) {
     return this.deliveriesService.getForListing(user, listingId);

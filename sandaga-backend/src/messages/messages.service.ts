@@ -24,6 +24,7 @@ import { MediaService } from '../media/media.service';
 import { CreateQuickReplyDto } from './dto/create-quick-reply.dto';
 import { UpdateQuickReplyDto } from './dto/update-quick-reply.dto';
 import { MessageNotificationService } from './message-notification.service';
+import { PresenceService } from '../presence/presence.service';
 
 export type ConversationListResponse = {
   data: Conversation[]
@@ -37,7 +38,7 @@ export type MessageListResponse = {
 };
 
 export type MessageEventPayload = {
-  type: 'message.created' | 'message.read' | 'conversation.updated'
+  type: 'message.created' | 'message.read' | 'message.delivered' | 'message.typing' | 'conversation.updated'
   conversationId: string
   messageId?: string
   payload?: unknown
@@ -46,6 +47,7 @@ export type MessageEventPayload = {
 @Injectable()
 export class MessagesService {
   private readonly logger = new Logger(MessagesService.name);
+  private aiDisabledNoticeShown = false;
 
   constructor(
     @InjectRepository(Conversation)
@@ -60,7 +62,8 @@ export class MessagesService {
     private readonly mediaService: MediaService,
     private readonly configService: ConfigService,
     private readonly eventEmitter: EventEmitter2,
-    private readonly messageNotificationService: MessageNotificationService
+    private readonly messageNotificationService: MessageNotificationService,
+    private readonly presenceService: PresenceService
   ) {}
 
   private buildEventName(userId: string): string {
@@ -103,6 +106,28 @@ export class MessagesService {
     this.getParticipantIds(conversation).forEach(userId => {
       this.eventEmitter.emit(this.buildEventName(userId), payload);
     });
+  }
+
+  private decorateParticipant<T extends { id: string }>(participant?: T | null): T | null | undefined {
+    if (!participant) return participant;
+    return {
+      ...participant,
+      isOnline: this.presenceService.isOnline(participant.id)
+    };
+  }
+
+  private decorateConversation(conversation: Conversation): Conversation {
+    return {
+      ...conversation,
+      buyer: this.decorateParticipant(conversation.buyer),
+      seller: this.decorateParticipant(conversation.seller),
+      courier: this.decorateParticipant(conversation.courier)
+    } as Conversation;
+  }
+
+  private touchPresence(userId?: string | null): void {
+    if (!userId) return;
+    this.presenceService.touch(userId);
   }
 
   private async ensureConversation(
@@ -294,6 +319,7 @@ export class MessagesService {
     cursor?: string,
     limit = 20
   ): Promise<ConversationListResponse> {
+    this.touchPresence(user.id);
     const pageSize = Math.min(Math.max(limit ?? 20, 1), 100)
 
     const qb = this.conversationsRepository
@@ -336,8 +362,10 @@ export class MessagesService {
       return total + (conversation.unreadCountCourier ?? 0);
     }, 0);
 
+    const data = conversations.map(conversation => this.decorateConversation(conversation));
+
     return {
-      data: conversations,
+      data,
       nextCursor,
       unreadTotal
     };
@@ -368,17 +396,27 @@ export class MessagesService {
     return conversation;
   }
 
+  async getConversationDetails(
+    conversationId: string,
+    user: AuthUser
+  ): Promise<Conversation> {
+    this.touchPresence(user.id);
+    const conversation = await this.getConversation(conversationId, user);
+    return this.decorateConversation(conversation);
+  }
+
   async getMessages(
     conversationId: string,
     user: AuthUser,
     cursor?: string,
     limit = 50
   ): Promise<MessageListResponse> {
+    this.touchPresence(user.id);
     const pageSize = Math.min(Math.max(limit ?? 50, 1), 200)
 
     const conversation = await this.getConversation(conversationId, user);
 
-    await this.markAsDelivered(conversationId, user.id);
+    await this.markAsDelivered(conversation, user.id);
 
     const qb = this.messagesRepository
       .createQueryBuilder('message')
@@ -414,6 +452,7 @@ export class MessagesService {
     dto: StartConversationDto,
     user: AuthUser
   ): Promise<Conversation> {
+    this.touchPresence(user.id);
     const listing = await this.listingsService.findOne(dto.listingId);
 
     let conversation = await this.conversationsRepository.findOne({
@@ -445,7 +484,7 @@ export class MessagesService {
 
     await this.listingsService.recordMessage(dto.listingId);
 
-    return this.getConversation(conversation.id, user);
+    return this.getConversationDetails(conversation.id, user);
   }
 
   async sendMessage(
@@ -454,6 +493,7 @@ export class MessagesService {
     user: AuthUser,
     incrementListing = true
   ): Promise<Message> {
+    this.touchPresence(user.id);
     const conversation = await this.getConversation(conversationId, user);
 
     const message = this.messagesRepository.create({
@@ -535,6 +575,15 @@ export class MessagesService {
   private async maybeAutoReply(conversation: Conversation, buyerMessageAt: Date) {
     const autoEnabled = this.configService.get<string>('OPENAI_AUTOREPLY_ENABLED') !== 'false';
     if (!autoEnabled) {
+      return;
+    }
+
+    const apiKey = (this.configService.get<string>('OPENAI_API_KEY') ?? '').trim();
+    if (!apiKey) {
+      if (!this.aiDisabledNoticeShown) {
+        this.logger.log('AI auto-reply disabled: OPENAI_API_KEY is missing.');
+        this.aiDisabledNoticeShown = true;
+      }
       return;
     }
 
@@ -625,11 +674,14 @@ export class MessagesService {
         }
       }
     } catch (error) {
-      console.warn('AI auto-reply failed', error);
+      this.logger.warn(
+        `AI auto-reply failed: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 
   async markAsRead(conversationId: string, user: AuthUser): Promise<void> {
+    this.touchPresence(user.id);
     const conversation = await this.getConversation(conversationId, user);
 
     const now = new Date();
@@ -659,16 +711,48 @@ export class MessagesService {
     });
   }
 
-  private async markAsDelivered(conversationId: string, viewerId: string) {
+  async sendTyping(
+    conversationId: string,
+    user: AuthUser,
+    isTyping: boolean
+  ): Promise<{ success: boolean }> {
+    this.touchPresence(user.id);
+    const conversation = await this.getConversation(conversationId, user);
+
+    this.emitToParticipants(conversation, {
+      type: 'message.typing',
+      conversationId,
+      payload: { userId: user.id, isTyping }
+    });
+
+    return { success: true };
+  }
+
+  private async markAsDelivered(conversation: Conversation, viewerId: string) {
     const now = new Date();
-    await this.messagesRepository
+    const result = await this.messagesRepository
       .createQueryBuilder()
       .update(Message)
       .set({ deliveryStatus: 'delivered', deliveredAt: now })
-      .where('conversation_id = :conversationId', { conversationId })
+      .where('conversation_id = :conversationId', { conversationId: conversation.id })
       .andWhere('sender_id <> :viewerId', { viewerId })
       .andWhere('"deliveryStatus" = :status', { status: 'sent' })
+      .returning(['id'])
       .execute();
+
+    if ((result.affected ?? 0) > 0) {
+      const messageIds =
+        Array.isArray(result.raw) ? result.raw.map(row => row?.id).filter(Boolean) : [];
+      this.emitToParticipants(conversation, {
+        type: 'message.delivered',
+        conversationId: conversation.id,
+        payload: {
+          viewerId,
+          deliveredAt: now.toISOString(),
+          messageIds
+        }
+      });
+    }
   }
 
   async uploadAttachment(
@@ -676,6 +760,7 @@ export class MessagesService {
     file: Express.Multer.File,
     user: AuthUser
   ): Promise<MessageAttachment> {
+    this.touchPresence(user.id);
     const conversation = await this.getConversation(conversationId, user);
 
     const upload = await this.mediaService.uploadFile(file, { watermark: false });

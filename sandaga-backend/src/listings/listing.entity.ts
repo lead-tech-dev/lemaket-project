@@ -46,8 +46,16 @@ export class Listing extends CoreEntity {
     zipcode?: string;
     lat?: number;
     lng?: number;
+    cityId?: string;
+    neighborhoodId?: string;
     hideExact?: boolean;
   };
+
+  @Column({ name: 'city_id', type: 'uuid', nullable: true })
+  cityId?: string | null;
+
+  @Column({ name: 'neighborhood_id', type: 'uuid', nullable: true })
+  neighborhoodId?: string | null;
 
   @Column({ type: 'jsonb', nullable: true })
   contact?: {
@@ -62,6 +70,9 @@ export class Listing extends CoreEntity {
 
   @Column({ default: false })
   isBoosted!: boolean;
+
+  @Column({ default: false })
+  isPremium!: boolean;
 
   @Column({
     type: 'enum',

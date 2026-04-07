@@ -30,6 +30,7 @@ type HeroStrings = {
 };
 
 type RibbonStrings = {
+  premium: string;
   boosted: string;
   pro: string;
   featured: string;
@@ -120,6 +121,7 @@ const HOME_TRANSLATIONS: Record<HomeLocale, HomeLocaleStrings> = {
       }
     ],
     ribbons: {
+      premium: 'Premium',
       boosted: 'Boostée',
       pro: 'Pro',
       featured: 'À la une',
@@ -199,6 +201,7 @@ const HOME_TRANSLATIONS: Record<HomeLocale, HomeLocaleStrings> = {
       }
     ],
     ribbons: {
+      premium: 'Premium',
       boosted: 'Boosted',
       pro: 'Pro',
       featured: 'Top pick',

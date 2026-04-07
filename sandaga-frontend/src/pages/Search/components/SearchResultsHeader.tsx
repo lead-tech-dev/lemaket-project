@@ -7,6 +7,12 @@ import type { LocationSuggestion, SearchViewMode } from '../types'
 
 type Translate = (key: string, params?: Record<string, string | number>) => string
 
+type SearchSyntaxExample = {
+  id: string
+  label: string
+  query: string
+}
+
 type SearchResultsHeaderProps = {
   t: Translate
   term: string
@@ -35,6 +41,10 @@ type SearchResultsHeaderProps = {
   onViewModeChange: (mode: SearchViewMode) => void
   onOpenFilters: () => void
   onCreateAlert: () => void
+  searchSyntaxExamples: SearchSyntaxExample[]
+  onApplySearchSyntaxExample: (query: string) => void
+  didYouMean: { label: string; query: string } | null
+  onApplyDidYouMean: (query: string) => void
 }
 
 export function SearchResultsHeader({
@@ -64,7 +74,11 @@ export function SearchResultsHeader({
   onRadiusChange,
   onViewModeChange,
   onOpenFilters,
-  onCreateAlert
+  onCreateAlert,
+  searchSyntaxExamples,
+  onApplySearchSyntaxExample,
+  didYouMean,
+  onApplyDidYouMean
 }: SearchResultsHeaderProps) {
   return (
     <header className="search-page__header">
@@ -247,6 +261,34 @@ export function SearchResultsHeader({
           ) : null}
           {hasResults ? <> {t('search.header.page', { page })}</> : null}
         </p>
+        {didYouMean ? (
+          <p className="search-page__did-you-mean">
+            {t('search.didYouMean.prefix')}{' '}
+            <button
+              type="button"
+              className="search-page__did-you-mean-link"
+              onClick={() => onApplyDidYouMean(didYouMean.query)}
+            >
+              {didYouMean.label}
+            </button>{' '}
+            ?
+          </p>
+        ) : null}
+        <div className="search-page__search-help">
+          <span className="search-page__search-help-text">{t('search.syntax.help')}</span>
+          <div className="search-page__search-help-chips">
+            {searchSyntaxExamples.map(example => (
+              <button
+                key={example.id}
+                type="button"
+                className="search-page__search-help-chip"
+                onClick={() => onApplySearchSyntaxExample(example.query)}
+              >
+                {example.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
     </header>
   )
