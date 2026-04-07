@@ -1,5 +1,4 @@
 import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import DashboardLayout from '../../layouts/DashboardLayout'
 import { FormField } from '../../components/ui/FormField'
 import { Input } from '../../components/ui/Input'
@@ -22,7 +21,7 @@ import { resolveMediaUrl, uploadMedia } from '../../utils/media'
 import { useToast } from '../../components/ui/Toast'
 import { useAuth, invalidateAuthCache } from '../../hooks/useAuth'
 import { useI18n } from '../../contexts/I18nContext'
-import { buildProPlanOptions } from '../../constants/proPlans'
+import { useFeatureFlagsContext } from '../../contexts/FeatureFlagContext'
 
 const EMPTY_FORM: UpdateProfilePayload & { email: string } = {
   firstName: '',
@@ -81,9 +80,10 @@ function resolvePreferredChannels(
 }
 
 export default function Profile(){
-  const navigate = useNavigate()
   const { user } = useAuth()
-  const isPro = Boolean(user?.isPro)
+  const { isEnabled } = useFeatureFlagsContext()
+  const proPortalEnabled = isEnabled('proPortal')
+  const isPro = Boolean(user?.isPro) && proPortalEnabled
   const { addToast } = useToast()
   const { locale, t } = useI18n()
   const dateLocale = locale === 'fr' ? 'fr-FR' : 'en-US'
@@ -241,7 +241,6 @@ export default function Profile(){
 
   const identityMeta = identityStatusMeta[identityStatus]
   const companyMeta = companyStatusMeta[companyVerificationStatus]
-  const proPlans = useMemo(() => buildProPlanOptions(t), [t])
 
   useEffect(() => {
     let active = true
@@ -1127,46 +1126,6 @@ export default function Profile(){
                   </span>
                 </div>
               </div>
-            </div>
-          </section>
-        ) : null}
-
-        {!isPro ? (
-          <section className="dashboard-section">
-            <div className="dashboard-section__head">
-              <div>
-                <h2>{t('dashboard.profile.proUpsell.title')}</h2>
-                <p style={{ margin: '6px 0 0', color: '#6c757d' }}>
-                  {t('dashboard.profile.proUpsell.subtitle')}
-                </p>
-              </div>
-              <Button
-                variant="accent"
-                onClick={() => {
-                  navigate('/dashboard/pro')
-                }}
-              >
-                {t('dashboard.profile.proUpsell.cta')}
-              </Button>
-            </div>
-            <div className="message-list">
-              {proPlans.map(plan => (
-                <div key={plan.id} className="message-item">
-                  <div>
-                    <span className="message-item__title">{plan.name}</span>
-                    <span className="message-item__snippet">{plan.description}</span>
-                  </div>
-                  <span className="message-item__snippet">{plan.priceLabel}</span>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      navigate('/dashboard/pro')
-                    }}
-                  >
-                    {plan.cta}
-                  </Button>
-                </div>
-              ))}
             </div>
           </section>
         ) : null}

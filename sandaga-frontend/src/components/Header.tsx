@@ -7,6 +7,7 @@ import { useMessageNotifications } from '../hooks/useMessageNotifications'
 import { useFeatureFlagsContext } from '../contexts/FeatureFlagContext'
 import { useCategories } from '../hooks/useCategories'
 import { useI18n } from '../contexts/I18nContext'
+import { apiGet } from '../utils/api'
 import lemaketIcon from '../assets/icons/lemaket-icon.svg'
 
 type RecentSearchItem = {
@@ -15,14 +16,43 @@ type RecentSearchItem = {
   to: string
 }
 
+type QuerySuggestionItem = {
+  id: string
+  label: string
+  query: string
+  resultCount: number
+  hits: number
+}
+
+type QuerySuggestionSource = 'recent' | 'trending' | 'history'
+
+type HeaderQuerySuggestion = {
+  id: string
+  label: string
+  query: string
+  resultCount: number
+  hits: number
+  source: QuerySuggestionSource
+}
+
+const normalizeSuggestionKey = (value: string) =>
+  value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '')
+    .trim()
+
+const isValidSuggestionQuery = (value: string) =>
+  value.trim().length >= 2 && /[a-z]/i.test(value)
+
 export default function Header(){
   const location = useLocation()
   const navigate = useNavigate()
-  const { user, isPro, isAdmin } = useAuth()
+  const { user, isAdmin } = useAuth()
   const unreadTotal = useMessageNotifications()
   const { isEnabled } = useFeatureFlagsContext()
   const messagingEnabled = isEnabled('proMessaging')
-  const proPortalEnabled = isEnabled('proPortal')
   const { categories, isLoading: categoriesLoading, error: categoriesError } = useCategories({ activeOnly: false })
   const { t } = useI18n()
   const [searchOpen, setSearchOpen] = useState(false)
@@ -104,6 +134,11 @@ const navLinks = useMemo(() => {
   const RECENT_SEARCHES_KEY = 'lemaket.recentSearches.v2'
   const MAX_RECENT_SEARCHES = 6
   const [recentSearches, setRecentSearches] = useState<RecentSearchItem[]>([])
+  const [trendingSearches, setTrendingSearches] = useState<QuerySuggestionItem[]>([])
+  const [historySuggestions, setHistorySuggestions] = useState<QuerySuggestionItem[]>([])
+  const [historySuggestionsLoading, setHistorySuggestionsLoading] = useState(false)
+  const historyDebounceRef = useRef<number | null>(null)
+  const historyAbortRef = useRef<AbortController | null>(null)
 
   const categoryLabelBySlug = useMemo(() => {
     const map = new Map<string, string>()
@@ -340,6 +375,33 @@ const navLinks = useMemo(() => {
   }, [searchOpen])
 
   useEffect(() => {
+    if (!searchOpen || trendingSearches.length > 0) {
+      return
+    }
+
+    const controller = new AbortController()
+    apiGet<QuerySuggestionItem[]>('/home/trending-searches', {
+      signal: controller.signal,
+      silent: true
+    })
+      .then(items => {
+        if (controller.signal.aborted) {
+          return
+        }
+        setTrendingSearches(Array.isArray(items) ? items : [])
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setTrendingSearches([])
+        }
+      })
+
+    return () => {
+      controller.abort()
+    }
+  }, [searchOpen, trendingSearches.length])
+
+  useEffect(() => {
     if (!searchOpen) {
       return
     }
@@ -408,8 +470,158 @@ const navLinks = useMemo(() => {
   }
 
   const normalizedQuery = searchValue.trim().toLowerCase()
+  useEffect(() => {
+    if (!searchOpen || normalizedQuery.length < 2) {
+      if (historyDebounceRef.current) {
+        window.clearTimeout(historyDebounceRef.current)
+        historyDebounceRef.current = null
+      }
+      if (historyAbortRef.current) {
+        historyAbortRef.current.abort()
+        historyAbortRef.current = null
+      }
+      setHistorySuggestions([])
+      setHistorySuggestionsLoading(false)
+      return
+    }
+
+    if (historyDebounceRef.current) {
+      window.clearTimeout(historyDebounceRef.current)
+    }
+    if (historyAbortRef.current) {
+      historyAbortRef.current.abort()
+    }
+
+    setHistorySuggestionsLoading(true)
+    historyDebounceRef.current = window.setTimeout(async () => {
+      const controller = new AbortController()
+      historyAbortRef.current = controller
+      try {
+        const items = await apiGet<QuerySuggestionItem[]>(
+          `/search/suggestions?q=${encodeURIComponent(normalizedQuery)}&limit=8`,
+          {
+            signal: controller.signal,
+            silent: true
+          }
+        )
+        if (controller.signal.aborted) {
+          return
+        }
+        setHistorySuggestions(Array.isArray(items) ? items : [])
+      } catch {
+        if (!controller.signal.aborted) {
+          setHistorySuggestions([])
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setHistorySuggestionsLoading(false)
+        }
+      }
+    }, 220)
+
+    return () => {
+      if (historyDebounceRef.current) {
+        window.clearTimeout(historyDebounceRef.current)
+        historyDebounceRef.current = null
+      }
+      if (historyAbortRef.current) {
+        historyAbortRef.current.abort()
+        historyAbortRef.current = null
+      }
+    }
+  }, [normalizedQuery, searchOpen])
+
+  const querySuggestions = useMemo<HeaderQuerySuggestion[]>(() => {
+    const normalizedInput = normalizedQuery
+    const recentSuggestions = recentSearches
+      .map<HeaderQuerySuggestion | null>(item => {
+        const queryString = item.to.includes('?') ? item.to.split('?')[1] ?? '' : ''
+        const params = new URLSearchParams(queryString)
+        const query = params.get('q')?.trim() ?? ''
+        if (!query) {
+          return null
+        }
+        return {
+          id: `recent-${query.toLowerCase()}`,
+          label: query,
+          query,
+          resultCount: 0,
+          hits: 0,
+          source: 'recent'
+        }
+      })
+      .filter((item): item is HeaderQuerySuggestion => Boolean(item?.query))
+
+    const trendingSuggestions: HeaderQuerySuggestion[] = trendingSearches.map(item => ({
+      id: `trending-${item.id}`,
+      label: item.label,
+      query: item.query,
+      resultCount: item.resultCount ?? 0,
+      hits: item.hits ?? 0,
+      source: 'trending'
+    }))
+
+    const serverSuggestions: HeaderQuerySuggestion[] = historySuggestions.map(item => ({
+      id: `history-${item.id}`,
+      label: item.label,
+      query: item.query,
+      resultCount: item.resultCount ?? 0,
+      hits: item.hits ?? 0,
+      source: 'history'
+    }))
+
+    const candidates = normalizedInput
+      ? [...serverSuggestions, ...recentSuggestions, ...trendingSuggestions].filter(item => {
+          const normalizedCandidate = item.query.trim().toLowerCase()
+          const normalizedLabel = item.label.trim().toLowerCase()
+          return (
+            normalizedCandidate.includes(normalizedInput) ||
+            normalizedLabel.includes(normalizedInput)
+          )
+        })
+      : [...recentSuggestions, ...trendingSuggestions]
+
+    const seen = new Set<string>()
+    const scored = candidates
+      .map(item => {
+        const normalizedCandidate = item.query.trim().toLowerCase()
+        let score = 0
+        if (normalizedInput) {
+          if (normalizedCandidate === normalizedInput) {
+            score += 600
+          } else if (normalizedCandidate.startsWith(normalizedInput)) {
+            score += 340
+          } else if (normalizedCandidate.includes(normalizedInput)) {
+            score += 180
+          }
+        }
+        if (item.source === 'history') score += 140
+        if (item.source === 'recent') score += 120
+        if (item.source === 'trending') score += 90
+        score += Math.min(item.resultCount, 500) / 10
+        score += Math.min(item.hits, 500) / 10
+
+        return { item, score }
+      })
+      .sort((a, b) => b.score - a.score)
+      .map(entry => entry.item)
+      .filter(item => {
+        if (!isValidSuggestionQuery(item.query)) {
+          return false
+        }
+        const key = normalizeSuggestionKey(item.query)
+        if (!key || seen.has(key)) {
+          return false
+        }
+        seen.add(key)
+        return true
+      })
+
+    return scored.slice(0, MAX_SUGGESTIONS)
+  }, [historySuggestions, normalizedQuery, recentSearches, trendingSearches])
+
   const categorySuggestions = useMemo<
-    Array<{ id: string; slug: string; label: string; parentLabel: string | null }>
+    { id: string; slug: string; label: string; parentLabel: string | null }[]
   >(() => {
     if (categoriesLoading || categoriesError || !categories.length) {
       return []
@@ -448,6 +660,13 @@ const navLinks = useMemo(() => {
   }, [categories, categoriesError, categoriesLoading, normalizedQuery])
 
   const showPanel = searchOpen
+
+  const handleQuerySuggestionClick = (query: string) => {
+    const target = buildSearchUrl(query)
+    addRecentSearch(target, query)
+    navigate(target)
+    setSearchOpen(false)
+  }
 
   const handleCategorySuggestionClick = (
     categorySlug: string,
@@ -490,7 +709,7 @@ const navLinks = useMemo(() => {
               <span aria-hidden>⭐</span>
               <span>{t('header.favorites')}</span>
             </Link>
-            {messagingEnabled && isPro ? (
+            {messagingEnabled && Boolean(user) ? (
               <Link to="/dashboard/messages" className="lbc-header__pill">
                 <span aria-hidden>💬</span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -513,8 +732,6 @@ const navLinks = useMemo(() => {
                   {user.firstName}
                   {isAdmin ? (
                     <span className="lbc-header__badge">{t('header.badge.admin')}</span>
-                  ) : isPro ? (
-                    <span className="lbc-header__badge">{t('header.badge.pro')}</span>
                   ) : null}
                 </span>
               </Link>
@@ -603,6 +820,39 @@ const navLinks = useMemo(() => {
                   </label>
 
                   <div className="lbc-search-panel__divider" />
+
+                  <div className="lbc-search-panel__section">
+                    <span className="lbc-search-panel__title">{t('header.search.trending')}</span>
+                    {historySuggestionsLoading ? (
+                      <p className="lbc-search-panel__empty">{t('search.header.loading')}</p>
+                    ) : querySuggestions.length ? (
+                      querySuggestions.map(item => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          className="lbc-search-panel__item lbc-search-panel__item--search-query"
+                          onClick={() => handleQuerySuggestionClick(item.query)}
+                        >
+                          <span className="lbc-search-panel__icon" aria-hidden>
+                            {item.source === 'recent' ? '◷' : item.source === 'trending' ? '↗' : '⌕'}
+                          </span>
+                          <span className="lbc-search-panel__label lbc-search-panel__label--stacked">
+                            <strong>{item.label}</strong>
+                            <small>
+                              {item.source === 'recent'
+                                ? t('header.search.recent')
+                                : item.source === 'trending'
+                                ? t('header.search.trending')
+                                : t('header.search.suggestions')}
+                              {item.resultCount > 0 ? ` · ${item.resultCount}` : ''}
+                            </small>
+                          </span>
+                        </button>
+                      ))
+                    ) : (
+                      <p className="lbc-search-panel__empty">{t('header.search.empty')}</p>
+                    )}
+                  </div>
 
                   <div className="lbc-search-panel__section">
                     <span className="lbc-search-panel__title">{t('header.search.suggestions')}</span>
@@ -703,9 +953,6 @@ const navLinks = useMemo(() => {
               {t('header.allCategories')}
             </Link>
           </nav>
-          {proPortalEnabled && isPro ? (
-            <Link to="/dashboard/pro" className="lbc-header__cta">{t('header.proSpace')}</Link>
-          ) : null}
         </div>
       </div>
       {mobileMenuOpen ? (
@@ -738,7 +985,7 @@ const navLinks = useMemo(() => {
             <div className="lbc-header__mobile-body">
               <section className="lbc-header__mobile-section">
                 <span className="lbc-header__mobile-section-title">{t('header.mobile.actions')}</span>
-                {messagingEnabled && isPro ? (
+                {messagingEnabled && Boolean(user) ? (
                   <Link
                     to="/dashboard/messages"
                     className={`lbc-header__mobile-link${isMobileLinkActive('/dashboard/messages') ? ' is-active' : ''}`}
@@ -780,8 +1027,6 @@ const navLinks = useMemo(() => {
                       {user.firstName}
                       {isAdmin ? (
                         <span className="lbc-header__badge">{t('header.badge.admin')}</span>
-                      ) : isPro ? (
-                        <span className="lbc-header__badge">{t('header.badge.pro')}</span>
                       ) : null}
                     </span>
                   </Link>
@@ -804,17 +1049,6 @@ const navLinks = useMemo(() => {
                 >
                   {t('header.postListing')}
                 </Link>
-                {proPortalEnabled && isPro ? (
-                  <Link
-                    to="/dashboard/pro"
-                    className={`lbc-header__mobile-link${isMobileLinkActive('/dashboard/pro') ? ' is-active' : ''}`}
-                    aria-current={isMobileLinkActive('/dashboard/pro') ? 'page' : undefined}
-                    onClick={closeMobileMenu}
-                  >
-                    <span aria-hidden>📈</span>
-                    <span>{t('header.proSpace')}</span>
-                  </Link>
-                ) : null}
                 <div className="lbc-header__mobile-preferences">
                   <LocaleSwitcher />
                   <SwitchTheme />

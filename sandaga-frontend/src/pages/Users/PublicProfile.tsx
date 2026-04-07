@@ -23,6 +23,7 @@ type PublicUserProfile = {
   location?: string | null
   createdAt: string
   lastLoginAt?: string | null
+  isOnline?: boolean
   hasPhoneNumber?: boolean
   averageRating?: number
   reviewsCount?: number
@@ -80,6 +81,20 @@ const formatLastActive = (value: string | null | undefined, locale: string): str
   } catch {
     return locale === 'fr' ? 'Activité récente indisponible' : 'Recent activity unavailable'
   }
+}
+
+const wasRecentlyActive = (value: string | null | undefined, minutes = 5) => {
+  if (!value) return false
+  const ts = new Date(value).getTime()
+  if (Number.isNaN(ts)) return false
+  return Date.now() - ts <= minutes * 60 * 1000
+}
+
+const resolveOnlineLabel = (isOnline: boolean | undefined, lastLoginAt: string | null | undefined, locale: string) => {
+  if (isOnline || wasRecentlyActive(lastLoginAt)) {
+    return locale === 'fr' ? 'En ligne' : 'Online'
+  }
+  return formatLastActive(lastLoginAt, locale)
 }
 
 const formatResponseTime = (hours: number | null | undefined): string => {
@@ -431,7 +446,7 @@ export default function PublicUserProfile() {
                     </div>
                   )}
                   <ul className="user-public__facts">
-                    <li>👥 {numberFormatter.format(profile.proFollowsCount ?? 0)} Pro suivis</li>
+                    <li>👥 {numberFormatter.format(profile.proFollowsCount ?? 0)} vendeurs suivis</li>
                     <li>📅 Membre depuis {formatMemberSinceDate(profile.createdAt, locale)}</li>
                     <li>
                       <span className="user-public__fact-icon" aria-hidden>
@@ -439,7 +454,7 @@ export default function PublicUserProfile() {
                       </span>
                       {profile.location ?? '—'}
                     </li>
-                    <li>⏱ {formatLastActive(profile.lastLoginAt, locale)}</li>
+                    <li>⏱ {resolveOnlineLabel(profile.isOnline, profile.lastLoginAt, locale)}</li>
                   </ul>
                 </div>
               </div>

@@ -305,9 +305,6 @@ export default function StorefrontPage() {
               <div className="storefront-title">
                 <div className="storefront-title__row">
                   <h1>{storefront.name}</h1>
-                  {storefront.isPro ? (
-                    <span className="storefront-badge">{t('storefront.badge.pro')}</span>
-                  ) : null}
                   {storefront.isCompanyVerified ? (
                     <span className="storefront-badge storefront-badge--verified">
                       {t('storefront.badge.companyVerified')}
@@ -531,6 +528,11 @@ export default function StorefrontPage() {
 	                            style={hasCover ? { backgroundImage: `url(${coverUrl})` } : undefined}
 	                          >
                             <div className="lbc-listing-card__badges">
+                              {listing.isPremium ? (
+                                <span className="lbc-listing-card__badge lbc-listing-card__badge--popular">
+                                  ✦ Premium
+                                </span>
+                              ) : null}
                               {isPopularListing(listing) ? (
                                 <span className="lbc-listing-card__badge lbc-listing-card__badge--popular">
                                   🔥 {t('listings.detail.badges.popular')}

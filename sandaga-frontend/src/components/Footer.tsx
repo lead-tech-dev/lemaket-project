@@ -1,19 +1,9 @@
 import { Link } from 'react-router-dom'
 import { useI18n } from '../contexts/I18nContext'
-import { useAuth } from '../hooks/useAuth'
 import lemaketIcon from '../assets/icons/lemaket-icon.svg'
 
 export default function Footer(){
   const { t } = useI18n()
-  const { isPro } = useAuth()
-  const proColumn = {
-    title: t('footer.column.pro'),
-    links: [
-      { label: t('footer.link.proAccount'), to: '/dashboard/pro' },
-      { label: t('footer.link.ads'), to: '/dashboard/pro' },
-      { label: t('footer.link.enterprise'), to: '/dashboard/pro' },
-    ],
-  }
   const footerColumns = [
     {
       title: t('footer.column.company'),
@@ -31,7 +21,6 @@ export default function Footer(){
         { label: t('footer.link.faq'), to: '/faq' },
       ],
     },
-    ...(isPro ? [proColumn] : []),
     {
       title: t('footer.column.follow'),
       links: [
