@@ -84,10 +84,22 @@ export default function AdminHome() {
   }, [searchStatus])
 
   const formatPercent = (value: number) => `${(value * 100).toFixed(2)}%`
-  const listingsWithSearch = searchStatus?.snapshot?.listings?.withSearch
-  const suggestionsSummary = searchStatus?.snapshot?.suggestions
+  const listingsWithSearch = searchStatus?.snapshot?.listings?.withSearch ?? {
+    total: 0,
+    errors: 0,
+    errorRate: 0,
+    successRate: 1,
+    p95LatencyMs: 0
+  }
+  const suggestionsSummary = searchStatus?.snapshot?.suggestions ?? {
+    total: 0,
+    errors: 0,
+    errorRate: 0,
+    successRate: 1,
+    p95LatencyMs: 0
+  }
   const searchAlerts = Array.isArray(searchStatus?.alerts) ? searchStatus.alerts : []
-  const canRenderSearchMonitoring = Boolean(searchStatus && listingsWithSearch && suggestionsSummary)
+  const canRenderSearchMonitoring = Boolean(searchStatus)
 
   const handleRefreshSearch = async () => {
     setIsRefreshingSearch(true)
@@ -235,7 +247,7 @@ export default function AdminHome() {
                   {statusChip.label}
                 </span>
                 <span className="message-item__snippet">
-                  Derniere mesure: {new Date(searchStatus.generatedAt).toLocaleString()}
+                  Derniere mesure: {new Date(searchStatus?.generatedAt ?? Date.now()).toLocaleString()}
                 </span>
               </div>
 
