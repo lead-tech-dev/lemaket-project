@@ -16,7 +16,6 @@ type SearchResultsListProps = {
   page: number
   totalPages: number
   formatPrice: (listing: Listing) => string
-  getSellerType: (listing: Listing) => string
   getListingLocation: (listing: Listing) => string
   getOwnerProfileUrl: (listing: Listing) => string | null
   getOwnerName: (listing: Listing) => string
@@ -42,7 +41,6 @@ export function SearchResultsList({
   page,
   totalPages,
   formatPrice,
-  getSellerType,
   getListingLocation,
   getOwnerProfileUrl,
   getOwnerName,
@@ -167,9 +165,6 @@ export function SearchResultsList({
                           {t('listings.badge.companyVerified')}
                         </span>
                       ) : null}
-                      <span className="search-result__badge search-result__badge--seller">
-                        {getSellerType(listing)}
-                      </span>
                     </div>
                     <span className="search-result__category">{listing.category?.name ?? t('listing.fallbackCategory')}</span>
                   </header>

@@ -964,13 +964,6 @@ export default function SearchResults(){
       .join(' ')
   }
 
-  const getSellerType = (listing: Listing) => {
-    if (listing.owner?.isPro) {
-      return t('filters.sellerType.pro')
-    }
-    return t('filters.sellerType.individual')
-  }
-
   const getSortLabel = (value: SortOption) => {
     if (value === 'priceAsc') {
       return t('sort.priceAsc')
@@ -1978,7 +1971,6 @@ export default function SearchResults(){
           page={page}
           totalPages={totalPages}
           formatPrice={formatPrice}
-          getSellerType={getSellerType}
           getListingLocation={getListingLocation}
           getOwnerProfileUrl={getOwnerProfileUrl}
           getOwnerName={getOwnerName}
