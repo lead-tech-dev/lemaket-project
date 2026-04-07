@@ -17,6 +17,7 @@ import { MediaService } from '../src/media/media.service';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { MessageNotificationService } from '../src/messages/message-notification.service';
+import { PresenceService } from '../src/presence/presence.service';
 
 describe('MessagesService', () => {
   let service: MessagesService;
@@ -82,6 +83,11 @@ describe('MessagesService', () => {
     notifyConversationStarted: jest.fn(),
   };
 
+  const mockPresenceService = {
+    isOnline: jest.fn().mockReturnValue(false),
+    touch: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -121,6 +127,10 @@ describe('MessagesService', () => {
         {
           provide: MessageNotificationService,
           useValue: mockMessageNotificationService,
+        },
+        {
+          provide: PresenceService,
+          useValue: mockPresenceService,
         },
       ],
     }).compile();

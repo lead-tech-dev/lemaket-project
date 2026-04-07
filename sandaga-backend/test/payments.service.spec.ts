@@ -21,6 +21,7 @@ import { WalletsService } from '../src/payments/wallets.service';
 import { OrdersService } from '../src/orders/orders.service';
 import { MessagesService } from '../src/messages/messages.service';
 import { ConfigService } from '@nestjs/config';
+import { Category } from '../src/categories/category.entity';
 
 describe('PaymentsService', () => {
   let service: PaymentsService;
@@ -100,6 +101,10 @@ describe('PaymentsService', () => {
         },
         {
           provide: getRepositoryToken(Listing),
+          useValue: mockSimpleRepository,
+        },
+        {
+          provide: getRepositoryToken(Category),
           useValue: mockSimpleRepository,
         },
         {
