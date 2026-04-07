@@ -2299,7 +2299,13 @@ button.lbc-header__pill{
 .lbc-section--trending{
   background:var(--color-surface-alt);
   border-radius:calc($radius*1.2);
-  padding:calc($spacing*4);
+  padding:calc($spacing*3) 0;
+}
+.lbc-section--trending .lbc-section__head{
+  align-items:flex-start;
+}
+.lbc-section--trending .lbc-section__head h2{
+  text-align:left;
 }
 .lbc-trending{
   display:grid;

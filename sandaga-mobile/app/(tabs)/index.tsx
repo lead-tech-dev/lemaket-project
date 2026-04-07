@@ -470,7 +470,7 @@ export default function HomeScreen() {
       ) : null}
 
       {trending.length > 0 ? (
-        <View style={styles.sectionBlock}>
+        <View style={[styles.sectionBlock, styles.trendingSectionBlock]}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Recherches tendances</Text>
           </View>
@@ -788,7 +788,9 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xl
   },
   sectionHeader: {
-    marginBottom: spacing.md
+    marginBottom: spacing.md,
+    width: '100%',
+    alignItems: 'flex-start'
   },
   sectionTitle: {
     fontSize: typography.title,
@@ -819,7 +821,13 @@ const styles = StyleSheet.create({
   trendingGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.sm
+    gap: spacing.sm,
+    width: '100%',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-start'
+  },
+  trendingSectionBlock: {
+    alignItems: 'flex-start'
   },
   trendingPill: {
     width: '48.5%',
