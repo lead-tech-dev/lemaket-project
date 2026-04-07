@@ -67,19 +67,27 @@ export default function AdminHome() {
   }, [loadOverview])
 
   const statusChip = useMemo(() => {
-    if (!searchStatus) {
+    const status = searchStatus?.status
+    if (!status) {
       return { label: 'INCONNU', color: '#6c757d', background: '#f1f3f5' }
     }
-    if (searchStatus.status === 'critical') {
+    if (status === 'critical') {
       return { label: 'CRITIQUE', color: '#b42318', background: '#fee4e2' }
     }
-    if (searchStatus.status === 'degraded') {
+    if (status === 'degraded') {
       return { label: 'DEGRADE', color: '#b54708', background: '#fffaeb' }
     }
-    return { label: 'OK', color: '#027a48', background: '#ecfdf3' }
+    if (status === 'ok') {
+      return { label: 'OK', color: '#027a48', background: '#ecfdf3' }
+    }
+    return { label: 'INCONNU', color: '#6c757d', background: '#f1f3f5' }
   }, [searchStatus])
 
   const formatPercent = (value: number) => `${(value * 100).toFixed(2)}%`
+  const listingsWithSearch = searchStatus?.snapshot?.listings?.withSearch
+  const suggestionsSummary = searchStatus?.snapshot?.suggestions
+  const searchAlerts = Array.isArray(searchStatus?.alerts) ? searchStatus.alerts : []
+  const canRenderSearchMonitoring = Boolean(searchStatus && listingsWithSearch && suggestionsSummary)
 
   const handleRefreshSearch = async () => {
     setIsRefreshingSearch(true)
@@ -209,7 +217,7 @@ export default function AdminHome() {
             </div>
           </div>
 
-          {searchStatus ? (
+          {canRenderSearchMonitoring ? (
             <div className="message-list" style={{ gap: 12 }}>
               <div className="message-item" style={{ alignItems: 'flex-start', gap: 8 }}>
                 <span
@@ -234,25 +242,25 @@ export default function AdminHome() {
               <div className="message-item" style={{ alignItems: 'flex-start', gap: 6 }}>
                 <span className="message-item__title">Listings (avec recherche)</span>
                 <span className="message-item__snippet">
-                  requetes: {searchStatus.snapshot.listings.withSearch.total} | p95:{' '}
-                  {searchStatus.snapshot.listings.withSearch.p95LatencyMs.toFixed(2)} ms | erreurs:{' '}
-                  {formatPercent(searchStatus.snapshot.listings.withSearch.errorRate)}
+                  requetes: {listingsWithSearch.total} | p95:{' '}
+                  {listingsWithSearch.p95LatencyMs.toFixed(2)} ms | erreurs:{' '}
+                  {formatPercent(listingsWithSearch.errorRate)}
                 </span>
               </div>
 
               <div className="message-item" style={{ alignItems: 'flex-start', gap: 6 }}>
                 <span className="message-item__title">Suggestions</span>
                 <span className="message-item__snippet">
-                  requetes: {searchStatus.snapshot.suggestions.total} | p95:{' '}
-                  {searchStatus.snapshot.suggestions.p95LatencyMs.toFixed(2)} ms | erreurs:{' '}
-                  {formatPercent(searchStatus.snapshot.suggestions.errorRate)}
+                  requetes: {suggestionsSummary.total} | p95:{' '}
+                  {suggestionsSummary.p95LatencyMs.toFixed(2)} ms | erreurs:{' '}
+                  {formatPercent(suggestionsSummary.errorRate)}
                 </span>
               </div>
 
-              {searchStatus.alerts.length ? (
+              {searchAlerts.length ? (
                 <div className="message-item" style={{ alignItems: 'flex-start', gap: 6 }}>
-                  <span className="message-item__title">Alertes actives ({searchStatus.alerts.length})</span>
-                  {searchStatus.alerts.map((alert, index) => (
+                  <span className="message-item__title">Alertes actives ({searchAlerts.length})</span>
+                  {searchAlerts.map((alert, index) => (
                     <span key={`${alert.component}-${alert.metric}-${index}`} className="message-item__snippet">
                       [{alert.severity}] {alert.message}
                     </span>
