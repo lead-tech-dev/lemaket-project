@@ -71,12 +71,16 @@ describe('Payments (integration)', () => {
     await user.click(
       await screen.findByRole('button', { name: /^ajouter une méthode de paiement$/i })
     )
+    await user.type(screen.getByLabelText(/numéro mobile money/i), '670000000')
     await user.type(screen.getByLabelText(/nom du titulaire/i), 'John Doe')
     await user.click(screen.getByRole('button', { name: /enregistrer/i }))
 
     expect(vi.mocked(Api.apiPost)).toHaveBeenCalledWith(
       '/payments/methods',
       expect.objectContaining({
+        type: 'wallet',
+        provider: 'mtn',
+        externalId: '+237670000000',
         holderName: 'John Doe'
       })
     )
