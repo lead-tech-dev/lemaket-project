@@ -36,7 +36,6 @@ export default () => ({
       apiKey: process.env.ZIKOPAY_API_KEY ?? '',
       apiSecret: process.env.ZIKOPAY_API_SECRET ?? '',
       baseUrl: process.env.ZIKOPAY_BASE_URL ?? 'https://api.payment.zikopay.com/v1',
-      mockMode: String(process.env.ZIKOPAY_MOCK_MODE ?? 'false').toLowerCase() === 'true',
       returnUrl:
         process.env.ZIKOPAY_RETURN_URL ??
         process.env.APP_PUBLIC_URL ??

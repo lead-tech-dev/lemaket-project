@@ -113,7 +113,6 @@ export class PaymentsService {
   private readonly zikopayReturnUrl: string;
   private readonly zikopayCancelUrl: string;
   private readonly zikopayCallbackUrl: string;
-  private readonly zikopayMockMode: boolean;
   private readonly zeroDecimalCurrencies = new Set([
     'BIF',
     'CLP',
@@ -189,7 +188,6 @@ export class PaymentsService {
     this.zikopayReturnUrl = zikopayConfig.returnUrl ?? '';
     this.zikopayCancelUrl = zikopayConfig.cancelUrl ?? '';
     this.zikopayCallbackUrl = zikopayConfig.callbackUrl ?? '';
-    this.zikopayMockMode = Boolean(zikopayConfig.mockMode);
 
     const promotionPriceMap =
       this.configService.get<Record<string, string>>('payments.promotionPriceMap') ?? {};
@@ -1890,6 +1888,94 @@ export class PaymentsService {
     return { paymentId: payment.id, paymentUrl, reference };
   }
 
+  /**
+   * Applique à un paiement le statut RÉEL renvoyé par Zikopay (réponse
+   * authentifiée par clé API). C'est l'unique source de vérité pour
+   * compléter/échouer un paiement : ni le webhook entrant (non signé), ni
+   * aucun payload client n'est traité comme fiable.
+   */
+  private async applyZikopayAuthoritativeStatus(
+    payment: Payment,
+    response: Record<string, any> | null,
+    source: 'webhook' | 'verify'
+  ): Promise<{ ok: true; status: PaymentStatus | string }> {
+    const data = ((response as Record<string, any>)?.data ?? response ?? {}) as Record<
+      string,
+      any
+    >;
+    const statusRaw =
+      data?.status ?? data?.paymentStatus ?? (response as Record<string, any>)?.status ?? 'pending';
+    const status = String(statusRaw).toLowerCase();
+
+    if (this.isProviderSuccessStatus(status)) {
+      const transactionId = this.extractProviderTransactionId(
+        response as Record<string, any>,
+        'zikopay'
+      );
+      const debitConfirmed = this.hasOperatorDebitConfirmation({
+        provider: 'zikopay',
+        payment,
+        payload: response as Record<string, any>,
+        transactionId
+      });
+
+      if (!debitConfirmed) {
+        await this.logPaymentEvent({
+          paymentId: payment.id,
+          provider: 'zikopay',
+          type: `${source}_success_without_debit_proof`,
+          status,
+          payload: response ?? null
+        });
+        return { ok: true, status: payment.status ?? PaymentStatus.PENDING };
+      }
+
+      const wasCompleted = payment.status === PaymentStatus.COMPLETED;
+      payment.status = PaymentStatus.COMPLETED;
+      payment.metadata = {
+        ...(payment.metadata ?? {}),
+        zikopayTransactionId: transactionId,
+        operatorDebitConfirmed: true,
+        operatorDebitConfirmedAt: new Date().toISOString()
+      };
+      await this.paymentsRepository.save(payment);
+      await this.logPaymentEvent({
+        paymentId: payment.id,
+        provider: 'zikopay',
+        type: `${source}_completed`,
+        status,
+        payload: response ?? null
+      });
+
+      if (!wasCompleted) {
+        const meta = {
+          ...(typeof payment.metadata === 'object' && payment.metadata ? payment.metadata : {})
+        };
+        await this.handlePaymentMeta(payment, meta);
+      }
+      return { ok: true, status: payment.status };
+    }
+
+    if (this.isProviderFailureStatus(status)) {
+      payment.status = PaymentStatus.FAILED;
+      await this.paymentsRepository.save(payment);
+      await this.logPaymentEvent({
+        paymentId: payment.id,
+        provider: 'zikopay',
+        type: `${source}_failed`,
+        status,
+        payload: response ?? null
+      });
+      const meta = {
+        ...(typeof payment.metadata === 'object' && payment.metadata ? payment.metadata : {})
+      };
+      await this.notifyEscrowPaymentFailed(payment, meta);
+      return { ok: true, status: payment.status };
+    }
+
+    return { ok: true, status: payment.status ?? PaymentStatus.PENDING };
+  }
+
   async handleZikopayWebhook(payload: Record<string, any>) {
     const reference = payload?.reference ?? payload?.data?.reference ?? null;
     if (!reference) {
@@ -1908,74 +1994,35 @@ export class PaymentsService {
       return { ok: true, status: 'unknown' };
     }
 
-    const statusRaw =
-      payload?.status ?? payload?.data?.status ?? payload?.paymentStatus ?? 'pending';
-    const status = String(statusRaw).toLowerCase();
-
-    if (this.isProviderSuccessStatus(status)) {
-      const transactionId = this.extractProviderTransactionId(payload, 'zikopay');
-      const debitConfirmed = this.hasOperatorDebitConfirmation({
-        provider: 'zikopay',
-        payment,
-        payload,
-        transactionId
-      });
-
-      if (!debitConfirmed) {
-        await this.logPaymentEvent({
-          paymentId: payment.id,
-          provider: 'zikopay',
-          type: 'webhook_success_without_debit_proof',
-          status,
-          payload
-        });
-        return { ok: true, status: payment.status ?? PaymentStatus.PENDING };
-      }
-
-      const wasCompleted = payment.status === PaymentStatus.COMPLETED;
-      payment.status = PaymentStatus.COMPLETED;
-      payment.metadata = {
-        ...(payment.metadata ?? {}),
-        zikopayTransactionId: transactionId,
-        operatorDebitConfirmed: true,
-        operatorDebitConfirmedAt: new Date().toISOString()
-      };
-      await this.paymentsRepository.save(payment);
+    // L'endpoint webhook est public et non signé : le payload entrant n'est
+    // JAMAIS digne de confiance. On revérifie le statut réel auprès de Zikopay
+    // via un appel serveur-à-serveur authentifié par clé API avant toute
+    // libération d'escrow. Cela neutralise toute tentative de forge de webhook.
+    if (!this.zikopayApiKey || !this.zikopayApiSecret) {
+      throw new ServiceUnavailableException('Configuration Zikopay manquante.');
+    }
+    let authoritative: Record<string, any> | null = null;
+    try {
+      authoritative = await this.getZikopay(
+        `/payments/status/${encodeURIComponent(reference)}`
+      );
+    } catch (error) {
       await this.logPaymentEvent({
         paymentId: payment.id,
         provider: 'zikopay',
-        type: 'webhook_completed',
-        status,
-        payload
+        type: 'webhook_verify_error',
+        status: payload?.status ?? null,
+        payload: {
+          reference,
+          reason: error instanceof Error ? error.message : 'transport_error'
+        }
       });
-
-      if (!wasCompleted) {
-        const meta = {
-          ...(typeof payment.metadata === 'object' && payment.metadata ? payment.metadata : {})
-        };
-        await this.handlePaymentMeta(payment, meta);
-      }
-      return { ok: true, status: payment.status };
+      // On relaie l'erreur pour que Zikopay réessaie le webhook ; le paiement
+      // reste en l'état tant que le statut réel n'a pas pu être confirmé.
+      throw error;
     }
 
-    if (this.isProviderFailureStatus(status)) {
-      payment.status = PaymentStatus.FAILED;
-      await this.paymentsRepository.save(payment);
-      await this.logPaymentEvent({
-        paymentId: payment.id,
-        provider: 'zikopay',
-        type: 'webhook_failed',
-        status,
-        payload
-      });
-      const meta = {
-        ...(typeof payment.metadata === 'object' && payment.metadata ? payment.metadata : {})
-      };
-      await this.notifyEscrowPaymentFailed(payment, meta);
-      return { ok: true, status: payment.status };
-    }
-
-    return { ok: true, status: payment.status ?? PaymentStatus.PENDING };
+    return this.applyZikopayAuthoritativeStatus(payment, authoritative, 'webhook');
   }
 
   async verifyZikopayReference(user: AuthUser, reference: string) {
@@ -1995,80 +2042,10 @@ export class PaymentsService {
       throw new ForbiddenException('Paiement non autorisé.');
     }
 
-    let response: Record<string, unknown> | null = null;
-    try {
-      response = await this.getZikopay(`/payments/status/${encodeURIComponent(reference)}`);
-    } catch (error) {
-      throw error;
-    }
-    const data = ((response as Record<string, unknown>)?.data ??
-      response) as Record<string, unknown>;
-    const statusRaw = data?.status ?? data?.paymentStatus ?? 'pending';
-    const status = String(statusRaw).toLowerCase();
-
-    if (this.isProviderSuccessStatus(status)) {
-      const transactionId = this.extractProviderTransactionId(response as Record<string, any>, 'zikopay');
-      const debitConfirmed = this.hasOperatorDebitConfirmation({
-        provider: 'zikopay',
-        payment,
-        payload: response as Record<string, any>,
-        transactionId
-      });
-
-      if (!debitConfirmed) {
-        await this.logPaymentEvent({
-          paymentId: payment.id,
-          provider: 'zikopay',
-          type: 'verify_success_without_debit_proof',
-          status,
-          payload: response ?? null
-        });
-        return { ok: true, status: payment.status ?? PaymentStatus.PENDING };
-      }
-
-      const wasCompleted = payment.status === PaymentStatus.COMPLETED;
-      payment.status = PaymentStatus.COMPLETED;
-      payment.metadata = {
-        ...(payment.metadata ?? {}),
-        zikopayTransactionId: transactionId,
-        operatorDebitConfirmed: true,
-        operatorDebitConfirmedAt: new Date().toISOString()
-      };
-      await this.paymentsRepository.save(payment);
-      await this.logPaymentEvent({
-        paymentId: payment.id,
-        provider: 'zikopay',
-        type: 'verify_completed',
-        status,
-        payload: response ?? null
-      });
-      if (!wasCompleted) {
-        const meta = {
-          ...(typeof payment.metadata === 'object' && payment.metadata ? payment.metadata : {})
-        };
-        await this.handlePaymentMeta(payment, meta);
-      }
-      return { ok: true, status: payment.status };
-    }
-
-    if (this.isProviderFailureStatus(status)) {
-      payment.status = PaymentStatus.FAILED;
-      await this.paymentsRepository.save(payment);
-      await this.logPaymentEvent({
-        paymentId: payment.id,
-        provider: 'zikopay',
-        type: 'verify_failed',
-        status,
-        payload: response ?? null
-      });
-      const meta = {
-        ...(typeof payment.metadata === 'object' && payment.metadata ? payment.metadata : {})
-      };
-      await this.notifyEscrowPaymentFailed(payment, meta);
-      return { ok: true, status: payment.status };
-    }
-
-    return { ok: true, status: payment.status ?? PaymentStatus.PENDING };
+    const response = await this.getZikopay(
+      `/payments/status/${encodeURIComponent(reference)}`
+    );
+    return this.applyZikopayAuthoritativeStatus(payment, response, 'verify');
   }
 
   async handleFlutterwaveWebhook(payload: Record<string, any>, signature?: string) {
