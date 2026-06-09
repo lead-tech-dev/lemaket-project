@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import MainLayout from '../../layouts/MainLayout'
 import { Button } from '../../components/ui/Button'
+import { FormField } from '../../components/ui/FormField'
+import { Input } from '../../components/ui/Input'
 import { FavoriteButton } from '../../components/ui/FavoriteButton'
 import { apiGet, apiPost, getApiUrl } from '../../utils/api'
 import { getAuthToken } from '../../utils/auth-token'
@@ -1363,6 +1365,127 @@ export default function ListingDetail() {
                     </p>
                   ) : null}
                 </section>
+              </section>
+
+              <section className="listing-details__section listing-reviews">
+                <div className="listing-reviews__head">
+                  <h2>{t('listings.detail.reviews.title')}</h2>
+                  {reviewSummary && reviewSummary.totalReviews > 0 ? (
+                    <p className="listing-reviews__summary">
+                      {t('listings.detail.reviews.summary', {
+                        rating: reviewSummary.averageRating.toFixed(1),
+                        count: reviewSummary.totalReviews
+                      })}
+                    </p>
+                  ) : null}
+                </div>
+
+                {reviewsLoading ? (
+                  <p className="listing-reviews__state">{t('listings.detail.reviews.loading')}</p>
+                ) : reviewsError ? (
+                  <p className="listing-reviews__state" role="alert">{reviewsError}</p>
+                ) : reviews.length === 0 ? (
+                  <p className="listing-reviews__state">{t('listings.detail.reviews.empty')}</p>
+                ) : (
+                  <ul className="listing-reviews__list">
+                    {reviews.map(review => {
+                      const rounded = Math.max(0, Math.min(5, Math.round(review.rating)))
+                      return (
+                        <li key={review.id} className="listing-reviews__item">
+                          <div className="listing-reviews__item-head">
+                            <strong>
+                              {review.reviewer.name || t('listings.detail.reviews.reviewerFallback')}
+                            </strong>
+                            <span
+                              className="listing-reviews__stars"
+                              aria-label={`${review.rating}/5`}
+                            >
+                              {'★'.repeat(rounded)}
+                              {'☆'.repeat(5 - rounded)}
+                            </span>
+                          </div>
+                          {review.location ? (
+                            <p className="listing-reviews__location">{review.location}</p>
+                          ) : null}
+                          <p className="listing-reviews__comment">{review.comment}</p>
+                          <p className="listing-reviews__date">
+                            {formatListingDate(review.createdAt)}
+                          </p>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+
+                {isSeller ? (
+                  <p className="listing-reviews__state">
+                    {t('listings.detail.reviews.selfReview')}
+                  </p>
+                ) : !isAuthenticated ? (
+                  <p className="listing-reviews__state">
+                    <Link to="/login" className="lbc-link">
+                      {t('header.login')}
+                    </Link>{' '}
+                    {t('listings.detail.reviews.loginPrompt')}
+                  </p>
+                ) : hasReviewed ? (
+                  <p className="listing-reviews__state">
+                    {t('listings.detail.reviews.alreadyReviewed')}
+                  </p>
+                ) : (
+                  <form className="listing-reviews__form" onSubmit={handleSubmitReview}>
+                    <FormField
+                      label={t('listings.detail.reviews.form.rating')}
+                      htmlFor="review-rating"
+                    >
+                      <select
+                        id="review-rating"
+                        className="input"
+                        value={reviewForm.rating}
+                        onChange={event =>
+                          setReviewForm(prev => ({ ...prev, rating: Number(event.target.value) }))
+                        }
+                      >
+                        {[5, 4, 3, 2, 1].map(value => (
+                          <option key={value} value={value}>
+                            {value}
+                          </option>
+                        ))}
+                      </select>
+                    </FormField>
+                    <FormField
+                      label={t('listings.detail.reviews.form.comment')}
+                      htmlFor="review-comment"
+                    >
+                      <textarea
+                        id="review-comment"
+                        className="input"
+                        rows={3}
+                        value={reviewForm.comment}
+                        onChange={event =>
+                          setReviewForm(prev => ({ ...prev, comment: event.target.value }))
+                        }
+                        placeholder={t('listings.detail.reviews.form.commentPlaceholder')}
+                      />
+                    </FormField>
+                    <FormField
+                      label={t('listings.detail.reviews.form.location')}
+                      htmlFor="review-location"
+                    >
+                      <Input
+                        id="review-location"
+                        value={reviewForm.location}
+                        onChange={event =>
+                          setReviewForm(prev => ({ ...prev, location: event.target.value }))
+                        }
+                        placeholder={t('listings.detail.reviews.form.locationPlaceholder')}
+                      />
+                    </FormField>
+                    <Button type="submit" disabled={isSubmittingReview}>
+                      {t('listings.detail.reviews.form.submit')}
+                    </Button>
+                  </form>
+                )}
               </section>
 
               <section className="listing-details__section">
