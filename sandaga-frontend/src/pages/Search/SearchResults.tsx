@@ -1561,9 +1561,10 @@ export default function SearchResults(){
           {(['recent', 'priceAsc', 'priceDesc'] as const).map(option => (
             <label key={option} className="search-drawer__choice">
               <input
-                type="checkbox"
+                type="radio"
+                name="search-sort"
                 checked={sort === option}
-                onChange={event => handleSortChange(event.target.checked ? option : 'recent')}
+                onChange={() => handleSortChange(option)}
               />
               <span>{getSortLabel(option)}</span>
             </label>
