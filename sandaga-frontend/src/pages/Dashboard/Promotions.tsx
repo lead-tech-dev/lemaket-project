@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import DashboardLayout from '../../layouts/DashboardLayout'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
@@ -289,6 +290,11 @@ export default function PromotionsPage() {
     getPromotionCheckoutSelection()
   )
   const { addToast } = useToast()
+  // Deep-link « Promouvoir CETTE annonce » (?listingId=) : capté une fois au
+  // montage et consommé au premier chargement du checkout pour présélectionner
+  // la bonne annonce plutôt que listings[0].
+  const [searchParams] = useSearchParams()
+  const deepLinkListingIdRef = useRef(searchParams.get('listingId') ?? '')
 
   const persistSelection = useCallback(
     (changes: Partial<PromotionCheckoutSelection>) => {
@@ -417,10 +423,16 @@ export default function PromotionsPage() {
         }
 
         if (eligibleListings.length > 0) {
+          const deepLinkId = deepLinkListingIdRef.current
+          const deepLinkMatches =
+            deepLinkId && eligibleListings.some(listing => listing.id === deepLinkId)
           const cachedListingId = checkoutSelection?.listingId
           const listingMatches =
             cachedListingId && eligibleListings.some(listing => listing.id === cachedListingId)
-          if (!listingMatches) {
+          if (deepLinkMatches) {
+            persistSelection({ listingId: deepLinkId })
+            deepLinkListingIdRef.current = ''
+          } else if (!listingMatches) {
             persistSelection({ listingId: eligibleListings[0].id })
           }
         } else if (checkoutSelection?.listingId) {

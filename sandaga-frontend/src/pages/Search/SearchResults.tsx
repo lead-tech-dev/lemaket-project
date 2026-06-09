@@ -1985,6 +1985,8 @@ export default function SearchResults(){
           onApplyQuickSuggestion={handleApplyQuickSuggestion}
           onResetFilters={handleResetFilters}
           onClearLocation={handleLocationClear}
+          onCreateAlert={handleCreateAlert}
+          isCreatingAlert={isCreatingAlert}
         />
       </div>
     </MainLayout>

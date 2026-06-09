@@ -30,6 +30,8 @@ type SearchResultsListProps = {
   onApplyQuickSuggestion: (query: string) => void
   onResetFilters: () => void
   onClearLocation: () => void
+  onCreateAlert: () => void
+  isCreatingAlert: boolean
 }
 
 export function SearchResultsList({
@@ -54,7 +56,9 @@ export function SearchResultsList({
   onApplyDidYouMean,
   onApplyQuickSuggestion,
   onResetFilters,
-  onClearLocation
+  onClearLocation,
+  onCreateAlert,
+  isCreatingAlert
 }: SearchResultsListProps) {
   return (
     <>
@@ -121,7 +125,9 @@ export function SearchResultsList({
                 </div>
               ) : null}
 
-              <Button variant="outline">{t('search.alert.create')}</Button>
+              <Button variant="outline" onClick={onCreateAlert} disabled={isCreatingAlert}>
+                {t('search.alert.create')}
+              </Button>
             </div>
           </div>
         ) : null}

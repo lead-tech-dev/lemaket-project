@@ -3,7 +3,8 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import MainLayout from '../../layouts/MainLayout'
 import { Button } from '../../components/ui/Button'
 import { FavoriteButton } from '../../components/ui/FavoriteButton'
-import { apiGet, apiPost } from '../../utils/api'
+import { apiGet, apiPost, getApiUrl } from '../../utils/api'
+import { getAuthToken } from '../../utils/auth-token'
 import type { Listing } from '../../types/listing'
 import type { Review, ReviewSummary, SellerReviewsResponse } from '../../types/review'
 import { Modal } from '../../components/ui/Modal'
@@ -634,8 +635,11 @@ export default function ListingDetail() {
     if (!listing) return
     setIsExporting(true)
     try {
-      const response = await fetch(`/listings/${listing.id}/export`, {
-        method: 'GET'
+      const token = getAuthToken()
+      const response = await fetch(getApiUrl(`/listings/${listing.id}/export`), {
+        method: 'GET',
+        credentials: 'include',
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined
       })
       if (!response.ok) {
         throw new Error(`Statut ${response.status}`)

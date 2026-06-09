@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import MainLayout from '../../layouts/MainLayout'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
@@ -8,6 +8,8 @@ import { RetryBanner } from '../../components/ui/RetryBanner'
 import { FavoriteButton } from '../../components/ui/FavoriteButton'
 import { Modal } from '../../components/ui/Modal'
 import { useToast } from '../../components/ui/Toast'
+import { useAuth } from '../../hooks/useAuth'
+import { useFollowedSellers } from '../../hooks/useFollowedSellers'
 import { apiGet, apiPost } from '../../utils/api'
 import { resolveMediaUrl } from '../../utils/media'
 import { formatListingLocation } from '../../utils/location'
@@ -165,6 +167,28 @@ export default function PublicUserProfile() {
   const [isReporting, setIsReporting] = useState(false)
   const menuRef = useRef<HTMLDivElement | null>(null)
   const { addToast } = useToast()
+  const navigate = useNavigate()
+  const { isAuthenticated } = useAuth()
+  const { isFollowing, followSeller, unfollowSeller } = useFollowedSellers()
+
+  const isFollowed = profile?.id ? isFollowing(profile.id) : false
+  const handleFollowClick = async () => {
+    if (!profile?.id) return
+    if (!isAuthenticated) {
+      navigate('/login')
+      return
+    }
+    try {
+      if (isFollowed) {
+        await unfollowSeller(profile.id)
+      } else {
+        await followSeller(profile.id)
+      }
+    } catch (err) {
+      console.error('Unable to toggle follow', err)
+      addToast({ variant: 'error', title: 'Suivi', message: 'Action impossible. Réessayez.' })
+    }
+  }
 
   const numberFormatter = useMemo(
     () => new Intl.NumberFormat(locale === 'fr' ? 'fr-FR' : 'en-US'),
@@ -502,8 +526,14 @@ export default function PublicUserProfile() {
                     </button>
                   </div>
                 ) : null}
-                <Button className="user-public__follow" variant="outline" disabled>
-                  Suivre
+                <Button
+                  className="user-public__follow"
+                  variant="outline"
+                  onClick={() => {
+                    void handleFollowClick()
+                  }}
+                >
+                  {isFollowed ? 'Suivi' : 'Suivre'}
                 </Button>
               </div>
             </div>
