@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import AdminLayout from '../../layouts/AdminLayout'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
+import { useI18n } from '../../contexts/I18nContext'
 import {
   deleteSearchSynonym,
   fetchSearchRelevanceSettings,
@@ -35,6 +36,7 @@ const DEFAULT_SYNONYM_DRAFT: SynonymDraft = {
 
 export default function SearchRelevance() {
   const { addToast } = useToast()
+  const { t } = useI18n()
   const [isLoading, setIsLoading] = useState(true)
   const [isSavingSettings, setIsSavingSettings] = useState(false)
   const [isSavingSynonym, setIsSavingSynonym] = useState(false)
@@ -66,12 +68,12 @@ export default function SearchRelevance() {
       })
       setSynonyms(synonymsData)
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Impossible de charger les réglages recherche.'
+      const message = err instanceof Error ? err.message : t('admin.searchRelevance.loadError')
       setError(message)
     } finally {
       setIsLoading(false)
     }
-  }, [])
+  }, [t])
 
   useEffect(() => {
     void loadData()
@@ -94,14 +96,14 @@ export default function SearchRelevance() {
       })
       addToast({
         variant: 'success',
-        title: 'Recherche',
-        message: 'Réglages de pertinence enregistrés.'
+        title: t('admin.searchRelevance.toast.settingsTitle'),
+        message: t('admin.searchRelevance.toast.settingsSaved')
       })
     } catch (err) {
       addToast({
         variant: 'error',
-        title: 'Recherche',
-        message: err instanceof Error ? err.message : 'Échec de sauvegarde des réglages.'
+        title: t('admin.searchRelevance.toast.settingsTitle'),
+        message: err instanceof Error ? err.message : t('admin.searchRelevance.toast.settingsSaveError')
       })
     } finally {
       setIsSavingSettings(false)
@@ -113,8 +115,8 @@ export default function SearchRelevance() {
     if (!synonymDraft.term.trim() || !synonymDraft.synonym.trim()) {
       addToast({
         variant: 'error',
-        title: 'Synonymes',
-        message: 'Le terme et le synonyme sont obligatoires.'
+        title: t('admin.searchRelevance.toast.synonymTitle'),
+        message: t('admin.searchRelevance.toast.synonymRequired')
       })
       return
     }
@@ -133,14 +135,14 @@ export default function SearchRelevance() {
       setSynonymDraft(DEFAULT_SYNONYM_DRAFT)
       addToast({
         variant: 'success',
-        title: 'Synonymes',
-        message: 'Synonyme enregistré.'
+        title: t('admin.searchRelevance.toast.synonymTitle'),
+        message: t('admin.searchRelevance.toast.synonymSaved')
       })
     } catch (err) {
       addToast({
         variant: 'error',
-        title: 'Synonymes',
-        message: err instanceof Error ? err.message : 'Impossible d’enregistrer le synonyme.'
+        title: t('admin.searchRelevance.toast.synonymTitle'),
+        message: err instanceof Error ? err.message : t('admin.searchRelevance.toast.synonymSaveError')
       })
     } finally {
       setIsSavingSynonym(false)
@@ -154,14 +156,14 @@ export default function SearchRelevance() {
       setSynonyms(previous => previous.filter(item => item.id !== id))
       addToast({
         variant: 'success',
-        title: 'Synonymes',
-        message: 'Synonyme supprimé.'
+        title: t('admin.searchRelevance.toast.synonymTitle'),
+        message: t('admin.searchRelevance.toast.synonymDeleted')
       })
     } catch (err) {
       addToast({
         variant: 'error',
-        title: 'Synonymes',
-        message: err instanceof Error ? err.message : 'Suppression impossible.'
+        title: t('admin.searchRelevance.toast.synonymTitle'),
+        message: err instanceof Error ? err.message : t('admin.searchRelevance.toast.synonymDeleteError')
       })
     } finally {
       setDeletingSynonymId(null)
@@ -173,12 +175,12 @@ export default function SearchRelevance() {
       <div className="admin-page">
         <header className="dashboard-header">
           <div>
-            <h1>Recherche avancée</h1>
-            <p>Ajuste les règles de pertinence et les synonymes utilisés par le moteur de recherche.</p>
+            <h1>{t('admin.searchRelevance.title')}</h1>
+            <p>{t('admin.searchRelevance.subtitle')}</p>
           </div>
           <div className="admin-filter-bar">
             <Button variant="ghost" onClick={() => void loadData()} disabled={isLoading}>
-              Actualiser
+              {t('admin.searchRelevance.refresh')}
             </Button>
           </div>
         </header>
@@ -191,12 +193,12 @@ export default function SearchRelevance() {
 
         <section className="admin-grid">
           <article className="admin-card">
-            <h2>Pertinence</h2>
+            <h2>{t('admin.searchRelevance.relevance.title')}</h2>
             <div className="admin-monitoring-settings">
               <label className="admin-monitoring-settings__row">
                 <span>
-                  <strong>Activer les boosts business</strong>
-                  <small className="admin-monitoring-muted">Pondère les annonces premium/pro dans le classement.</small>
+                  <strong>{t('admin.searchRelevance.relevance.businessBoost')}</strong>
+                  <small className="admin-monitoring-muted">{t('admin.searchRelevance.relevance.businessBoostHint')}</small>
                 </span>
                 <input
                   type="checkbox"
@@ -209,8 +211,8 @@ export default function SearchRelevance() {
 
               <label className="admin-monitoring-settings__row">
                 <span>
-                  <strong>Activer les synonymes dynamiques</strong>
-                  <small className="admin-monitoring-muted">Utilise la table des synonymes admin dans la recherche.</small>
+                  <strong>{t('admin.searchRelevance.relevance.dynamicSynonyms')}</strong>
+                  <small className="admin-monitoring-muted">{t('admin.searchRelevance.relevance.dynamicSynonymsHint')}</small>
                 </span>
                 <input
                   type="checkbox"
@@ -223,8 +225,8 @@ export default function SearchRelevance() {
 
               <label className="admin-monitoring-settings__row">
                 <span>
-                  <strong>Boost villes populaires</strong>
-                  <small className="admin-monitoring-muted">Poids appliqué aux zones majeures.</small>
+                  <strong>{t('admin.searchRelevance.relevance.cityBoost')}</strong>
+                  <small className="admin-monitoring-muted">{t('admin.searchRelevance.relevance.cityBoostHint')}</small>
                 </span>
                 <input
                   type="number"
@@ -240,8 +242,8 @@ export default function SearchRelevance() {
 
               <label className="admin-monitoring-settings__row">
                 <span>
-                  <strong>Boost vendeurs pro</strong>
-                  <small className="admin-monitoring-muted">Poids additionnel pour les vendeurs professionnels.</small>
+                  <strong>{t('admin.searchRelevance.relevance.proBoost')}</strong>
+                  <small className="admin-monitoring-muted">{t('admin.searchRelevance.relevance.proBoostHint')}</small>
                 </span>
                 <input
                   type="number"
@@ -257,9 +259,9 @@ export default function SearchRelevance() {
 
               <label className="admin-monitoring-settings__row admin-monitoring-settings__row--textarea">
                 <span>
-                  <strong>Poids par catégorie</strong>
+                  <strong>{t('admin.searchRelevance.relevance.categoryWeights')}</strong>
                   <small className="admin-monitoring-muted">
-                    Format: `slug:poids` séparés par virgules. Exemple: `immobilier:30, vehicules:20`
+                    {t('admin.searchRelevance.relevance.categoryWeightsHint')}
                   </small>
                 </span>
                 <textarea
@@ -272,17 +274,17 @@ export default function SearchRelevance() {
               </label>
 
               <Button variant="accent" onClick={handleSettingsSave} disabled={isSavingSettings || isLoading}>
-                {isSavingSettings ? 'Enregistrement...' : 'Enregistrer'}
+                {isSavingSettings ? t('admin.searchRelevance.relevance.saving') : t('admin.searchRelevance.relevance.save')}
               </Button>
             </div>
           </article>
 
           <article className="admin-card">
-            <h2>Synonymes</h2>
+            <h2>{t('admin.searchRelevance.synonyms.title')}</h2>
             <form className="admin-search-synonym-form" onSubmit={handleSynonymSubmit}>
               <input
                 type="text"
-                placeholder="Terme (ex: telephone)"
+                placeholder={t('admin.searchRelevance.synonyms.termPlaceholder')}
                 value={synonymDraft.term}
                 onChange={event =>
                   setSynonymDraft(previous => ({ ...previous, term: event.target.value }))
@@ -290,7 +292,7 @@ export default function SearchRelevance() {
               />
               <input
                 type="text"
-                placeholder="Synonyme (ex: gsm)"
+                placeholder={t('admin.searchRelevance.synonyms.synonymPlaceholder')}
                 value={synonymDraft.synonym}
                 onChange={event =>
                   setSynonymDraft(previous => ({ ...previous, synonym: event.target.value }))
@@ -304,26 +306,26 @@ export default function SearchRelevance() {
                     setSynonymDraft(previous => ({ ...previous, isActive: event.target.checked }))
                   }
                 />
-                <span>Actif</span>
+                <span>{t('admin.searchRelevance.synonyms.active')}</span>
               </label>
               <Button variant="outline" type="submit" disabled={isSavingSynonym || isLoading}>
-                {isSavingSynonym ? 'Ajout...' : 'Ajouter'}
+                {isSavingSynonym ? t('admin.searchRelevance.synonyms.adding') : t('admin.searchRelevance.synonyms.add')}
               </Button>
             </form>
 
             {isLoading ? (
-              <p className="admin-monitoring-muted">Chargement...</p>
+              <p className="admin-monitoring-muted">{t('admin.searchRelevance.synonyms.loading')}</p>
             ) : sortedSynonyms.length === 0 ? (
-              <p className="admin-monitoring-muted">Aucun synonyme configuré.</p>
+              <p className="admin-monitoring-muted">{t('admin.searchRelevance.synonyms.empty')}</p>
             ) : (
               <div className="admin-table-wrapper">
                 <table className="admin-table">
                   <thead>
                     <tr>
-                      <th>Terme</th>
-                      <th>Synonyme</th>
-                      <th>Statut</th>
-                      <th style={{ width: 120 }}>Action</th>
+                      <th>{t('admin.searchRelevance.synonyms.colTerm')}</th>
+                      <th>{t('admin.searchRelevance.synonyms.colSynonym')}</th>
+                      <th>{t('admin.searchRelevance.synonyms.colStatus')}</th>
+                      <th style={{ width: 120 }}>{t('admin.searchRelevance.synonyms.colAction')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -333,7 +335,7 @@ export default function SearchRelevance() {
                         <td>{item.synonym}</td>
                         <td>
                           <span className={`admin-status ${item.isActive ? 'admin-status--approved' : 'admin-status--neutral'}`}>
-                            {item.isActive ? 'Actif' : 'Inactif'}
+                            {item.isActive ? t('admin.searchRelevance.synonyms.active') : t('admin.searchRelevance.synonyms.inactive')}
                           </span>
                         </td>
                         <td>
@@ -342,7 +344,7 @@ export default function SearchRelevance() {
                             onClick={() => void handleDeleteSynonym(item.id)}
                             disabled={deletingSynonymId === item.id}
                           >
-                            {deletingSynonymId === item.id ? 'Suppression...' : 'Supprimer'}
+                            {deletingSynonymId === item.id ? t('admin.searchRelevance.synonyms.deleting') : t('admin.searchRelevance.synonyms.delete')}
                           </Button>
                         </td>
                       </tr>

@@ -14,6 +14,7 @@ import {
   fetchSearchOperationalStatus
 } from '../../utils/admin-api'
 import { apiGet } from '../../utils/api'
+import { getAdminActionLabel } from '../../utils/admin-action-label'
 
 export default function AdminHome() {
   const [metrics, setMetrics] = useState<AdminMetric[]>([])
@@ -69,19 +70,19 @@ export default function AdminHome() {
   const statusChip = useMemo(() => {
     const status = searchStatus?.status
     if (!status) {
-      return { label: 'INCONNU', color: '#6c757d', background: '#f1f3f5' }
+      return { label: t('admin.monitoring.status.unknown'), color: '#6c757d', background: '#f1f3f5' }
     }
     if (status === 'critical') {
-      return { label: 'CRITIQUE', color: '#b42318', background: '#fee4e2' }
+      return { label: t('admin.monitoring.status.critical'), color: '#b42318', background: '#fee4e2' }
     }
     if (status === 'degraded') {
-      return { label: 'DEGRADE', color: '#b54708', background: '#fffaeb' }
+      return { label: t('admin.monitoring.status.degraded'), color: '#b54708', background: '#fffaeb' }
     }
     if (status === 'ok') {
-      return { label: 'OK', color: '#027a48', background: '#ecfdf3' }
+      return { label: t('admin.monitoring.status.ok'), color: '#027a48', background: '#ecfdf3' }
     }
-    return { label: 'INCONNU', color: '#6c757d', background: '#f1f3f5' }
-  }, [searchStatus])
+    return { label: t('admin.monitoring.status.unknown'), color: '#6c757d', background: '#f1f3f5' }
+  }, [searchStatus, t])
 
   const formatPercent = (value: number) => `${(value * 100).toFixed(2)}%`
   const listingsWithSearch = searchStatus?.snapshot?.listings?.withSearch ?? {
@@ -108,14 +109,14 @@ export default function AdminHome() {
       setSearchStatus(data)
       addToast({
         variant: 'success',
-        title: 'Monitoring actualisé',
-        message: 'Statut recherche mis à jour.'
+        title: t('admin.monitoring.toast.refreshTitle'),
+        message: t('admin.monitoring.toast.refreshSuccess')
       })
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erreur de rafraichissement.'
+      const message = err instanceof Error ? err.message : t('admin.monitoring.loadError')
       addToast({
         variant: 'error',
-        title: 'Monitoring indisponible',
+        title: t('admin.monitoring.toast.refreshErrorTitle'),
         message
       })
     } finally {
@@ -130,14 +131,16 @@ export default function AdminHome() {
       setLastDispatch(result)
       addToast({
         variant: result.dispatched ? 'success' : 'info',
-        title: result.dispatched ? 'Alerte envoyee' : 'Alerte non envoyee',
+        title: result.dispatched
+          ? t('admin.monitoring.toast.dispatchSentTitle')
+          : t('admin.monitoring.toast.dispatchSkippedTitle'),
         message: result.message
       })
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Erreur d'envoi d'alerte."
+      const message = err instanceof Error ? err.message : t('admin.monitoring.dispatchError')
       addToast({
         variant: 'error',
-        title: "Echec d'envoi",
+        title: t('admin.monitoring.toast.dispatchErrorTitle'),
         message
       })
     } finally {
@@ -193,7 +196,7 @@ export default function AdminHome() {
             ) : activities.length ? (
               activities.map(activity => (
                 <div key={activity.id} className="message-item">
-                  <span className="message-item__title">{activity.label}</span>
+                  <span className="message-item__title">{getAdminActionLabel(activity.label)}</span>
                   {activity.detail ? (
                     <span className="message-item__snippet">{activity.detail}</span>
                   ) : null}
@@ -210,21 +213,21 @@ export default function AdminHome() {
 
         <section className="dashboard-section">
           <div className="dashboard-section__head">
-            <h2>Monitoring recherche</h2>
+            <h2>{t('admin.monitoring.title')}</h2>
             <div style={{ display: 'flex', gap: 8 }}>
               <Button
                 variant="ghost"
                 onClick={handleRefreshSearch}
                 disabled={isRefreshingSearch || isLoading}
               >
-                {isRefreshingSearch ? 'Rafraichissement...' : 'Rafraichir'}
+                {isRefreshingSearch ? t('admin.monitoring.actions.refreshing') : t('admin.monitoring.actions.refresh')}
               </Button>
               <Button
                 variant="outline"
                 onClick={handleDispatch}
                 disabled={isDispatching || isLoading}
               >
-                {isDispatching ? 'Envoi...' : 'Envoyer alerte'}
+                {isDispatching ? t('admin.monitoring.actions.dispatching') : t('admin.monitoring.actions.dispatch')}
               </Button>
             </div>
           </div>
@@ -247,51 +250,63 @@ export default function AdminHome() {
                   {statusChip.label}
                 </span>
                 <span className="message-item__snippet">
-                  Derniere mesure: {new Date(searchStatus?.generatedAt ?? Date.now()).toLocaleString()}
+                  {t('admin.monitoring.lastMeasure', {
+                    time: new Date(searchStatus?.generatedAt ?? Date.now()).toLocaleString()
+                  })}
                 </span>
               </div>
 
               <div className="message-item" style={{ alignItems: 'flex-start', gap: 6 }}>
-                <span className="message-item__title">Listings (avec recherche)</span>
+                <span className="message-item__title">{t('admin.monitoring.cards.listings')}</span>
                 <span className="message-item__snippet">
-                  requetes: {listingsWithSearch.total} | p95:{' '}
-                  {listingsWithSearch.p95LatencyMs.toFixed(2)} ms | erreurs:{' '}
-                  {formatPercent(listingsWithSearch.errorRate)}
+                  {t('admin.monitoring.queryStats', {
+                    total: listingsWithSearch.total,
+                    p95: listingsWithSearch.p95LatencyMs.toFixed(2),
+                    errors: formatPercent(listingsWithSearch.errorRate)
+                  })}
                 </span>
               </div>
 
               <div className="message-item" style={{ alignItems: 'flex-start', gap: 6 }}>
-                <span className="message-item__title">Suggestions</span>
+                <span className="message-item__title">{t('admin.monitoring.cards.suggestions')}</span>
                 <span className="message-item__snippet">
-                  requetes: {suggestionsSummary.total} | p95:{' '}
-                  {suggestionsSummary.p95LatencyMs.toFixed(2)} ms | erreurs:{' '}
-                  {formatPercent(suggestionsSummary.errorRate)}
+                  {t('admin.monitoring.queryStats', {
+                    total: suggestionsSummary.total,
+                    p95: suggestionsSummary.p95LatencyMs.toFixed(2),
+                    errors: formatPercent(suggestionsSummary.errorRate)
+                  })}
                 </span>
               </div>
 
               {searchAlerts.length ? (
                 <div className="message-item" style={{ alignItems: 'flex-start', gap: 6 }}>
-                  <span className="message-item__title">Alertes actives ({searchAlerts.length})</span>
+                  <span className="message-item__title">
+                    {t('admin.monitoring.alertsActiveCount', { count: searchAlerts.length })}
+                  </span>
                   {searchAlerts.map((alert, index) => (
                     <span key={`${alert.component}-${alert.metric}-${index}`} className="message-item__snippet">
-                      [{alert.severity}] {alert.message}
+                      {t('admin.monitoring.alertLine', { severity: alert.severity, message: alert.message })}
                     </span>
                   ))}
                 </div>
               ) : (
                 <div className="message-item" style={{ alignItems: 'flex-start', gap: 6 }}>
-                  <span className="message-item__title">Alertes actives</span>
-                  <span className="message-item__snippet">Aucune alerte.</span>
+                  <span className="message-item__title">{t('admin.monitoring.sections.alerts')}</span>
+                  <span className="message-item__snippet">{t('admin.monitoring.empty.alerts')}</span>
                 </div>
               )}
 
               {lastDispatch ? (
                 <div className="message-item" style={{ alignItems: 'flex-start', gap: 6 }}>
-                  <span className="message-item__title">Dernier dispatch</span>
+                  <span className="message-item__title">{t('admin.monitoring.sections.dispatch')}</span>
                   <span className="message-item__snippet">{lastDispatch.message}</span>
                   {lastDispatch.channels.length ? (
                     <span className="message-item__snippet">
-                      Canaux: {lastDispatch.channels.map(channel => `${channel.channel}:${channel.sent ? 'ok' : 'ko'}`).join(', ')}
+                      {t('admin.monitoring.channels', {
+                        channels: lastDispatch.channels
+                          .map(channel => `${channel.channel}:${channel.sent ? 'ok' : 'ko'}`)
+                          .join(', ')
+                      })}
                     </span>
                   ) : null}
                 </div>
@@ -299,7 +314,7 @@ export default function AdminHome() {
             </div>
           ) : (
             <p style={{ padding: '1rem', color: '#6c757d' }}>
-              {isLoading ? 'Chargement monitoring...' : 'Monitoring indisponible.'}
+              {isLoading ? t('admin.monitoring.loading') : t('admin.monitoring.unavailable')}
             </p>
           )}
         </section>
