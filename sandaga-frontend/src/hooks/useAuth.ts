@@ -5,7 +5,7 @@ import { setUnauthorizedHandler } from '../utils/api'
 import { useI18n } from '../contexts/I18nContext'
 
 type AuthUser = UserAccount & {
-  role: 'user' | 'pro' | 'admin'
+  role: 'user' | 'pro' | 'admin' | 'moderator'
 }
 
 type AuthState = {
@@ -193,6 +193,9 @@ export function useAuth() {
       isAuthenticated: Boolean(state.user),
       isPro: Boolean(state.user?.role === 'pro' || state.user?.role === 'admin' || state.user?.isPro),
       isAdmin: Boolean(state.user?.role === 'admin'),
+      isModerator: Boolean(state.user?.role === 'moderator'),
+      // Accès à la console d'administration : admin OU modérateur.
+      isStaff: Boolean(state.user?.role === 'admin' || state.user?.role === 'moderator'),
       acknowledgePromotion: () =>
         setState(prev => ({ ...prev, justPromotedPro: false }))
     }),

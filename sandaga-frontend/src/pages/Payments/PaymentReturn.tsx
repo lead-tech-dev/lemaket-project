@@ -79,7 +79,16 @@ export default function PaymentReturn() {
       } catch (err) {
         if (!active) return
         console.error('Unable to verify zikopay payment', err)
+        // Erreur réseau transitoire : on retente comme un statut "pending"
+        // plutôt que de figer le polling sur un spinner infini.
         setStatus('pending')
+        attemptsRef.current += 1
+        setAttempts(attemptsRef.current)
+        if (attemptsRef.current < maxAttempts) {
+          pollTimeoutRef.current = window.setTimeout(verify, 4000)
+        } else {
+          setIsPolling(false)
+        }
       } finally {
         if (active) {
           setIsVerifying(false)

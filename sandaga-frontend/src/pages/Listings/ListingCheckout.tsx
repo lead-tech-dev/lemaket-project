@@ -270,21 +270,36 @@ export default function ListingCheckout() {
     if (handoverMode !== 'delivery' || !mapContainerRef.current || !referenceCoords) {
       return
     }
-    let map: MapboxMap | null = mapRef.current
-    if (!map) {
-      import('mapbox-gl')
-        .then(mapbox => {
-          map = new mapbox.default.Map({
-            container: mapContainerRef.current as HTMLElement,
-            style: OSM_RASTER_STYLE as any,
-            center: [referenceCoords.lng, referenceCoords.lat],
-            zoom: 11
-          })
-          mapRef.current = map
+    if (mapRef.current) {
+      return
+    }
+    let cancelled = false
+    import('mapbox-gl')
+      .then(mapbox => {
+        // Le composant a pu être démonté pendant l'import async.
+        if (cancelled || mapRef.current || !mapContainerRef.current) return
+        mapRef.current = new mapbox.default.Map({
+          container: mapContainerRef.current,
+          style: OSM_RASTER_STYLE as any,
+          center: [referenceCoords.lng, referenceCoords.lat],
+          zoom: 11
         })
-        .catch(err => console.error('Unable to init mapbox', err))
+      })
+      .catch(err => console.error('Unable to init mapbox', err))
+    return () => {
+      cancelled = true
     }
   }, [referenceCoords, handoverMode])
+
+  // Libère l'instance Mapbox (contexte WebGL + listeners) au démontage.
+  useEffect(() => {
+    return () => {
+      markersRef.current.forEach(marker => marker.remove())
+      markersRef.current = []
+      mapRef.current?.remove()
+      mapRef.current = null
+    }
+  }, [])
 
   useEffect(() => {
     if (handoverMode !== 'delivery') return
@@ -333,7 +348,10 @@ export default function ListingCheckout() {
       if (!selectedCourierId) return false
       if (!checkoutForm.dropoffAddress.trim()) return false
     }
-    if (paymentMethod === 'wallet' && walletSummary) {
+    if (paymentMethod === 'wallet') {
+      // Tant que le solde n'est pas connu, on bloque (sinon paiement wallet
+      // autorisé sans vérification de solde si le wallet n'a pas chargé).
+      if (!walletSummary) return false
       if (walletSummary.currency !== currency) return false
       if (walletSummary.balance < totalPrice) return false
     }

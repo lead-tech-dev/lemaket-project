@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import DashboardLayout from '../../layouts/DashboardLayout'
 import { Button } from '../../components/ui/Button'
@@ -50,6 +50,11 @@ export default function Wallet() {
   const [topupMethod, setTopupMethod] = useState<'mobile_money' | 'card'>('mobile_money')
   const [withdrawAmount, setWithdrawAmount] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  // Nombre de transactions déjà chargées (offset du « charger plus »), gardé
+  // dans une ref pour ne pas faire dépendre loadTransactions de transactions.length.
+  const txCountRef = useRef(0)
+  const summaryAbortRef = useRef<AbortController | null>(null)
+  const txAbortRef = useRef<AbortController | null>(null)
   const payoutSettings = (user?.settings ?? {}) as Record<string, unknown>
   const payoutNetwork =
     typeof payoutSettings.payoutMobileNetwork === 'string'
@@ -71,10 +76,14 @@ export default function Wallet() {
   const hasEnoughBalance = hasValidWithdrawAmount ? currentBalance >= withdrawAmountNumber : hasBalance
 
   const loadSummary = useCallback(() => {
+    summaryAbortRef.current?.abort()
+    const controller = new AbortController()
+    summaryAbortRef.current = controller
     setLoading(true)
-    apiGet<WalletSummary>('/payments/wallet')
+    apiGet<WalletSummary>('/payments/wallet', { signal: controller.signal })
       .then(data => setSummary(data))
       .catch(err => {
+        if (controller.signal.aborted) return
         console.error('Unable to load wallet', err)
         addToast({
           variant: 'error',
@@ -82,13 +91,15 @@ export default function Wallet() {
           message: 'Impossible de charger votre solde.'
         })
       })
-      .finally(() => setLoading(false))
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false)
+      })
   }, [addToast])
 
   const loadTransactions = useCallback(
     (mode: 'reset' | 'more' = 'reset') => {
       const limit = 20
-      const offset = mode === 'more' ? transactions.length : 0
+      const offset = mode === 'more' ? txCountRef.current : 0
       const params = new URLSearchParams({
         limit: String(limit),
         offset: String(offset)
@@ -97,21 +108,34 @@ export default function Wallet() {
       if (filterStatus !== 'all') params.set('status', filterStatus)
       if (dateFrom) params.set('from', dateFrom)
       if (dateTo) params.set('to', dateTo)
+      txAbortRef.current?.abort()
+      const controller = new AbortController()
+      txAbortRef.current = controller
       if (mode === 'reset') {
         setTxLoading(true)
       } else {
         setTxLoadingMore(true)
       }
-      apiGet<WalletTransactionsResponse>(`/payments/wallet/transactions?${params.toString()}`)
+      apiGet<WalletTransactionsResponse>(
+        `/payments/wallet/transactions?${params.toString()}`,
+        { signal: controller.signal }
+      )
         .then(data => {
+          const items = data.items ?? []
           if (mode === 'reset') {
-            setTransactions(data.items ?? [])
+            setTransactions(items)
+            txCountRef.current = items.length
           } else {
-            setTransactions(prev => [...prev, ...(data.items ?? [])])
+            setTransactions(prev => {
+              const next = [...prev, ...items]
+              txCountRef.current = next.length
+              return next
+            })
           }
           setTransactionsTotal(data.total ?? 0)
         })
       .catch(err => {
+        if (controller.signal.aborted) return
         console.error('Unable to load wallet transactions', err)
         addToast({
           variant: 'error',
@@ -120,21 +144,27 @@ export default function Wallet() {
         })
       })
       .finally(() => {
-        setTxLoading(false)
-        setTxLoadingMore(false)
+        if (!controller.signal.aborted) {
+          setTxLoading(false)
+          setTxLoadingMore(false)
+        }
       })
     },
-    [addToast, filterType, filterStatus, dateFrom, dateTo, transactions.length]
+    [addToast, filterType, filterStatus, dateFrom, dateTo]
   )
 
+  // Le solde se charge une seule fois (loadSummary est stable).
   useEffect(() => {
     loadSummary()
-    loadTransactions()
-  }, [loadSummary, loadTransactions])
+    return () => summaryAbortRef.current?.abort()
+  }, [loadSummary])
 
+  // Les transactions se rechargent au montage ET à chaque changement de filtre
+  // (loadTransactions ne dépend plus de transactions.length, donc pas de boucle).
   useEffect(() => {
     loadTransactions('reset')
-  }, [filterType, filterStatus, dateFrom, dateTo, loadTransactions])
+    return () => txAbortRef.current?.abort()
+  }, [loadTransactions])
 
   const handleTopup = async () => {
     if (!topupAmount.trim()) return

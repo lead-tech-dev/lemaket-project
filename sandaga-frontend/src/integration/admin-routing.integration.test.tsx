@@ -65,6 +65,8 @@ describe('Admin routing (integration)', () => {
       isAuthenticated: true,
       isPro: false,
       isAdmin: false,
+      isModerator: false,
+      isStaff: false,
       acknowledgePromotion: () => {}
     } as any)
 
@@ -82,6 +84,8 @@ describe('Admin routing (integration)', () => {
       isAuthenticated: true,
       isPro: true,
       isAdmin: true,
+      isModerator: false,
+      isStaff: true,
       acknowledgePromotion: () => {}
     } as any)
 

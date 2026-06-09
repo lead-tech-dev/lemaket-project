@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import AdminLayout from '../../layouts/AdminLayout'
 import { Button } from '../../components/ui/Button'
 import { FormField } from '../../components/ui/FormField'
@@ -41,12 +41,21 @@ export default function PlatformWallet() {
   const [filterStatus, setFilterStatus] = useState<'all' | 'completed' | 'pending' | 'failed'>('all')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  // Offset du « charger plus » via ref, pour ne pas faire dépendre
+  // loadTransactions de transactions.length (sinon boucle de refetch).
+  const txCountRef = useRef(0)
+  const summaryAbortRef = useRef<AbortController | null>(null)
+  const txAbortRef = useRef<AbortController | null>(null)
 
   const loadSummary = useCallback(() => {
+    summaryAbortRef.current?.abort()
+    const controller = new AbortController()
+    summaryAbortRef.current = controller
     setLoading(true)
-    apiGet<WalletSummary>('/admin/platform-wallet')
+    apiGet<WalletSummary>('/admin/platform-wallet', { signal: controller.signal })
       .then(setSummary)
       .catch(err => {
+        if (controller.signal.aborted) return
         console.error('Unable to load platform wallet', err)
         addToast({
           variant: 'error',
@@ -54,13 +63,15 @@ export default function PlatformWallet() {
           message: 'Impossible de charger le wallet plateforme.'
         })
       })
-      .finally(() => setLoading(false))
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false)
+      })
   }, [addToast])
 
   const loadTransactions = useCallback(
     (mode: 'reset' | 'more' = 'reset') => {
       const limit = 20
-      const offset = mode === 'more' ? transactions.length : 0
+      const offset = mode === 'more' ? txCountRef.current : 0
       const params = new URLSearchParams({
         limit: String(limit),
         offset: String(offset)
@@ -69,21 +80,34 @@ export default function PlatformWallet() {
       if (filterStatus !== 'all') params.set('status', filterStatus)
       if (dateFrom) params.set('from', dateFrom)
       if (dateTo) params.set('to', dateTo)
+      txAbortRef.current?.abort()
+      const controller = new AbortController()
+      txAbortRef.current = controller
       if (mode === 'reset') {
         setTxLoading(true)
       } else {
         setTxLoadingMore(true)
       }
-      apiGet<WalletTransactionsResponse>(`/admin/platform-wallet/transactions?${params.toString()}`)
+      apiGet<WalletTransactionsResponse>(
+        `/admin/platform-wallet/transactions?${params.toString()}`,
+        { signal: controller.signal }
+      )
         .then(data => {
+          const items = data.items ?? []
           if (mode === 'reset') {
-            setTransactions(data.items ?? [])
+            setTransactions(items)
+            txCountRef.current = items.length
           } else {
-            setTransactions(prev => [...prev, ...(data.items ?? [])])
+            setTransactions(prev => {
+              const next = [...prev, ...items]
+              txCountRef.current = next.length
+              return next
+            })
           }
           setTransactionsTotal(data.total ?? 0)
         })
         .catch(err => {
+          if (controller.signal.aborted) return
           console.error('Unable to load platform wallet transactions', err)
           addToast({
             variant: 'error',
@@ -92,21 +116,27 @@ export default function PlatformWallet() {
           })
         })
         .finally(() => {
-          setTxLoading(false)
-          setTxLoadingMore(false)
+          if (!controller.signal.aborted) {
+            setTxLoading(false)
+            setTxLoadingMore(false)
+          }
         })
     },
-    [addToast, filterType, filterStatus, dateFrom, dateTo, transactions.length]
+    [addToast, filterType, filterStatus, dateFrom, dateTo]
   )
 
+  // Le solde se charge une seule fois (loadSummary est stable).
   useEffect(() => {
     loadSummary()
-    loadTransactions('reset')
-  }, [loadSummary, loadTransactions])
+    return () => summaryAbortRef.current?.abort()
+  }, [loadSummary])
 
+  // Transactions : montage + changement de filtre, sans boucle (loadTransactions
+  // ne dépend plus de transactions.length).
   useEffect(() => {
     loadTransactions('reset')
-  }, [filterType, filterStatus, dateFrom, dateTo, loadTransactions])
+    return () => txAbortRef.current?.abort()
+  }, [loadTransactions])
 
   const handleExport = async () => {
     try {

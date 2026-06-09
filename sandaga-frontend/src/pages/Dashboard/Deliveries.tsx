@@ -58,48 +58,74 @@ export default function Deliveries() {
     refresh()
   }, [refresh])
 
-  const handleAccept = async (id: string) => {
-    await apiPost(`/deliveries/${id}/accept`)
-    await refresh()
-  }
+  const runAction = useCallback(
+    async (action: () => Promise<void>, errorMessage: string) => {
+      try {
+        await action()
+      } catch (err) {
+        console.error('Delivery action failed', err)
+        addToast({ variant: 'error', title: 'Livraisons', message: errorMessage })
+      }
+    },
+    [addToast]
+  )
 
-  const handleStatusUpdate = async (id: string, status: DeliveryStatus) => {
-    await apiPatch(`/deliveries/${id}/status`, { status })
-    await refresh()
-  }
+  const handleAccept = (id: string) =>
+    runAction(async () => {
+      await apiPost(`/deliveries/${id}/accept`)
+      await refresh()
+    }, "Impossible d'accepter la course.")
 
-  const handleGetPickupCode = async (id: string) => {
-    const response = await apiGet<{ code: string }>(`/deliveries/${id}/pickup/code`)
-    setPickupCodes(prev => ({ ...prev, [id]: response.code }))
-  }
+  const handleStatusUpdate = (id: string, status: DeliveryStatus) =>
+    runAction(async () => {
+      await apiPatch(`/deliveries/${id}/status`, { status })
+      await refresh()
+    }, 'Impossible de mettre à jour le statut.')
 
-  const handleConfirmPickup = async (id: string) => {
+  const handleGetPickupCode = (id: string) =>
+    runAction(async () => {
+      const response = await apiGet<{ code: string }>(`/deliveries/${id}/pickup/code`)
+      setPickupCodes(prev => ({ ...prev, [id]: response.code }))
+    }, 'Impossible de récupérer le code de remise.')
+
+  const handleConfirmPickup = (id: string) => {
     const code = window.prompt('Entrez le code de remise fourni par le vendeur')
     if (!code) return
-    await apiPost(`/deliveries/${id}/pickup/confirm`, { code: code.trim() })
-    await refresh()
+    return runAction(async () => {
+      await apiPost(`/deliveries/${id}/pickup/confirm`, { code: code.trim() })
+      await refresh()
+    }, 'Code de remise invalide ou confirmation impossible.')
   }
 
-  const handleGetDeliveryCode = async (id: string) => {
-    await apiGet<{ sent: boolean }>(`/deliveries/${id}/delivery/code`)
-    addToast({
-      variant: 'success',
-      title: 'Code envoyé',
-      message: 'Le code de réception a été envoyé par SMS.'
-    })
-  }
+  const handleGetDeliveryCode = (id: string) =>
+    runAction(async () => {
+      await apiGet<{ sent: boolean }>(`/deliveries/${id}/delivery/code`)
+      addToast({
+        variant: 'success',
+        title: 'Code envoyé',
+        message: 'Le code de réception a été envoyé par SMS.'
+      })
+    }, "Impossible d'envoyer le code de réception.")
 
-  const handleConfirmDelivery = async (id: string) => {
+  const handleConfirmDelivery = (id: string) => {
     const code = window.prompt('Entrez le code de réception fourni par l’acheteur')
     if (!code) return
-    await apiPost(`/deliveries/${id}/delivery/confirm`, { code: code.trim() })
-    await refresh()
+    return runAction(async () => {
+      await apiPost(`/deliveries/${id}/delivery/confirm`, { code: code.trim() })
+      await refresh()
+    }, 'Code de réception invalide ou confirmation impossible.')
   }
 
-  const handleRelease = async (id: string) => {
-    await apiPost(`/deliveries/${id}/escrow/release`)
-    await refresh()
-  }
+  const handleRelease = (id: string) =>
+    runAction(async () => {
+      await apiPost(`/deliveries/${id}/escrow/release`)
+      await refresh()
+      addToast({
+        variant: 'success',
+        title: 'Paiement libéré',
+        message: 'Les fonds ont été libérés au vendeur.'
+      })
+    }, 'Impossible de libérer le paiement sécurisé.')
 
   const deliveriesToShow = useMemo(
     () => (activeTab === 'mine' ? mine : available),

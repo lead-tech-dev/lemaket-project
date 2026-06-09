@@ -70,7 +70,7 @@ type ProtectedRouteProps = {
 
 function ProtectedRoute({ element, requirePro, requireAdmin, featureFlag }: ProtectedRouteProps) {
   const { t } = useI18n()
-  const { loading, error, isAuthenticated, isPro, isAdmin } = useAuth()
+  const { loading, error, isAuthenticated, isPro, isStaff } = useAuth()
   const { isEnabled } = useFeatureFlagsContext()
 
   if (loading) {
@@ -105,11 +105,11 @@ function ProtectedRoute({ element, requirePro, requireAdmin, featureFlag }: Prot
     return <Navigate to="/login" replace />
   }
 
-  if (isAdmin && !requireAdmin) {
+  if (isStaff && !requireAdmin) {
     return <Navigate to="/admin" replace />
   }
 
-  if (requireAdmin && !isAdmin) {
+  if (requireAdmin && !isStaff) {
     return <Navigate to="/dashboard" replace />
   }
 
@@ -159,7 +159,10 @@ export function AppRouter() {
           path="/listings/new"
           element={<ProtectedRoute element={<NewListing />} />}
         />
-        <Route path="/listings/edit/:id" element={<EditListing />} />
+        <Route
+          path="/listings/edit/:id"
+          element={<ProtectedRoute element={<EditListing />} />}
+        />
         <Route path="/search" element={<SearchResults />} />
         <Route path="/store/:slug" element={<StorefrontPage />} />
         <Route path="/stores" element={<StorefrontsPage />} />
