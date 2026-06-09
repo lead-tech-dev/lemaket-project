@@ -30,8 +30,6 @@ import { useI18n } from '../../contexts/I18nContext'
 import { useFeatureFlagsContext } from '../../contexts/FeatureFlagContext'
 import { resolveMediaUrl } from '../../utils/media'
 import { formatListingLocation } from '../../utils/location'
-import { useFollowedSellers } from '../../hooks/useFollowedSellers'
-import { useAuth } from '../../hooks/useAuth'
 
  
 
@@ -153,8 +151,6 @@ export default function Home() {
   const { addToast } = useToast()
   const { locale, t } = useI18n()
   const { isEnabled } = useFeatureFlagsContext()
-  const { isAuthenticated } = useAuth()
-  const { isFollowing, followSeller, unfollowSeller } = useFollowedSellers()
   const storefrontsEnabled = isEnabled('homeStorefronts')
   const proHomeSectionsEnabled = isEnabled('proOverview')
   const [query, setQuery] = useState({ term: '', location: '' })
@@ -177,17 +173,6 @@ export default function Home() {
     [t]
   )
 
-  const handleFollowSeller = async (sellerId: string, isCurrentlyFollowing: boolean) => {
-    if (!isAuthenticated) {
-      navigate('/login')
-      return
-    }
-    if (isCurrentlyFollowing) {
-      await unfollowSeller(sellerId)
-    } else {
-      await followSeller(sellerId)
-    }
-  }
   const [hero, setHero] = useState<HomeHero | null>(null)
   const [heroLoading, setHeroLoading] = useState(false)
   const [, setHeroError] = useState(false)

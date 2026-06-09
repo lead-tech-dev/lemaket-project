@@ -411,11 +411,21 @@ export default function Promotions() {
       )
     ) as PromotionFormErrors
 
-    if (Object.keys(scopedErrors).length) {
-      setFormErrors(previous => ({ ...previous, ...scopedErrors }))
-      return false
-    }
-    return true
+    // Remplace les erreurs des champs de l'étape : applique les erreurs
+    // courantes ET efface celles des champs désormais valides (sinon une
+    // erreur corrigée reste affichée jusqu'au prochain validateForm complet).
+    setFormErrors(previous => {
+      const next = { ...previous }
+      for (const field of stepFields[step]) {
+        if (scopedErrors[field]) {
+          next[field] = scopedErrors[field]
+        } else {
+          delete next[field]
+        }
+      }
+      return next
+    })
+    return Object.keys(scopedErrors).length === 0
   }
 
   const handleSubmit = async () => {
