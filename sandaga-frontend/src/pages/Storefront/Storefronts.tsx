@@ -20,6 +20,7 @@ export default function StorefrontsPage() {
   const [storefronts, setStorefronts] = useState<HomeStorefront[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [retryKey, setRetryKey] = useState(0)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -47,7 +48,7 @@ export default function StorefrontsPage() {
       })
 
     return () => controller.abort()
-  }, [t])
+  }, [t, retryKey])
 
   return (
     <MainLayout>
@@ -77,7 +78,7 @@ export default function StorefrontsPage() {
               title={t('storefronts.errorTitle')}
               message={error}
               accessory="⚠️"
-              onRetry={() => window.location.reload()}
+              onRetry={() => setRetryKey(key => key + 1)}
             />
           ) : storefronts.length ? (
             <div className="lbc-storefronts">

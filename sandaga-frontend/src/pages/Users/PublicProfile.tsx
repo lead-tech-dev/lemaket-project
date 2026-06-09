@@ -135,6 +135,7 @@ export default function PublicUserProfile() {
   const [profile, setProfile] = useState<PublicUserProfile | null>(null)
   const [profileLoading, setProfileLoading] = useState(true)
   const [profileError, setProfileError] = useState<string | null>(null)
+  const [retryKey, setRetryKey] = useState(0)
 
   const [sectionTab, setSectionTab] = useState<'listings' | 'reviews'>('listings')
   const [tab, setTab] = useState<'published' | 'archived'>('published')
@@ -225,7 +226,7 @@ export default function PublicUserProfile() {
       })
 
     return () => controller.abort()
-  }, [identifier, isUuid])
+  }, [identifier, isUuid, retryKey])
 
   useEffect(() => {
     const ownerId = profile?.id ?? (isUuid ? identifier : undefined)
@@ -410,7 +411,7 @@ export default function PublicUserProfile() {
           title={t('profile.notFound.title')}
           message={t('profile.notFound.message')}
           accessory="⚠️"
-          onRetry={() => window.location.assign('/')}
+          onRetry={() => navigate('/')}
         />
       </MainLayout>
     )
@@ -436,7 +437,7 @@ export default function PublicUserProfile() {
             title={t('profile.error.profile.title')}
             message={profileError}
             accessory="⚠️"
-            onRetry={() => window.location.reload()}
+            onRetry={() => setRetryKey(key => key + 1)}
           />
         ) : profile ? (
           <Card className="user-public__header">
