@@ -217,20 +217,26 @@ function formatRating(value?: number | null): string {
   return `${value}/5`
 }
 
-function formatDeliveryLabel(delivery: import('../../types/deliveries').Delivery | null): string | null {
+function formatDeliveryLabel(
+  delivery: import('../../types/deliveries').Delivery | null,
+  t: (key: string, values?: Record<string, string | number>) => string
+): string | null {
   if (!delivery) return null
   const statusMap: Record<string, string> = {
-    requested: 'En attente',
-    accepted: 'Assignée',
-    picked_up: 'En cours',
-    delivered: delivery.handoverMode === 'pickup' ? 'Remise effectuée' : 'Livrée',
-    canceled: 'Annulée'
+    requested: t('listings.detail.delivery.status.requested'),
+    accepted: t('listings.detail.delivery.status.accepted'),
+    picked_up: t('listings.detail.delivery.status.pickedUp'),
+    delivered:
+      delivery.handoverMode === 'pickup'
+        ? t('listings.detail.delivery.status.deliveredPickup')
+        : t('listings.detail.delivery.status.delivered'),
+    canceled: t('listings.detail.delivery.status.canceled')
   }
   const escrowMap: Record<string, string> = {
-    pending: 'Paiement en attente',
-    held: 'Paiement sécurisé',
-    released: 'Paiement libéré',
-    refunded: 'Paiement remboursé'
+    pending: t('listings.detail.delivery.escrow.pending'),
+    held: t('listings.detail.delivery.escrow.held'),
+    released: t('listings.detail.delivery.escrow.released'),
+    refunded: t('listings.detail.delivery.escrow.refunded')
   }
   const statusLabel = statusMap[delivery.status] ?? delivery.status
   const escrowLabel =
@@ -1562,7 +1568,9 @@ export default function ListingDetail() {
                       </p>
                       <span className={`listing-agent__since ${ownerOnline ? 'is-online' : 'is-offline'}`}>
                         <span className="listing-agent__status-dot" />
-                        {ownerOnline ? 'En ligne' : 'Hors ligne'}
+                        {ownerOnline
+                          ? t('listings.detail.presence.online')
+                          : t('listings.detail.presence.offline')}
                       </span>
                     </div>
                   </div>
@@ -1584,8 +1592,10 @@ export default function ListingDetail() {
                   ) : null}
                   {deliveryInfo ? (
                     <span className="listing-agent__stat">
-                      {deliveryInfo.handoverMode === 'pickup' ? 'Remise:' : 'Livraison:'}{' '}
-                      {formatDeliveryLabel(deliveryInfo)}
+                      {deliveryInfo.handoverMode === 'pickup'
+                        ? t('listings.detail.delivery.handoverPickup')
+                        : t('listings.detail.delivery.handoverDelivery')}{' '}
+                      {formatDeliveryLabel(deliveryInfo, t)}
                     </span>
                   ) : null}
                 </div>
@@ -1595,12 +1605,16 @@ export default function ListingDetail() {
                       disabled={isBuyerPurchaseInProgress}
                       onClick={handleBuyNow}
                     >
-                      {isBuyerPurchaseInProgress ? 'En cours' : 'Acheter'}
+                      {isBuyerPurchaseInProgress
+                        ? t('listings.detail.actions.buyInProgress')
+                        : t('listings.detail.actions.buy')}
                     </Button>
                   ) : null}
                   {canFollowSeller ? (
                     <Button variant={isFollowingSeller ? 'ghost' : 'outline'} onClick={handleFollowSeller}>
-                      {isFollowingSeller ? 'Suivi' : 'Suivre'}
+                      {isFollowingSeller
+                        ? t('listings.detail.actions.following')
+                        : t('listings.detail.actions.follow')}
                     </Button>
                   ) : null}
                   <Link to={ownerLink ?? '/search'} className="btn btn--outline">
@@ -1608,7 +1622,7 @@ export default function ListingDetail() {
                     {ownerListingCount ? ` (${ownerListingCount})` : ''}
                   </Link>
                   {deliveryInfo && deliveryInfo.escrowStatus === 'pending' ? (
-                    <span className="listing-agent__stat">Paiement en attente de confirmation</span>
+                    <span className="listing-agent__stat">{t('listings.detail.delivery.paymentPending')}</span>
                   ) : null}
                   {deliveryInfo &&
                   deliveryInfo.buyer?.id === user?.id &&
@@ -1631,13 +1645,13 @@ export default function ListingDetail() {
                           console.error('Unable to release escrow', err)
                           addToast({
                             variant: 'error',
-                            title: 'Paiement sécurisé',
-                            message: 'Impossible de libérer le paiement.'
+                            title: t('listings.detail.delivery.releaseErrorTitle'),
+                            message: t('listings.detail.delivery.releaseErrorMessage')
                           })
                         }
                       }}
                     >
-                      Confirmer la réception
+                      {t('listings.detail.delivery.confirmReceipt')}
                     </Button>
                   ) : null}
                   <Button onClick={() => setShowContactModal(true)}>
@@ -1751,7 +1765,9 @@ export default function ListingDetail() {
                     disabled={isBuyerPurchaseInProgress}
                     onClick={handleBuyNow}
                   >
-                    {isBuyerPurchaseInProgress ? 'En cours' : 'Acheter'}
+                    {isBuyerPurchaseInProgress
+                      ? t('listings.detail.actions.buyInProgress')
+                      : t('listings.detail.actions.buy')}
                   </Button>
                 ) : null}
                 {!isSeller ? (
@@ -1832,13 +1848,13 @@ export default function ListingDetail() {
 
       <Modal
         open={showPayoutModal}
-        title="Payout requis"
-        description="Le vendeur doit renseigner son Mobile Money pour recevoir le paiement."
+        title={t('listings.detail.payout.modalTitle')}
+        description={t('listings.detail.payout.modalDescription')}
         onClose={() => setShowPayoutModal(false)}
         footer={
           <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', width: '100%' }}>
             <Button type="button" variant="outline" onClick={() => setShowPayoutModal(false)}>
-              Fermer
+              {t('listings.detail.payout.close')}
             </Button>
           </div>
         }

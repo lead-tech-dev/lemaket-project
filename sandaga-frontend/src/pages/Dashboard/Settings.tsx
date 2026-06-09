@@ -560,8 +560,8 @@ export default function Settings(){
     if (!city && !zipcode) {
       addToast({
         variant: 'info',
-        title: 'Localisation livreur',
-        message: 'Renseignez au moins la ville ou le code postal.'
+        title: t('dashboard.settings.delivery.geocode.title'),
+        message: t('dashboard.settings.delivery.geocode.missingInput')
       })
       return
     }
@@ -576,22 +576,22 @@ export default function Settings(){
         }))
         addToast({
           variant: 'success',
-          title: 'Localisation livreur',
-          message: 'Coordonnées mises à jour.'
+          title: t('dashboard.settings.delivery.geocode.title'),
+          message: t('dashboard.settings.delivery.geocode.updated')
         })
       } else {
         addToast({
           variant: 'info',
-          title: 'Localisation livreur',
-          message: 'Aucun résultat trouvé.'
+          title: t('dashboard.settings.delivery.geocode.title'),
+          message: t('dashboard.settings.delivery.geocode.noResult')
         })
       }
     } catch (error) {
       console.error('Unable to geocode courier location', error)
       addToast({
         variant: 'error',
-        title: 'Localisation livreur',
-        message: 'Impossible de géocoder cette adresse.'
+        title: t('dashboard.settings.delivery.geocode.title'),
+        message: t('dashboard.settings.delivery.geocode.error')
       })
     } finally {
       setCourierGeocoding(false)
@@ -617,15 +617,15 @@ export default function Settings(){
       })
       addToast({
         variant: 'success',
-        title: 'Localisation livreur',
-        message: 'Informations livreur enregistrées.'
+        title: t('dashboard.settings.delivery.geocode.title'),
+        message: t('dashboard.settings.delivery.save.success')
       })
     } catch (error) {
       console.error('Unable to update courier location', error)
       addToast({
         variant: 'error',
-        title: 'Localisation livreur',
-        message: 'Impossible de sauvegarder la localisation.'
+        title: t('dashboard.settings.delivery.geocode.title'),
+        message: t('dashboard.settings.delivery.save.error')
       })
     } finally {
       setCourierSaving(false)
@@ -639,16 +639,16 @@ export default function Settings(){
       await uploadCourierVerificationDocument(file)
       addToast({
         variant: 'success',
-        title: 'Vérification livreur',
-        message: 'Document envoyé. Vérification en cours.'
+        title: t('dashboard.settings.delivery.verification.title'),
+        message: t('dashboard.settings.delivery.document.success')
       })
       await invalidateAuthCache()
     } catch (error) {
       console.error('Unable to upload courier document', error)
       addToast({
         variant: 'error',
-        title: 'Vérification livreur',
-        message: 'Impossible d’envoyer le document.'
+        title: t('dashboard.settings.delivery.verification.title'),
+        message: t('dashboard.settings.delivery.document.error')
       })
     } finally {
       setCourierDocUploading(false)
@@ -987,9 +987,9 @@ export default function Settings(){
         </section>
 
         <section className="dashboard-section" id="delivery-settings">
-          <h2>Livraison</h2>
+          <h2>{t('dashboard.settings.sections.delivery')}</h2>
           <p className="dashboard-section__description">
-            Activez le mode livreur pour recevoir des courses locales.
+            {t('dashboard.settings.delivery.description')}
           </p>
           <div className="settings-form">
             <label className="form-field form-field--inline">
@@ -1000,23 +1000,25 @@ export default function Settings(){
                   onChange={handleSettingToggle('isCourier')}
                   disabled={updatingSetting === 'isCourier'}
                 />
-                <span>Je souhaite être livreur particulier</span>
+                <span>{t('dashboard.settings.delivery.optIn')}</span>
               </div>
             </label>
           </div>
           {settings.isCourier ? (
             <div className="settings-form settings-form--stack" style={{ marginTop: '16px' }}>
               <div className="card" style={{ padding: '16px' }}>
-                <strong>Vérification livreur</strong>
+                <strong>{t('dashboard.settings.delivery.verification.title')}</strong>
                 <p className="form-field__hint" style={{ marginTop: '6px' }}>
-                  Statut:{' '}
+                  {t('dashboard.settings.delivery.verification.status')}{' '}
                   <span style={{ fontWeight: 600 }}>
-                    {user?.courierVerificationStatus ?? 'unverified'}
+                    {user?.courierVerificationStatus ?? t('dashboard.settings.delivery.verification.statusUnverified')}
                   </span>
                 </p>
                 <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginTop: '12px' }}>
                   <label className="btn btn--outline">
-                    {courierDocUploading ? 'Envoi...' : 'Téléverser un document'}
+                    {courierDocUploading
+                      ? t('dashboard.settings.delivery.verification.uploading')
+                      : t('dashboard.settings.delivery.verification.upload')}
                     <input
                       type="file"
                       accept=".jpg,.jpeg,.png,.pdf"
@@ -1038,59 +1040,59 @@ export default function Settings(){
                       target="_blank"
                       rel="noreferrer"
                     >
-                      Voir le document
+                      {t('dashboard.settings.delivery.verification.viewDocument')}
                     </a>
                   ) : null}
                 </div>
                 {user?.courierVerificationReviewNotes ? (
                   <p className="form-field__hint" style={{ marginTop: '8px' }}>
-                    Note: {user.courierVerificationReviewNotes}
+                    {t('dashboard.settings.delivery.verification.notePrefix')} {user.courierVerificationReviewNotes}
                   </p>
                 ) : null}
               </div>
-              <FormField label="Ville du livreur" htmlFor="courier-city">
+              <FormField label={t('dashboard.settings.delivery.fields.city')} htmlFor="courier-city">
                 <Input
                   id="courier-city"
                   value={settings.courierCity}
                   onChange={event =>
                     setSettings(prev => ({ ...prev, courierCity: event.target.value }))
                   }
-                  placeholder="Ex: Douala"
+                  placeholder={t('dashboard.settings.delivery.fields.cityPlaceholder')}
                 />
               </FormField>
-              <FormField label="Code postal" htmlFor="courier-zipcode">
+              <FormField label={t('dashboard.settings.delivery.fields.zipcode')} htmlFor="courier-zipcode">
                 <Input
                   id="courier-zipcode"
                   value={settings.courierZipcode}
                   onChange={event =>
                     setSettings(prev => ({ ...prev, courierZipcode: event.target.value }))
                   }
-                  placeholder="Ex: 00000"
+                  placeholder={t('dashboard.settings.delivery.fields.zipcodePlaceholder')}
                 />
               </FormField>
               <div className="settings-form__row" style={{ display: 'grid', gap: '12px', gridTemplateColumns: '1fr 1fr' }}>
-                <FormField label="Latitude" htmlFor="courier-lat">
+                <FormField label={t('dashboard.settings.delivery.fields.latitude')} htmlFor="courier-lat">
                   <Input
                     id="courier-lat"
                     value={settings.courierLat}
                     onChange={event =>
                       setSettings(prev => ({ ...prev, courierLat: event.target.value }))
                     }
-                    placeholder="Ex: 4.0511"
+                    placeholder={t('dashboard.settings.delivery.fields.latitudePlaceholder')}
                   />
                 </FormField>
-                <FormField label="Longitude" htmlFor="courier-lng">
+                <FormField label={t('dashboard.settings.delivery.fields.longitude')} htmlFor="courier-lng">
                   <Input
                     id="courier-lng"
                     value={settings.courierLng}
                     onChange={event =>
                       setSettings(prev => ({ ...prev, courierLng: event.target.value }))
                     }
-                    placeholder="Ex: 9.7679"
+                    placeholder={t('dashboard.settings.delivery.fields.longitudePlaceholder')}
                   />
                 </FormField>
               </div>
-              <FormField label="Rayon d’intervention (km)" htmlFor="courier-radius">
+              <FormField label={t('dashboard.settings.delivery.fields.radius')} htmlFor="courier-radius">
                 <select
                   id="courier-radius"
                   className="input"
@@ -1108,10 +1110,14 @@ export default function Settings(){
               </FormField>
               <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                 <Button type="button" variant="outline" onClick={handleCourierGeocode} disabled={courierGeocoding}>
-                  {courierGeocoding ? 'Localisation...' : 'Localiser automatiquement'}
+                  {courierGeocoding
+                    ? t('dashboard.settings.delivery.geocoding')
+                    : t('dashboard.settings.delivery.geocodeAction')}
                 </Button>
                 <Button type="button" onClick={handleCourierSave} disabled={courierSaving}>
-                  {courierSaving ? 'Enregistrement...' : 'Enregistrer la localisation'}
+                  {courierSaving
+                    ? t('dashboard.settings.delivery.savingLocation')
+                    : t('dashboard.settings.delivery.saveLocation')}
                 </Button>
               </div>
             </div>
