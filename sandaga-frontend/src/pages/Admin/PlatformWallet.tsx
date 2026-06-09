@@ -4,6 +4,7 @@ import { Button } from '../../components/ui/Button'
 import { FormField } from '../../components/ui/FormField'
 import { Input } from '../../components/ui/Input'
 import { useToast } from '../../components/ui/Toast'
+import { useI18n } from '../../contexts/I18nContext'
 import { apiGet } from '../../utils/api'
 
 type WalletSummary = {
@@ -29,6 +30,7 @@ type WalletTransactionsResponse = {
 
 export default function PlatformWallet() {
   const { addToast } = useToast()
+  const { t } = useI18n()
   const [summary, setSummary] = useState<WalletSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [txLoading, setTxLoading] = useState(true)
@@ -59,14 +61,14 @@ export default function PlatformWallet() {
         console.error('Unable to load platform wallet', err)
         addToast({
           variant: 'error',
-          title: 'Wallet plateforme',
-          message: 'Impossible de charger le wallet plateforme.'
+          title: t('admin.platformWallet.toast.title'),
+          message: t('admin.platformWallet.toast.loadSummaryError')
         })
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false)
       })
-  }, [addToast])
+  }, [addToast, t])
 
   const loadTransactions = useCallback(
     (mode: 'reset' | 'more' = 'reset') => {
@@ -111,8 +113,8 @@ export default function PlatformWallet() {
           console.error('Unable to load platform wallet transactions', err)
           addToast({
             variant: 'error',
-            title: 'Wallet plateforme',
-            message: 'Impossible de charger les transactions.'
+            title: t('admin.platformWallet.toast.title'),
+            message: t('admin.platformWallet.toast.loadTransactionsError')
           })
         })
         .finally(() => {
@@ -122,7 +124,7 @@ export default function PlatformWallet() {
           }
         })
     },
-    [addToast, filterType, filterStatus, dateFrom, dateTo]
+    [addToast, t, filterType, filterStatus, dateFrom, dateTo]
   )
 
   // Le solde se charge une seule fois (loadSummary est stable).
@@ -159,8 +161,8 @@ export default function PlatformWallet() {
       console.error('Platform wallet export failed', err)
       addToast({
         variant: 'error',
-        title: 'Wallet plateforme',
-        message: 'Impossible de télécharger le CSV.'
+        title: t('admin.platformWallet.toast.title'),
+        message: t('admin.platformWallet.toast.exportError')
       })
     }
   }
@@ -189,14 +191,14 @@ export default function PlatformWallet() {
 
   const typeLabels: Record<string, string> = useMemo(
     () => ({
-      topup: 'Recharge',
-      hold: 'Réservation',
-      release: 'Versement',
-      refund: 'Remboursement',
-      withdrawal: 'Retrait',
-      adjustment: 'Commission'
+      topup: t('admin.platformWallet.type.topup'),
+      hold: t('admin.platformWallet.type.hold'),
+      release: t('admin.platformWallet.type.release'),
+      refund: t('admin.platformWallet.type.refund'),
+      withdrawal: t('admin.platformWallet.type.withdrawal'),
+      adjustment: t('admin.platformWallet.type.adjustment')
     }),
-    []
+    [t]
   )
 
   return (
@@ -204,30 +206,30 @@ export default function PlatformWallet() {
       <div className="admin-page">
         <header className="admin-header">
           <div>
-            <h1>Wallet plateforme</h1>
-            <p>Suivi des commissions et flux financiers de la plateforme.</p>
+            <h1>{t('admin.platformWallet.title')}</h1>
+            <p>{t('admin.platformWallet.subtitle')}</p>
           </div>
           <Button variant="outline" onClick={loadSummary} disabled={loading}>
-            Actualiser
+            {t('admin.platformWallet.refresh')}
           </Button>
         </header>
 
         <section className="admin-section">
           <div className="card" style={{ padding: '20px', maxWidth: '520px' }}>
-            <h3 style={{ marginTop: 0 }}>Solde actuel</h3>
+            <h3 style={{ marginTop: 0 }}>{t('admin.platformWallet.currentBalance')}</h3>
             {loading ? (
-              <p>Chargement...</p>
+              <p>{t('admin.platformWallet.loading')}</p>
             ) : summary ? (
               <>
                 <p style={{ fontSize: '1.6rem', fontWeight: 700, margin: 0 }}>
                   {formatMoney(summary.balance, summary.currency)}
                 </p>
                 <p style={{ marginTop: '6px', color: '#64748b' }}>
-                  Compte: {summary.email}
+                  {t('admin.platformWallet.account', { email: summary.email })}
                 </p>
               </>
             ) : (
-              <p>—</p>
+              <p>{t('admin.platformWallet.emptyValue')}</p>
             )}
           </div>
         </section>
@@ -243,9 +245,9 @@ export default function PlatformWallet() {
                 flexWrap: 'wrap'
               }}
             >
-              <h3 style={{ marginTop: 0 }}>Historique des transactions</h3>
+              <h3 style={{ marginTop: 0 }}>{t('admin.platformWallet.history')}</h3>
               <Button variant="outline" onClick={handleExport}>
-                Export CSV
+                {t('admin.platformWallet.exportCsv')}
               </Button>
             </div>
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '12px' }}>
@@ -254,28 +256,28 @@ export default function PlatformWallet() {
                 variant={filterType === 'all' ? 'primary' : 'outline'}
                 onClick={() => setFilterType('all')}
               >
-                Toutes
+                {t('admin.platformWallet.filters.typeAll')}
               </Button>
               <Button
                 type="button"
                 variant={filterType === 'release' ? 'primary' : 'outline'}
                 onClick={() => setFilterType('release')}
               >
-                Versements
+                {t('admin.platformWallet.filters.typeRelease')}
               </Button>
               <Button
                 type="button"
                 variant={filterType === 'adjustment' ? 'primary' : 'outline'}
                 onClick={() => setFilterType('adjustment')}
               >
-                Commissions
+                {t('admin.platformWallet.filters.typeAdjustment')}
               </Button>
               <Button
                 type="button"
                 variant={filterType === 'refund' ? 'primary' : 'outline'}
                 onClick={() => setFilterType('refund')}
               >
-                Remboursements
+                {t('admin.platformWallet.filters.typeRefund')}
               </Button>
             </div>
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '12px' }}>
@@ -284,32 +286,32 @@ export default function PlatformWallet() {
                 variant={filterStatus === 'all' ? 'primary' : 'outline'}
                 onClick={() => setFilterStatus('all')}
               >
-                Tous statuts
+                {t('admin.platformWallet.filters.statusAll')}
               </Button>
               <Button
                 type="button"
                 variant={filterStatus === 'completed' ? 'primary' : 'outline'}
                 onClick={() => setFilterStatus('completed')}
               >
-                Confirmés
+                {t('admin.platformWallet.filters.statusCompleted')}
               </Button>
               <Button
                 type="button"
                 variant={filterStatus === 'pending' ? 'primary' : 'outline'}
                 onClick={() => setFilterStatus('pending')}
               >
-                En attente
+                {t('admin.platformWallet.filters.statusPending')}
               </Button>
               <Button
                 type="button"
                 variant={filterStatus === 'failed' ? 'primary' : 'outline'}
                 onClick={() => setFilterStatus('failed')}
               >
-                Échecs
+                {t('admin.platformWallet.filters.statusFailed')}
               </Button>
             </div>
             <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '16px' }}>
-              <FormField label="Du" htmlFor="platform-wallet-date-from">
+              <FormField label={t('admin.platformWallet.dateFrom')} htmlFor="platform-wallet-date-from">
                 <Input
                   id="platform-wallet-date-from"
                   type="date"
@@ -317,7 +319,7 @@ export default function PlatformWallet() {
                   onChange={event => setDateFrom(event.target.value)}
                 />
               </FormField>
-              <FormField label="Au" htmlFor="platform-wallet-date-to">
+              <FormField label={t('admin.platformWallet.dateTo')} htmlFor="platform-wallet-date-to">
                 <Input
                   id="platform-wallet-date-to"
                   type="date"
@@ -327,9 +329,9 @@ export default function PlatformWallet() {
               </FormField>
             </div>
             {txLoading ? (
-              <p>Chargement...</p>
+              <p>{t('admin.platformWallet.loading')}</p>
             ) : transactions.length === 0 ? (
-              <p>Aucune transaction pour le moment.</p>
+              <p>{t('admin.platformWallet.empty')}</p>
             ) : (
               <div style={{ display: 'grid', gap: '12px' }}>
                 {transactions.map(tx => (
@@ -358,10 +360,10 @@ export default function PlatformWallet() {
                       </div>
                       <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
                         {tx.status === 'completed'
-                          ? 'Confirmé'
+                          ? t('admin.platformWallet.status.completed')
                           : tx.status === 'pending'
-                            ? 'En attente'
-                            : 'Échec'}
+                            ? t('admin.platformWallet.status.pending')
+                            : t('admin.platformWallet.status.failed')}
                       </div>
                     </div>
                   </div>
@@ -375,7 +377,7 @@ export default function PlatformWallet() {
                   onClick={() => loadTransactions('more')}
                   disabled={txLoadingMore}
                 >
-                  {txLoadingMore ? 'Chargement...' : 'Charger plus'}
+                  {txLoadingMore ? t('admin.platformWallet.loading') : t('admin.platformWallet.loadMore')}
                 </Button>
               </div>
             )}
