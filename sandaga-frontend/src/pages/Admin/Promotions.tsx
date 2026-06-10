@@ -3,6 +3,7 @@ import AdminLayout from '../../layouts/AdminLayout'
 import { Button } from '../../components/ui/Button'
 import { Modal } from '../../components/ui/Modal'
 import { FormField } from '../../components/ui/FormField'
+import { Select } from '../../components/ui/Select'
 import { useToast } from '../../components/ui/Toast'
 import { useI18n } from '../../contexts/I18nContext'
 import {
@@ -657,7 +658,7 @@ export default function Promotions() {
         ) : null}
 
         {isLoading && !sortedPromotions.length ? (
-          <p style={{ padding: '1rem', color: '#6c757d' }}>
+          <p style={{ padding: '1rem', color: 'var(--color-text-muted)' }}>
             {t('admin.promotions.loading')}
           </p>
         ) : null}
@@ -769,7 +770,7 @@ export default function Promotions() {
               </article>
             ))
           ) : !isLoading ? (
-            <p style={{ padding: '1rem', color: '#6c757d' }}>
+            <p style={{ padding: '1rem', color: 'var(--color-text-muted)' }}>
               {t('admin.promotions.empty')}
             </p>
           ) : null}
@@ -820,20 +821,14 @@ export default function Promotions() {
                   />
                 </FormField>
                 <FormField label={t('admin.promotions.form.type')} required htmlFor="promotion-type">
-                  <select
+                  <Select
                     id="promotion-type"
-                    className="input"
                     value={form.type}
-                    onChange={event =>
-                      handleFormChange('type', event.target.value as PromotionType)
+                    onChange={value =>
+                      handleFormChange('type', String(value) as PromotionType)
                     }
-                  >
-                    {promotionTypes.map(option => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
+                    options={promotionTypes}
+                  />
                 </FormField>
                 <FormField
                   label={t('admin.promotions.form.status')}
@@ -842,21 +837,15 @@ export default function Promotions() {
                   hint={t('admin.promotions.form.statusHint')}
                   error={formErrors.status}
                 >
-                  <select
+                  <Select
                     id="promotion-status"
-                    className="input"
                     value={form.status}
-                    onChange={event =>
-                      handleFormChange('status', event.target.value as PromotionStatus)
+                    onChange={value =>
+                      handleFormChange('status', String(value) as PromotionStatus)
                     }
+                    options={statusOptions}
                     disabled={Boolean(editingPromotion && !['draft', 'scheduled'].includes(editingPromotion.status))}
-                  >
-                    {statusOptions.map(option => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </FormField>
               </>
             ) : null}

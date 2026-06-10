@@ -151,9 +151,9 @@ export default function ZikopayTransactions() {
   const statusStyle = (status: ZikopayTransaction['status']) => {
     if (status === 'completed') return { background: '#dcfce7', color: '#166534' }
     if (status === 'pending') return { background: '#fef9c3', color: '#854d0e' }
-    if (status === 'failed') return { background: '#fee2e2', color: '#991b1b' }
+    if (status === 'failed') return { background: 'var(--color-danger-soft)', color: '#991b1b' }
     if (status === 'refunded') return { background: '#e0e7ff', color: '#3730a3' }
-    return { background: '#e2e8f0', color: '#334155' }
+    return { background: 'var(--color-border)', color: 'var(--color-text)' }
   }
 
   const methodLabel = (method?: string | null) => {
@@ -314,22 +314,22 @@ export default function ZikopayTransactions() {
                       <div style={{ fontWeight: 600 }}>
                         {formatMoney(Number(tx.amount), tx.currency)}
                       </div>
-                      <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
                         {t('admin.zikopay.method', { method: methodLabel(tx.method) })}
                       </div>
-                      <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
                         {tx.reference
                           ? t('admin.zikopay.reference', { reference: tx.reference })
                           : t('admin.zikopay.referencePending')}
                       </div>
                       {tx.customerEmail ? (
-                        <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
                           {tx.customerName ? `${tx.customerName} · ` : ''}
                           {tx.customerEmail}
                         </div>
                       ) : null}
                       {tx.description ? (
-                        <div style={{ fontSize: '0.85rem', color: '#94a3b8' }}>{tx.description}</div>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>{tx.description}</div>
                       ) : null}
                     </div>
                     <div style={{ textAlign: 'right' }}>
@@ -346,7 +346,7 @@ export default function ZikopayTransactions() {
                       >
                         {statusLabel(tx.status)}
                       </span>
-                      <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
                         {formatDate(tx.created_at)}
                       </div>
                     </div>

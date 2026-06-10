@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import AdminLayout from '../../layouts/AdminLayout'
 import { Button } from '../../components/ui/Button'
+import { Select } from '../../components/ui/Select'
 import { useToast } from '../../components/ui/Toast'
 import { useI18n } from '../../contexts/I18nContext'
 import {
@@ -241,6 +242,28 @@ export default function ListingsModeration() {
     })
   }
 
+  const categoryFilterOptions = useMemo(
+    () => [
+      { value: '', label: t('admin.listingsModeration.filters.categoryAll') },
+      ...(options?.categories ?? []).map(category => ({
+        value: category.id,
+        label: category.name
+      }))
+    ],
+    [options, t]
+  )
+
+  const statusFilterOptions = useMemo(
+    () => [
+      { value: '', label: t('admin.listingsModeration.filters.statusAll') },
+      ...(options?.statuses ?? []).map(status => ({
+        value: status,
+        label: listingStatusLabels[status as ListingStatus] ?? status
+      }))
+    ],
+    [options, listingStatusLabels, t]
+  )
+
   const flagOptions = useMemo(() => {
     const values = options?.flagReasons ?? []
     return [
@@ -275,51 +298,29 @@ export default function ListingsModeration() {
               <div className="admin-filter-bar" style={{ flexWrap: 'wrap', gap: '12px' }}>
                 <div>
                   <span className="form-field__label">{t('admin.listingsModeration.filters.category')}</span>
-                  <select
-                    className="input"
+                  <Select
                     value={filters.categoryId ?? ''}
-                    onChange={event => handleFilterChange('categoryId', event.target.value)}
-                  >
-                    <option value="">{t('admin.listingsModeration.filters.categoryAll')}</option>
-                    {(options?.categories ?? []).map(category => (
-                      <option key={category.id} value={category.id}>
-                        {category.name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={value => handleFilterChange('categoryId', String(value))}
+                    options={categoryFilterOptions}
+                  />
                 </div>
                 <div>
                   <span className="form-field__label">{t('admin.listingsModeration.filters.status')}</span>
-                  <select
-                    className="input"
+                  <Select
                     value={filters.status ?? ''}
-                    onChange={event =>
-                      handleFilterChange('status', event.target.value as ListingStatus | '')
+                    onChange={value =>
+                      handleFilterChange('status', String(value) as ListingStatus | '')
                     }
-                  >
-                    <option value="">{t('admin.listingsModeration.filters.statusAll')}</option>
-                    {(options?.statuses ?? []).map(status => (
-                      <option key={status} value={status}>
-                        {listingStatusLabels[status as ListingStatus] ?? status}
-                      </option>
-                    ))}
-                  </select>
+                    options={statusFilterOptions}
+                  />
                 </div>
                 <div>
                   <span className="form-field__label">{t('admin.listingsModeration.filters.flags')}</span>
-                  <select
-                    className="input"
+                  <Select
                     value={filters.flagType ?? 'all'}
-                    onChange={event =>
-                      handleFilterChange('flagType', event.target.value)
-                    }
-                  >
-                    {flagOptions.map(option => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={value => handleFilterChange('flagType', String(value))}
+                    options={flagOptions}
+                  />
                 </div>
                 <div>
                   <span className="form-field__label">{t('admin.listingsModeration.filters.search')}</span>
@@ -340,7 +341,7 @@ export default function ListingsModeration() {
                   alignItems: 'center',
                   gap: '12px',
                   padding: '8px 0',
-                  borderBottom: '1px solid #e5e7eb'
+                  borderBottom: '1px solid var(--color-border)'
                 }}
               >
                 <strong>
@@ -371,7 +372,7 @@ export default function ListingsModeration() {
             ) : null}
 
             {isLoading ? (
-              <p style={{ padding: '1rem', color: '#6c757d' }}>
+              <p style={{ padding: '1rem', color: 'var(--color-text-muted)' }}>
                 {t('admin.listingsModeration.loading')}
               </p>
             ) : listings.length ? (
@@ -414,7 +415,7 @@ export default function ListingsModeration() {
                         }}
                         style={{
                           cursor: 'pointer',
-                          backgroundColor: isSelected ? '#f0f4ff' : undefined
+                          backgroundColor: isSelected ? 'var(--color-surface-alt)' : undefined
                         }}
                       >
                         <td onClick={event => event.stopPropagation()}>
@@ -427,7 +428,7 @@ export default function ListingsModeration() {
                         </td>
                         <td>
                           <strong>{listing.title}</strong>
-                          <p style={{ color: '#6c757d', fontSize: '0.85rem' }}>
+                          <p style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>
                             {listingStatusLabels[listing.status as ListingStatus] ?? listing.status}
                           </p>
                         </td>
@@ -442,7 +443,7 @@ export default function ListingsModeration() {
                         <td>
                           {listing.reportsCount ?? 0}
                           {listing.latestReportAt ? (
-                            <p style={{ color: '#6c757d', fontSize: '0.8rem', margin: 0 }}>
+                            <p style={{ color: 'var(--color-text-muted)', fontSize: '0.8rem', margin: 0 }}>
                               {t('admin.listingsModeration.report.latest', {
                                 date: dateTimeFormatter.format(new Date(listing.latestReportAt))
                               })}
@@ -472,7 +473,7 @@ export default function ListingsModeration() {
                 </tbody>
               </table>
             ) : (
-              <p style={{ padding: '1rem', color: '#6c757d' }}>
+              <p style={{ padding: '1rem', color: 'var(--color-text-muted)' }}>
                 {t('admin.listingsModeration.empty')}
               </p>
             )}
@@ -488,14 +489,14 @@ export default function ListingsModeration() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <div>
                   <h2 style={{ marginBottom: '8px' }}>{selectedListing.title}</h2>
-                  <p style={{ color: '#6c757d', fontSize: '0.9rem' }}>
+                  <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
                     {listingStatusLabels[selectedListing.status as ListingStatus] ?? selectedListing.status} •{' '}
                     {selectedListing.category?.name ?? t('admin.listingsModeration.category.unset')}
                   </p>
                 </div>
                 <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                   <strong>{priceFormatter.format(Number(selectedListing.price ?? 0))}</strong>
-                  <span style={{ color: '#6c757d' }}>
+                  <span style={{ color: 'var(--color-text-muted)' }}>
                     {t('admin.listingsModeration.preview.createdAt', {
                       date: dateTimeFormatter.format(new Date(selectedListing.created_at))
                     })}
@@ -518,13 +519,13 @@ export default function ListingsModeration() {
                     ))}
                   </div>
                 ) : (
-                  <div style={{ background: '#f8f9fa', padding: '12px', borderRadius: '6px', color: '#6c757d' }}>
+                  <div style={{ background: 'var(--color-surface-alt)', padding: '12px', borderRadius: '6px', color: 'var(--color-text-muted)' }}>
                     {t('admin.listingsModeration.preview.images.empty')}
                   </div>
                 )}
                 <div>
                   <strong>{t('admin.listingsModeration.preview.seller.title')}</strong>
-                  <p style={{ color: '#6c757d' }}>
+                  <p style={{ color: 'var(--color-text-muted)' }}>
                     {selectedListing.owner
                       ? `${selectedListing.owner.firstName ?? ''} ${selectedListing.owner.lastName ?? ''}`.trim() ||
                         selectedListing.owner.email ||
@@ -544,37 +545,37 @@ export default function ListingsModeration() {
                         <li
                           key={report.id}
                           style={{
-                            background: '#f8f9fa',
+                            background: 'var(--color-surface-alt)',
                             borderRadius: '8px',
                             padding: '12px'
                           }}
                         >
                           <p style={{ margin: 0 }}>
                             <strong>{report.reason}</strong>
-                            <span style={{ color: '#6c757d', marginLeft: '6px', fontSize: '0.85rem' }}>
+                            <span style={{ color: 'var(--color-text-muted)', marginLeft: '6px', fontSize: '0.85rem' }}>
                               {dateTimeFormatter.format(new Date(report.created_at))}
                             </span>
                           </p>
                           {report.details ? (
-                            <p style={{ marginTop: '6px', color: '#4b5563', whiteSpace: 'pre-wrap' }}>
+                            <p style={{ marginTop: '6px', color: 'var(--color-text-muted)', whiteSpace: 'pre-wrap' }}>
                               {report.details}
                             </p>
                           ) : null}
-                          <p style={{ marginTop: '6px', color: '#6c757d', fontSize: '0.85rem' }}>
+                          <p style={{ marginTop: '6px', color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>
                             {report.reporter?.email ?? t('admin.listingsModeration.preview.reports.anonymous')}
                           </p>
                         </li>
                       ))}
                     </ul>
                   ) : (
-                    <p style={{ color: '#6c757d', marginTop: '4px' }}>
+                    <p style={{ color: 'var(--color-text-muted)', marginTop: '4px' }}>
                       {t('admin.listingsModeration.preview.reports.empty')}
                     </p>
                   )}
                 </div>
               </div>
             ) : (
-              <p style={{ color: '#6c757d' }}>
+              <p style={{ color: 'var(--color-text-muted)' }}>
                 {t('admin.listingsModeration.preview.noListing')}
               </p>
             )}

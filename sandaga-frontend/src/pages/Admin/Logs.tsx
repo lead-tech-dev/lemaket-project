@@ -6,6 +6,7 @@ import { useToast } from '../../components/ui/Toast'
 import type { AdminLogEntry } from '../../types/admin'
 import { useExportJob } from '../../hooks/useExportJob'
 import { useI18n } from '../../contexts/I18nContext'
+import { getAdminActionLabel } from '../../utils/admin-action-label'
 
 export default function Logs() {
   const [logs, setLogs] = useState<AdminLogEntry[]>([])
@@ -93,7 +94,7 @@ export default function Logs() {
               {t('admin.logs.export.excel')}
             </Button>
             {isExportRunning ? (
-              <span style={{ color: '#6c757d', fontSize: '0.85rem' }}>
+              <span style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>
                 {t('admin.logs.export.progress', { progress: exportProgress })}
               </span>
             ) : null}
@@ -122,7 +123,7 @@ export default function Logs() {
             <tbody>
               {isLoading && !logs.length ? (
                 <tr>
-                  <td colSpan={5} style={{ padding: '1rem', color: '#6c757d' }}>
+                  <td colSpan={5} style={{ padding: '1rem', color: 'var(--color-text-muted)' }}>
                     {t('admin.logs.loading')}
                   </td>
                 </tr>
@@ -130,7 +131,7 @@ export default function Logs() {
                 logs.map(log => (
                   <tr key={log.id}>
                     <td>{dateTimeFormatter.format(new Date(log.created_at))}</td>
-                    <td>{log.action}</td>
+                    <td>{getAdminActionLabel(log.action)}</td>
                     <td>{log.details ?? t('admin.logs.table.emptyValue')}</td>
                     <td>{log.actorName ?? t('admin.logs.table.system')}</td>
                     <td>{log.ipAddress ?? t('admin.logs.table.emptyValue')}</td>
@@ -138,7 +139,7 @@ export default function Logs() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={5} style={{ padding: '1rem', color: '#6c757d' }}>
+                  <td colSpan={5} style={{ padding: '1rem', color: 'var(--color-text-muted)' }}>
                     {t('admin.logs.empty')}
                   </td>
                 </tr>

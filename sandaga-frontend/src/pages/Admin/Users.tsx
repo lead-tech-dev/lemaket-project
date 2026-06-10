@@ -243,7 +243,7 @@ export default function Users() {
               {t('admin.users.export.xlsx')}
             </Button>
             {isExportRunning ? (
-              <span style={{ color: '#6c757d', fontSize: '0.85rem' }}>
+              <span style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>
                 {t('admin.users.export.progress', { progress: exportProgress })}
               </span>
             ) : null}
@@ -283,7 +283,7 @@ export default function Users() {
             <tbody>
               {isLoading && !filteredUsers.length ? (
                 <tr>
-                  <td colSpan={6} style={{ padding: '1rem', color: '#6c757d' }}>
+                  <td colSpan={6} style={{ padding: '1rem', color: 'var(--color-text-muted)' }}>
                     {t('admin.users.loading')}
                   </td>
                 </tr>
@@ -373,7 +373,7 @@ export default function Users() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} style={{ padding: '1rem', color: '#6c757d' }}>
+                  <td colSpan={6} style={{ padding: '1rem', color: 'var(--color-text-muted)' }}>
                     {t('admin.users.empty')}
                   </td>
                 </tr>
@@ -397,7 +397,7 @@ export default function Users() {
             </Button>
           </div>
           {isAuditLoading ? (
-            <p style={{ color: '#6c757d' }}>{t('admin.users.audit.loading')}</p>
+            <p style={{ color: 'var(--color-text-muted)' }}>{t('admin.users.audit.loading')}</p>
           ) : auditEvents.length ? (
             <ul
               style={{
@@ -415,8 +415,8 @@ export default function Users() {
                   style={{
                     padding: '12px',
                     borderRadius: '8px',
-                    border: '1px solid #e5e7eb',
-                    background: '#fff'
+                    border: '1px solid var(--color-border)',
+                    background: 'var(--color-surface)'
                   }}
                 >
                   <div
@@ -428,14 +428,14 @@ export default function Users() {
                     }}
                   >
                     <strong>{event.action}</strong>
-                    <span style={{ color: '#6c757d', fontSize: '0.8rem' }}>
+                    <span style={{ color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>
                       {auditDateFormatter.format(new Date(event.created_at))}
                     </span>
                   </div>
                   {event.details ? (
-                    <p style={{ marginTop: '6px', color: '#4b5563' }}>{event.details}</p>
+                    <p style={{ marginTop: '6px', color: 'var(--color-text-muted)' }}>{event.details}</p>
                   ) : null}
-                  <p style={{ marginTop: '6px', color: '#6c757d', fontSize: '0.85rem' }}>
+                  <p style={{ marginTop: '6px', color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>
                     {event.actorName ?? t('admin.users.audit.system')}
                     {event.ipAddress ? ` · ${event.ipAddress}` : ''}
                   </p>
@@ -443,7 +443,7 @@ export default function Users() {
               ))}
             </ul>
           ) : (
-            <p style={{ color: '#6c757d' }}>{t('admin.users.audit.empty')}</p>
+            <p style={{ color: 'var(--color-text-muted)' }}>{t('admin.users.audit.empty')}</p>
           )}
         </section>
       </div>

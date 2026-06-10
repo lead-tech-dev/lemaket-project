@@ -292,7 +292,7 @@ const styles = {
   subtitle: {
     marginTop: '6px',
     fontSize: '0.95rem',
-    color: '#6b7280'
+    color: 'var(--color-text-muted)'
   },
   layout: {
     display: 'grid',
@@ -306,8 +306,8 @@ const styles = {
     gap: '16px',
     padding: '18px',
     borderRadius: '16px',
-    border: '1px solid #e5e7eb',
-    background: '#f8fafc'
+    border: '1px solid var(--color-border)',
+    background: 'var(--color-surface-alt)'
   },
   main: {
     position: 'relative',
@@ -339,7 +339,7 @@ const styles = {
     textAlign: 'left',
     cursor: 'pointer',
     transition: 'all 0.15s ease',
-    color: '#0f172a'
+    color: 'var(--color-text)'
   },
   stepListItemActive: {
     borderColor: 'var(--color-primary, #ff6e14)',
@@ -358,7 +358,7 @@ const styles = {
   },
   stepListMeta: {
     fontSize: '0.8rem',
-    color: '#94a3b8'
+    color: 'var(--color-text-muted)'
   },
   stepFlow: {
     fontSize: '0.8rem',
@@ -377,7 +377,7 @@ const styles = {
     padding: '2px 8px',
     borderRadius: '999px',
     background: '#f1f5f9',
-    color: '#334155',
+    color: 'var(--color-text)',
     border: '1px solid #cbd5e1',
     fontSize: '0.68rem',
     fontWeight: 700,
@@ -414,7 +414,7 @@ const styles = {
   emptyStateCard: {
     borderRadius: '16px',
     border: '1px dashed #cbd5f5',
-    background: '#f8fafc',
+    background: 'var(--color-surface-alt)',
     padding: '32px 28px',
     display: 'flex',
     flexDirection: 'column',
@@ -424,7 +424,7 @@ const styles = {
   fieldComposer: {
     position: 'relative',
     borderRadius: '20px',
-    border: '1px solid #e5e7eb',
+    border: '1px solid var(--color-border)',
     background: '#ffffff',
     padding: '24px',
     boxShadow: '0 12px 32px rgba(15, 23, 42, 0.08)',
@@ -443,7 +443,7 @@ const styles = {
   },
   fieldComposerSubtitle: {
     fontSize: '0.9rem',
-    color: '#94a3b8',
+    color: 'var(--color-text-muted)',
     marginTop: '4px'
   },
   fieldGrid: {
@@ -455,8 +455,8 @@ const styles = {
   fieldCard: {
     padding: '18px',
     borderRadius: '14px',
-    border: '1px solid #e2e8f0',
-    background: '#f8fafc',
+    border: '1px solid var(--color-border)',
+    background: 'var(--color-surface-alt)',
     display: 'flex',
     flexDirection: 'column',
     gap: '12px'
@@ -474,7 +474,7 @@ const styles = {
   },
   fieldCardName: {
     fontWeight: 600,
-    color: '#0f172a'
+    color: 'var(--color-text)'
   },
   fieldChip: {
     fontSize: '0.75rem',
@@ -495,7 +495,7 @@ const styles = {
     display: 'flex',
     gap: '8px',
     fontSize: '0.85rem',
-    color: '#475569'
+    color: 'var(--color-text-muted)'
   },
   fieldInfoList: {
     margin: 0,
@@ -543,11 +543,11 @@ const styles = {
     margin: 0,
     fontSize: '1.5rem',
     fontWeight: 600,
-    color: '#0f172a'
+    color: 'var(--color-text)'
   },
   fieldModalSubtitle: {
     marginTop: '6px',
-    color: '#64748b',
+    color: 'var(--color-text-muted)',
     fontSize: '0.95rem'
   },
   fieldModalBody: {
@@ -571,7 +571,7 @@ const styles = {
   fieldModalHint: {
     marginTop: '4px',
     fontSize: '0.8rem',
-    color: '#94a3b8'
+    color: 'var(--color-text-muted)'
   },
   errorBanner: {
     display: 'flex',
@@ -579,12 +579,12 @@ const styles = {
     gap: '8px',
     padding: '12px 18px',
     borderRadius: '12px',
-    background: '#fee2e2',
-    color: '#b91c1c',
+    background: 'var(--color-danger-soft)',
+    color: 'var(--color-danger)',
     marginBottom: '12px'
   },
   optionSection: {
-    borderTop: '1px solid #e2e8f0',
+    borderTop: '1px solid var(--color-border)',
     paddingTop: '12px',
     marginTop: '12px',
     display: 'flex',
@@ -624,7 +624,7 @@ const styles = {
   },
   fieldToggleHelp: {
     fontSize: '0.8rem',
-    color: '#94a3b8'
+    color: 'var(--color-text-muted)'
   },
   modalOverlay: {
     position: 'fixed',
@@ -661,17 +661,17 @@ const styles = {
     width: '34px',
     height: '34px',
     borderRadius: '10px',
-    border: '1px solid #e2e8f0',
+    border: '1px solid var(--color-border)',
     background: '#ffffff',
-    color: '#475569',
+    color: 'var(--color-text-muted)',
     boxShadow: '0 1px 2px rgba(15, 23, 42, 0.08)',
     cursor: 'pointer',
     transition: 'all 0.15s ease'
   },
   iconButtonDanger: {
-    color: '#dc2626',
-    borderColor: '#fecaca',
-    background: '#fff7f7'
+    color: 'var(--color-danger)',
+    borderColor: 'var(--color-danger-soft)',
+    background: 'var(--color-danger-soft)'
   }
 } as const
 

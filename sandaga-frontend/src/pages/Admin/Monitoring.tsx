@@ -200,7 +200,7 @@ export default function AdminMonitoring() {
         ) : null}
 
         {isLoading && !status ? (
-          <p style={{ padding: '1rem', color: '#6c757d' }}>
+          <p style={{ padding: '1rem', color: 'var(--color-text-muted)' }}>
             {t('admin.monitoring.loading')}
           </p>
         ) : status ? (

@@ -187,7 +187,7 @@ export default function MessageNotificationLogs() {
             <tbody>
               {isLoading && !logs.length ? (
                 <tr>
-                  <td colSpan={9} style={{ padding: '1rem', color: '#6c757d' }}>
+                  <td colSpan={9} style={{ padding: '1rem', color: 'var(--color-text-muted)' }}>
                     {t('admin.notificationLogs.loading')}
                   </td>
                 </tr>
@@ -214,7 +214,7 @@ export default function MessageNotificationLogs() {
                 })
               ) : (
                 <tr>
-                  <td colSpan={9} style={{ padding: '1rem', color: '#6c757d' }}>
+                  <td colSpan={9} style={{ padding: '1rem', color: 'var(--color-text-muted)' }}>
                     {t('admin.notificationLogs.empty')}
                   </td>
                 </tr>

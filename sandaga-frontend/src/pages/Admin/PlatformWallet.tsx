@@ -224,7 +224,7 @@ export default function PlatformWallet() {
                 <p style={{ fontSize: '1.6rem', fontWeight: 700, margin: 0 }}>
                   {formatMoney(summary.balance, summary.currency)}
                 </p>
-                <p style={{ marginTop: '6px', color: '#64748b' }}>
+                <p style={{ marginTop: '6px', color: 'var(--color-text-muted)' }}>
                   {t('admin.platformWallet.account', { email: summary.email })}
                 </p>
               </>
@@ -350,7 +350,7 @@ export default function PlatformWallet() {
                       <div style={{ fontWeight: 600 }}>
                         {typeLabels[tx.type] ?? tx.type}
                       </div>
-                      <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
                         {formatDate(tx.created_at)}
                       </div>
                     </div>
@@ -358,7 +358,7 @@ export default function PlatformWallet() {
                       <div style={{ fontWeight: 700 }}>
                         {formatMoney(Number(tx.amount), tx.currency)}
                       </div>
-                      <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
                         {tx.status === 'completed'
                           ? t('admin.platformWallet.status.completed')
                           : tx.status === 'pending'

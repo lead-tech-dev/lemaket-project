@@ -70,7 +70,7 @@ export default function AdminHome() {
   const statusChip = useMemo(() => {
     const status = searchStatus?.status
     if (!status) {
-      return { label: t('admin.monitoring.status.unknown'), color: '#6c757d', background: '#f1f3f5' }
+      return { label: t('admin.monitoring.status.unknown'), color: 'var(--color-text-muted)', background: 'var(--color-border)' }
     }
     if (status === 'critical') {
       return { label: t('admin.monitoring.status.critical'), color: '#b42318', background: '#fee4e2' }
@@ -79,9 +79,9 @@ export default function AdminHome() {
       return { label: t('admin.monitoring.status.degraded'), color: '#b54708', background: '#fffaeb' }
     }
     if (status === 'ok') {
-      return { label: t('admin.monitoring.status.ok'), color: '#027a48', background: '#ecfdf3' }
+      return { label: t('admin.monitoring.status.ok'), color: '#027a48', background: 'var(--color-success-soft)' }
     }
-    return { label: t('admin.monitoring.status.unknown'), color: '#6c757d', background: '#f1f3f5' }
+    return { label: t('admin.monitoring.status.unknown'), color: 'var(--color-text-muted)', background: 'var(--color-border)' }
   }, [searchStatus, t])
 
   const formatPercent = (value: number) => `${(value * 100).toFixed(2)}%`
@@ -167,7 +167,7 @@ export default function AdminHome() {
 
         <section className="admin-metrics">
           {isLoading && !metrics.length ? (
-            <p style={{ padding: '1rem', color: '#6c757d' }}>
+            <p style={{ padding: '1rem', color: 'var(--color-text-muted)' }}>
               {t('admin.home.metrics.loading')}
             </p>
           ) : metrics.length ? (
@@ -178,7 +178,7 @@ export default function AdminHome() {
               </div>
             ))
           ) : (
-            <p style={{ padding: '1rem', color: '#6c757d' }}>
+            <p style={{ padding: '1rem', color: 'var(--color-text-muted)' }}>
               {t('admin.home.metrics.empty')}
             </p>
           )}
@@ -190,7 +190,7 @@ export default function AdminHome() {
           </div>
           <div className="message-list">
             {isLoading && !activities.length ? (
-              <p style={{ padding: '1rem', color: '#6c757d' }}>
+              <p style={{ padding: '1rem', color: 'var(--color-text-muted)' }}>
                 {t('admin.home.activities.loading')}
               </p>
             ) : activities.length ? (
@@ -204,7 +204,7 @@ export default function AdminHome() {
                 </div>
               ))
             ) : (
-              <p style={{ padding: '1rem', color: '#6c757d' }}>
+              <p style={{ padding: '1rem', color: 'var(--color-text-muted)' }}>
                 {t('admin.home.activities.empty')}
               </p>
             )}
@@ -313,7 +313,7 @@ export default function AdminHome() {
               ) : null}
             </div>
           ) : (
-            <p style={{ padding: '1rem', color: '#6c757d' }}>
+            <p style={{ padding: '1rem', color: 'var(--color-text-muted)' }}>
               {isLoading ? t('admin.monitoring.loading') : t('admin.monitoring.unavailable')}
             </p>
           )}
