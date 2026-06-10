@@ -1964,7 +1964,10 @@ export class PaymentsService {
     }
     const actual = Number(String(rawAmount).replace(',', '.'));
     const expected = Number(payment.amount);
-    if (!Number.isFinite(actual) || !Number.isFinite(expected)) {
+    // actual <= 0 : certains providers (ex. CamPay sandbox) renvoient amount=0
+    // même en SUCCESSFUL → non vérifiable, on ne bloque pas (le statut réel
+    // reste confirmé en serveur-à-serveur).
+    if (!Number.isFinite(actual) || !Number.isFinite(expected) || actual <= 0) {
       return true;
     }
     // Tolérance d'1 unité (arrondi Mobile Money). Sous-paiement = refus.
