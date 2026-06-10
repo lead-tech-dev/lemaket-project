@@ -52,6 +52,16 @@ export default () => ({
         process.env.BACKEND_URL ??
         'http://localhost:3000'
     },
+    campay: {
+      permanentToken: process.env.CAMPAY_PERMANENT_TOKEN ?? '',
+      baseUrl: process.env.CAMPAY_BASE_URL ?? 'https://www.campay.net/api',
+      webhookKey: process.env.CAMPAY_WEBHOOK_KEY ?? '',
+      callbackUrl:
+        process.env.CAMPAY_CALLBACK_URL ??
+        process.env.API_PUBLIC_URL ??
+        process.env.BACKEND_URL ??
+        'http://localhost:3000'
+    },
     deliveryCommissionRate: Number(process.env.DELIVERY_COMMISSION_RATE ?? 0.05),
     platformWalletUserId: process.env.PLATFORM_WALLET_USER_ID ?? ''
   }

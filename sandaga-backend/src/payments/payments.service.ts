@@ -33,6 +33,7 @@ import { WalletTopupDto } from './dto/wallet-topup.dto';
 import { WalletWithdrawDto } from './dto/wallet-withdraw.dto';
 import { request as httpRequest } from 'http';
 import { request as httpsRequest } from 'https';
+import { randomUUID } from 'crypto';
 import { URL } from 'url';
 import { Delivery } from '../deliveries/delivery.entity';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -113,6 +114,10 @@ export class PaymentsService {
   private readonly zikopayReturnUrl: string;
   private readonly zikopayCancelUrl: string;
   private readonly zikopayCallbackUrl: string;
+  private readonly campayPermanentToken: string;
+  private readonly campayBaseUrl: string;
+  private readonly campayWebhookKey: string;
+  private readonly campayCallbackUrl: string;
   private readonly zeroDecimalCurrencies = new Set([
     'BIF',
     'CLP',
@@ -188,6 +193,12 @@ export class PaymentsService {
     this.zikopayReturnUrl = zikopayConfig.returnUrl ?? '';
     this.zikopayCancelUrl = zikopayConfig.cancelUrl ?? '';
     this.zikopayCallbackUrl = zikopayConfig.callbackUrl ?? '';
+    const campayConfig =
+      this.configService.get<Record<string, any>>('payments.campay') ?? {};
+    this.campayPermanentToken = campayConfig.permanentToken ?? '';
+    this.campayBaseUrl = campayConfig.baseUrl ?? 'https://www.campay.net/api';
+    this.campayWebhookKey = campayConfig.webhookKey ?? '';
+    this.campayCallbackUrl = campayConfig.callbackUrl ?? '';
 
     const promotionPriceMap =
       this.configService.get<Record<string, string>>('payments.promotionPriceMap') ?? {};
@@ -2048,6 +2059,338 @@ export class PaymentsService {
     return this.applyZikopayAuthoritativeStatus(payment, response, 'verify');
   }
 
+  private normalizeCampayPhone(raw: string | null | undefined): string {
+    const digits = String(raw ?? '').replace(/[^\d]/g, '');
+    if (!digits) {
+      return '';
+    }
+    if (digits.startsWith('237')) {
+      return digits;
+    }
+    if (digits.length === 9) {
+      return `237${digits}`;
+    }
+    return digits;
+  }
+
+  async initCampayCollect(params: {
+    user: AuthUser;
+    amount: number;
+    currency: string;
+    description: string;
+    deliveryId?: string | null;
+    listingId: string;
+    paymentPhone?: string;
+    extraMeta?: Record<string, unknown>;
+  }): Promise<{ paymentId: string; reference: string; ussdCode?: string; operator?: string }> {
+    if (!this.campayPermanentToken) {
+      throw new ServiceUnavailableException('Configuration CamPay manquante.');
+    }
+
+    const requestedCurrency = (params.currency || 'XAF').toUpperCase();
+
+    const account = await this.usersService.findOne(params.user.id);
+    const phone = this.normalizeCampayPhone(
+      params.paymentPhone ?? account.phoneNumber ?? ''
+    );
+    if (!phone) {
+      throw new BadRequestException('Numéro Mobile Money requis.');
+    }
+
+    const payment = await this.paymentsRepository.save(
+      this.paymentsRepository.create({
+        amount: params.amount.toFixed(2),
+        currency: 'XAF',
+        description: params.description,
+        status: PaymentStatus.PENDING,
+        userId: params.user.id,
+        provider: 'campay',
+        metadata: {
+          deliveryId: params.deliveryId ?? null,
+          listingId: params.listingId,
+          type: params.extraMeta?.type ?? 'escrow',
+          paymentMethod: 'mobile_money',
+          originalCurrency: requestedCurrency,
+          ...params.extraMeta
+        }
+      })
+    );
+
+    let response: Record<string, any> | null = null;
+    try {
+      response = await this.postCampay('/collect/', {
+        amount: String(Math.round(params.amount)),
+        currency: 'XAF',
+        from: phone,
+        description: params.description,
+        external_reference: payment.id
+      });
+    } catch (error) {
+      await this.logPaymentEvent({
+        paymentId: payment.id,
+        provider: 'campay',
+        type: 'escrow_init_failed',
+        status: 'failed',
+        payload: {
+          reason: error instanceof Error ? error.message : 'transport_error'
+        }
+      });
+      throw error;
+    }
+
+    const data = response?.data ?? response;
+    const reference = data?.reference ?? response?.reference;
+    const ussdCode = data?.ussd_code ?? response?.ussd_code ?? undefined;
+    const operator = data?.operator ?? response?.operator ?? undefined;
+
+    if (!reference) {
+      await this.logPaymentEvent({
+        paymentId: payment.id,
+        provider: 'campay',
+        type: 'escrow_init_failed',
+        status: 'failed',
+        payload: { reason: 'missing_reference', response }
+      });
+      throw new ServiceUnavailableException(
+        `Impossible de lancer le paiement CamPay. Réponse: ${JSON.stringify(response)}`
+      );
+    }
+
+    payment.externalReference = reference;
+    payment.metadata = {
+      ...(payment.metadata ?? {}),
+      campayReference: reference,
+      ...(ussdCode ? { campayUssdCode: ussdCode } : {})
+    };
+    await this.paymentsRepository.save(payment);
+    await this.logPaymentEvent({
+      paymentId: payment.id,
+      provider: 'campay',
+      type: 'escrow_init',
+      status: response?.status ?? null,
+      payload: response ?? null
+    });
+
+    return { paymentId: payment.id, reference, ussdCode, operator };
+  }
+
+  /**
+   * Applique à un paiement le statut RÉEL renvoyé par CamPay (réponse
+   * authentifiée). C'est l'unique source de vérité pour compléter/échouer un
+   * paiement : ni le webhook entrant, ni aucun payload client n'est traité
+   * comme fiable.
+   */
+  private async applyCampayAuthoritativeStatus(
+    payment: Payment,
+    response: Record<string, any> | null,
+    source: 'webhook' | 'verify'
+  ): Promise<{ ok: true; status: PaymentStatus | string }> {
+    const data = ((response as Record<string, any>)?.data ?? response ?? {}) as Record<
+      string,
+      any
+    >;
+    const statusRaw =
+      data?.status ?? data?.paymentStatus ?? (response as Record<string, any>)?.status ?? 'pending';
+    const status = String(statusRaw).toLowerCase();
+
+    if (this.isProviderSuccessStatus(status)) {
+      const transactionId = this.extractProviderTransactionId(
+        response as Record<string, any>,
+        'campay'
+      );
+      const debitConfirmed = this.hasOperatorDebitConfirmation({
+        provider: 'campay',
+        payment,
+        payload: response as Record<string, any>,
+        transactionId
+      });
+
+      if (!debitConfirmed) {
+        await this.logPaymentEvent({
+          paymentId: payment.id,
+          provider: 'campay',
+          type: `${source}_success_without_debit_proof`,
+          status,
+          payload: response ?? null
+        });
+        return { ok: true, status: payment.status ?? PaymentStatus.PENDING };
+      }
+
+      const wasCompleted = payment.status === PaymentStatus.COMPLETED;
+      payment.status = PaymentStatus.COMPLETED;
+      payment.metadata = {
+        ...(payment.metadata ?? {}),
+        campayTransactionId: transactionId,
+        operatorDebitConfirmed: true,
+        operatorDebitConfirmedAt: new Date().toISOString()
+      };
+      await this.paymentsRepository.save(payment);
+      await this.logPaymentEvent({
+        paymentId: payment.id,
+        provider: 'campay',
+        type: `${source}_completed`,
+        status,
+        payload: response ?? null
+      });
+
+      if (!wasCompleted) {
+        const meta = {
+          ...(typeof payment.metadata === 'object' && payment.metadata ? payment.metadata : {})
+        };
+        await this.handlePaymentMeta(payment, meta);
+      }
+      return { ok: true, status: payment.status };
+    }
+
+    if (this.isProviderFailureStatus(status)) {
+      payment.status = PaymentStatus.FAILED;
+      await this.paymentsRepository.save(payment);
+      await this.logPaymentEvent({
+        paymentId: payment.id,
+        provider: 'campay',
+        type: `${source}_failed`,
+        status,
+        payload: response ?? null
+      });
+      const meta = {
+        ...(typeof payment.metadata === 'object' && payment.metadata ? payment.metadata : {})
+      };
+      await this.notifyEscrowPaymentFailed(payment, meta);
+      return { ok: true, status: payment.status };
+    }
+
+    return { ok: true, status: payment.status ?? PaymentStatus.PENDING };
+  }
+
+  async handleCampayWebhook(payload: Record<string, any>) {
+    const reference =
+      payload?.reference ?? payload?.data?.reference ?? null;
+    const externalReference =
+      payload?.external_reference ?? payload?.data?.external_reference ?? null;
+
+    let payment = reference
+      ? await this.paymentsRepository.findOne({
+          where: { externalReference: reference }
+        })
+      : null;
+    if (!payment && externalReference) {
+      payment = await this.paymentsRepository.findOne({
+        where: { id: externalReference }
+      });
+    }
+
+    if (!payment) {
+      await this.logPaymentEvent({
+        provider: 'campay',
+        type: 'webhook_unmatched',
+        status: payload?.status ?? null,
+        payload
+      });
+      return { ok: true, status: 'unknown' };
+    }
+
+    const authoritativeReference = payment.externalReference ?? reference;
+    if (!authoritativeReference) {
+      await this.logPaymentEvent({
+        paymentId: payment.id,
+        provider: 'campay',
+        type: 'webhook_unmatched',
+        status: payload?.status ?? null,
+        payload
+      });
+      return { ok: true, status: 'unknown' };
+    }
+
+    // L'endpoint webhook est public : le payload entrant n'est JAMAIS digne de
+    // confiance. On revérifie le statut réel auprès de CamPay via un appel
+    // serveur-à-serveur authentifié avant toute libération d'escrow.
+    if (!this.campayPermanentToken) {
+      throw new ServiceUnavailableException('Configuration CamPay manquante.');
+    }
+    let authoritative: Record<string, any> | null = null;
+    try {
+      authoritative = await this.getCampay(
+        `/transaction/${encodeURIComponent(authoritativeReference)}/`
+      );
+    } catch (error) {
+      await this.logPaymentEvent({
+        paymentId: payment.id,
+        provider: 'campay',
+        type: 'webhook_verify_error',
+        status: payload?.status ?? null,
+        payload: {
+          reference: authoritativeReference,
+          reason: error instanceof Error ? error.message : 'transport_error'
+        }
+      });
+      throw error;
+    }
+
+    return this.applyCampayAuthoritativeStatus(payment, authoritative, 'webhook');
+  }
+
+  async verifyCampayReference(user: AuthUser, reference: string) {
+    if (!this.campayPermanentToken) {
+      throw new ServiceUnavailableException('Configuration CamPay manquante.');
+    }
+    if (!reference) {
+      throw new BadRequestException('reference manquant');
+    }
+    const payment = await this.paymentsRepository.findOne({
+      where: { externalReference: reference }
+    });
+    if (!payment) {
+      throw new NotFoundException('Payment not found');
+    }
+    if (payment.userId !== user.id) {
+      throw new ForbiddenException('Paiement non autorisé.');
+    }
+
+    const response = await this.getCampay(
+      `/transaction/${encodeURIComponent(reference)}/`
+    );
+    return this.applyCampayAuthoritativeStatus(payment, response, 'verify');
+  }
+
+  async createCampayMobileMoneyPayout(params: {
+    amount: number;
+    currency: string;
+    beneficiaryName: string;
+    accountNumber: string;
+    network: 'mtn' | 'orange';
+  }): Promise<{ payoutReference: string }> {
+    if (!this.campayPermanentToken) {
+      throw new ServiceUnavailableException('Configuration CamPay manquante.');
+    }
+
+    const phone = this.normalizeCampayPhone(params.accountNumber);
+    if (!phone) {
+      throw new BadRequestException('Numéro Mobile Money requis.');
+    }
+
+    const response = await this.postCampay('/withdraw/', {
+      amount: String(Math.round(params.amount)),
+      to: phone,
+      description: 'Retrait wallet',
+      external_reference: randomUUID()
+    });
+
+    const data = response?.data ?? response;
+    const reference = data?.reference ?? response?.reference;
+    if (!reference) {
+      throw new ServiceUnavailableException('Impossible de lancer le retrait CamPay.');
+    }
+
+    await this.logPaymentEvent({
+      provider: 'campay',
+      type: 'payout_transfer',
+      status: response?.status ?? null,
+      payload: response?.data ?? response
+    });
+
+    return { payoutReference: reference };
+  }
+
   async handleFlutterwaveWebhook(payload: Record<string, any>, signature?: string) {
     if (!this.flutterwaveWebhookHash || signature !== this.flutterwaveWebhookHash) {
       throw new ForbiddenException('Signature Flutterwave invalide.');
@@ -2522,6 +2865,21 @@ export class PaymentsService {
     }
     if (paymentMethod === 'mobile_money' && !paymentPhone) {
       throw new BadRequestException('Numéro Mobile Money requis.');
+    }
+
+    if (dto.provider === 'campay') {
+      return this.initCampayCollect({
+        user,
+        amount: dto.amount,
+        currency,
+        description: 'Recharge wallet',
+        listingId: 'wallet',
+        deliveryId: null,
+        paymentPhone,
+        extraMeta: {
+          type: 'wallet_topup'
+        }
+      });
     }
 
     const payment = await this.initZikopayEscrowPayment({
@@ -3087,6 +3445,136 @@ export class PaymentsService {
     });
   }
 
+  private resolveCampayCallbackUrl() {
+    const base = (this.campayCallbackUrl || 'http://localhost:3000').replace(/\/$/, '');
+    if (base.includes('/payments/campay/webhook')) {
+      return base;
+    }
+    return `${base}/payments/campay/webhook`;
+  }
+
+  private postCampay(path: string, body: unknown): Promise<any> {
+    const base = this.campayBaseUrl.replace(/\/+$/, '');
+    const normalizedPath = path.replace(/^\/+/, '');
+    const url = new URL(`${base}/${normalizedPath}`);
+    const transport = url.protocol === 'http:' ? httpRequest : httpsRequest;
+    return new Promise((resolve, reject) => {
+      const data = JSON.stringify(body);
+      const req = transport(
+        url,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Token ${this.campayPermanentToken}`,
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(data)
+          }
+        },
+        res => {
+          const chunks: Buffer[] = [];
+          res.on('data', chunk => chunks.push(chunk));
+          res.on('end', () => {
+            const raw = Buffer.concat(chunks).toString('utf8');
+            const statusCode = res.statusCode ?? 0;
+            const contentType = res.headers['content-type'] ?? '';
+            const looksLikeHtml = raw.trim().startsWith('<');
+            const isJson = typeof contentType === 'string' && contentType.toLowerCase().includes('application/json');
+
+            if (!raw) {
+              return reject(
+                new Error(`CamPay réponse vide (HTTP ${statusCode}) pour ${url.toString()}`)
+              );
+            }
+
+            if (!isJson || looksLikeHtml) {
+              const snippet = raw.replace(/\s+/g, ' ').slice(0, 200);
+              return reject(
+                new Error(`CamPay réponse non-JSON (HTTP ${statusCode}) : ${snippet}`)
+              );
+            }
+
+            try {
+              const parsed = JSON.parse(raw);
+              if (statusCode >= 400) {
+                return reject(
+                  new Error(
+                    `CamPay erreur HTTP ${statusCode}: ${parsed?.message ?? parsed?.error ?? raw}`
+                  )
+                );
+              }
+              resolve(parsed);
+            } catch (error) {
+              reject(error);
+            }
+          });
+        }
+      );
+      req.on('error', reject);
+      req.write(data);
+      req.end();
+    });
+  }
+
+  private getCampay(path: string): Promise<any> {
+    const base = this.campayBaseUrl.replace(/\/+$/, '');
+    const normalizedPath = path.replace(/^\/+/, '');
+    const url = new URL(`${base}/${normalizedPath}`);
+    const transport = url.protocol === 'http:' ? httpRequest : httpsRequest;
+    return new Promise((resolve, reject) => {
+      const req = transport(
+        url,
+        {
+          method: 'GET',
+          headers: {
+            Authorization: `Token ${this.campayPermanentToken}`,
+            Accept: 'application/json'
+          }
+        },
+        res => {
+          const chunks: Buffer[] = [];
+          res.on('data', chunk => chunks.push(chunk));
+          res.on('end', () => {
+            const raw = Buffer.concat(chunks).toString('utf8');
+            const statusCode = res.statusCode ?? 0;
+            const contentType = res.headers['content-type'] ?? '';
+            const looksLikeHtml = raw.trim().startsWith('<');
+            const isJson = typeof contentType === 'string' && contentType.toLowerCase().includes('application/json');
+
+            if (!raw) {
+              return reject(
+                new Error(`CamPay réponse vide (HTTP ${statusCode}) pour ${url.toString()}`)
+              );
+            }
+
+            if (!isJson || looksLikeHtml) {
+              const snippet = raw.replace(/\s+/g, ' ').slice(0, 200);
+              return reject(
+                new Error(`CamPay réponse non-JSON (HTTP ${statusCode}) : ${snippet}`)
+              );
+            }
+
+            try {
+              const parsed = JSON.parse(raw);
+              if (statusCode >= 400) {
+                return reject(
+                  new Error(
+                    `CamPay erreur HTTP ${statusCode}: ${parsed?.message ?? parsed?.error ?? raw}`
+                  )
+                );
+              }
+              resolve(parsed);
+            } catch (error) {
+              reject(error);
+            }
+          });
+        }
+      );
+      req.on('error', reject);
+      req.end();
+    });
+  }
+
   private computeNextRenewalDate(days: number): Date {
     return new Date(Date.now() + days * 24 * 60 * 60 * 1000);
   }
@@ -3102,7 +3590,7 @@ export class PaymentsService {
   }
 
   private hasOperatorDebitConfirmation(input: {
-    provider: 'zikopay' | 'mtn' | 'orange';
+    provider: 'zikopay' | 'campay' | 'mtn' | 'orange';
     payment: Payment;
     payload: Record<string, any> | null | undefined;
     transactionId: string | null;
@@ -3169,9 +3657,9 @@ export class PaymentsService {
 
   private extractProviderTransactionId(
     payload: Record<string, any> | null | undefined,
-    provider: 'zikopay' | 'mtn' | 'orange'
+    provider: 'zikopay' | 'campay' | 'mtn' | 'orange'
   ): string | null {
-    const providerKeys: Record<'zikopay' | 'mtn' | 'orange', string[]> = {
+    const providerKeys: Record<'zikopay' | 'campay' | 'mtn' | 'orange', string[]> = {
       zikopay: [
         'external_transaction_id',
         'externalTransactionId',
@@ -3183,6 +3671,13 @@ export class PaymentsService {
         'providerTransactionId',
         'payment_id',
         'paymentId'
+      ],
+      campay: [
+        'operator_reference',
+        'operatorReference',
+        'reference',
+        'external_reference',
+        'code'
       ],
       mtn: [
         'financialTransactionId',

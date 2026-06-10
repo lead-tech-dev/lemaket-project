@@ -213,6 +213,11 @@ export class PaymentsController {
     return this.paymentsService.verifyZikopayReference(user, reference ?? '');
   }
 
+  @Get('campay/verify')
+  verifyCampay(@CurrentUser() user: AuthUser, @Query('reference') reference?: string) {
+    return this.paymentsService.verifyCampayReference(user, reference ?? '');
+  }
+
   @Get('flutterwave/verify')
   verifyFlutterwave(@CurrentUser() user: AuthUser, @Query('tx_ref') txRef?: string) {
     return this.paymentsService.verifyFlutterwaveReference(user, txRef ?? '');
