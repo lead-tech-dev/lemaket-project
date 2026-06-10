@@ -919,7 +919,6 @@ useEffect(() => {
         setRawDetails(details)
         setListingFlow((data as any).flow ?? null)
         setSchemaCategoryId(formValues.categoryId || null)
-        console.log(data)
         setImages(
           (data.images ?? []).slice(0, 8).map((image, index) => ({
             id: image.id ?? `${image.url}-${index}`,
@@ -1290,8 +1289,6 @@ useEffect(() => {
           isCover: hasCover ? image.isCover : index === 0
         }))
       }
-
-      console.log(payload)
 
       try {
         await apiPatch<Listing>(`/listings/${id}`, payload)

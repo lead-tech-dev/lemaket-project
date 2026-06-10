@@ -20,6 +20,7 @@ import { clearAuthToken } from '../../utils/auth'
 import { useI18n } from '../../contexts/I18nContext'
 import { useAuth } from '../../hooks/useAuth'
 import { richTextToPlainText, sanitizeRichTextHtml } from '../../utils/richText'
+import { setPromotionCheckoutSelection } from '../../utils/preferences'
 
 type SchemaStep = FormSchemaDTO['steps'][number] & Partial<FormStep>
 type SchemaField = FormSchemaDTO['steps'][number]['fields'][number] & Partial<FormField>
@@ -1560,8 +1561,6 @@ export default function NewListing() {
       }))
     }
 
-    console.log(payload)
-
     try {
       const listing = await apiPost<Listing>('/listings', payload)
 
@@ -1572,7 +1571,15 @@ export default function NewListing() {
       })
       setImages([])
       reset({ ...INITIAL_FORM, categoryId: values.categoryId, details: { handover_modes: ['pickup'] } })
-      navigate(`/listings/edit/${listing.id}`, { replace: true })
+      const wantsBoostNow = window.confirm(
+        'Votre annonce est publiée. Voulez-vous la booster maintenant ?'
+      )
+      if (wantsBoostNow) {
+        setPromotionCheckoutSelection({ listingId: listing.id })
+        navigate('/dashboard/promotions', { replace: true })
+      } else {
+        navigate(`/listings/edit/${listing.id}`, { replace: true })
+      }
     } catch (err) {
       console.error('Unable to create listing', err)
 

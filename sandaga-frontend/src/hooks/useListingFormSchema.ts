@@ -90,7 +90,6 @@ export function useListingFormSchema(categoryId: string | null): UseListingFormS
     apiGet<FormSchemaDTO>(`/listings/form-schema/${categoryId}`, { signal: controller.signal })
       .then(payload => {
         if (!isMounted) return
-        console.log(payload)
         setSchema(payload)
       })
       .catch(err => {

@@ -117,7 +117,6 @@ export class PaymentsService {
   private readonly campayPermanentToken: string;
   private readonly campayBaseUrl: string;
   private readonly campayWebhookKey: string;
-  private readonly campayCallbackUrl: string;
   // Provider Mobile Money actif (collecte + payout). Carte: toujours Zikopay.
   private readonly momoProvider: 'campay' | 'zikopay';
   private readonly zeroDecimalCurrencies = new Set([
@@ -200,7 +199,6 @@ export class PaymentsService {
     this.campayPermanentToken = campayConfig.permanentToken ?? '';
     this.campayBaseUrl = campayConfig.baseUrl ?? 'https://www.campay.net/api';
     this.campayWebhookKey = campayConfig.webhookKey ?? '';
-    this.campayCallbackUrl = campayConfig.callbackUrl ?? '';
     this.momoProvider =
       String(this.configService.get<string>('payments.momoProvider') ?? 'campay').toLowerCase() ===
       'zikopay'
@@ -3073,10 +3071,30 @@ export class PaymentsService {
       accountNumber: payoutNumber,
       network: payoutNetwork
     };
-    if (this.momoProvider === 'campay') {
-      await this.createCampayMobileMoneyPayout(payoutParams);
-    } else {
-      await this.createZikopayMobileMoneyPayout(payoutParams);
+    try {
+      if (this.momoProvider === 'campay') {
+        await this.createCampayMobileMoneyPayout(payoutParams);
+      } else {
+        await this.createZikopayMobileMoneyPayout(payoutParams);
+      }
+    } catch (error) {
+      // Le solde a déjà été débité : si le payout échoue, on recrédite pour ne
+      // pas faire perdre l'argent à l'utilisateur, puis on remonte l'erreur.
+      await this.walletsService.credit({
+        userId: user.id,
+        amount,
+        currency,
+        type: WalletTransactionType.REFUND,
+        metadata: {
+          reason: 'payout_failed',
+          relatedWalletTransactionId: tx.id,
+          network: payoutNetwork
+        }
+      });
+      console.error('Wallet payout failed, balance refunded', error);
+      throw new ServiceUnavailableException(
+        'Le retrait a échoué. Votre solde a été recrédité.'
+      );
     }
 
     await this.notificationsService.createNotification({
@@ -3587,13 +3605,6 @@ export class PaymentsService {
     });
   }
 
-  private resolveCampayCallbackUrl() {
-    const base = (this.campayCallbackUrl || 'http://localhost:3000').replace(/\/$/, '');
-    if (base.includes('/payments/campay/webhook')) {
-      return base;
-    }
-    return `${base}/payments/campay/webhook`;
-  }
 
   private postCampay(path: string, body: unknown): Promise<any> {
     const base = this.campayBaseUrl.replace(/\/+$/, '');
