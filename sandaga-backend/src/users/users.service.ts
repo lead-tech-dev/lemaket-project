@@ -16,7 +16,7 @@ import { UpdateSettingsDto } from './dto/update-settings.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { User } from './user.entity';
 import { UserRole } from '../common/enums/user-role.enum';
-import { PaginationQueryDto } from '../common/dtos/pagination-query.dto';
+import { FindUsersQueryDto } from './dto/find-users-query.dto';
 import { PaginatedResult } from '../common/interfaces/paginated-result.interface';
 import { UserAddress } from './user-address.entity';
 import { UpsertAddressDto } from './dto/upsert-address.dto';
@@ -118,16 +118,30 @@ export class UsersService {
     }
   }
 
-  async findAll(
-    paginationQuery: PaginationQueryDto
-  ): Promise<PaginatedResult<User>> {
-    const page = paginationQuery.page ?? 1;
-    const limit = paginationQuery.limit ?? 20;
-    const [data, total] = await this.usersRepository.findAndCount({
-      skip: (page - 1) * limit,
-      take: limit,
-      order: { created_at: 'DESC' }
-    });
+  async findAll(query: FindUsersQueryDto): Promise<PaginatedResult<User>> {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const search = query.search?.trim();
+
+    const qb = this.usersRepository
+      .createQueryBuilder('user')
+      .orderBy('user.created_at', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    if (search) {
+      const term = `%${search}%`;
+      qb.where(
+        new Brackets(builder => {
+          builder
+            .where('user.firstName ILIKE :term', { term })
+            .orWhere('user.lastName ILIKE :term', { term })
+            .orWhere('user.email ILIKE :term', { term });
+        })
+      );
+    }
+
+    const [data, total] = await qb.getManyAndCount();
 
     return {
       data,

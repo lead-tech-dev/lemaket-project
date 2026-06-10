@@ -25,7 +25,7 @@ import { ChangePasswordDto } from './dto/change-password.dto';
 import { UpdateTwoFactorDto } from './dto/update-two-factor.dto';
 import { DeactivateAccountDto } from './dto/deactivate-account.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { PaginationQueryDto } from '../common/dtos/pagination-query.dto';
+import { FindUsersQueryDto } from './dto/find-users-query.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../common/guards/optional-jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -289,8 +289,8 @@ export class UsersController {
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.MODERATOR)
-  findAll(@Query() paginationQuery: PaginationQueryDto) {
-    return this.usersService.findAll(paginationQuery);
+  findAll(@Query() query: FindUsersQueryDto) {
+    return this.usersService.findAll(query);
   }
 
   @Get(':id')
