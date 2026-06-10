@@ -48,6 +48,8 @@ export default function Wallet() {
   const [dateTo, setDateTo] = useState('')
   const [topupAmount, setTopupAmount] = useState('')
   const [topupMethod, setTopupMethod] = useState<'mobile_money' | 'card'>('mobile_money')
+  const [topupProvider, setTopupProvider] = useState<'zikopay' | 'campay'>('zikopay')
+  const [topupPhone, setTopupPhone] = useState('')
   const [withdrawAmount, setWithdrawAmount] = useState('')
   const [submitting, setSubmitting] = useState(false)
   // Nombre de transactions déjà chargées (offset du « charger plus »), gardé
@@ -166,6 +168,39 @@ export default function Wallet() {
     return () => txAbortRef.current?.abort()
   }, [loadTransactions])
 
+  // CamPay = push USSD sans redirection : on poll le statut réel côté serveur.
+  const pollCampayTopup = useCallback(
+    async (reference: string) => {
+      const maxAttempts = 10
+      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        await new Promise(resolve => setTimeout(resolve, 4000))
+        try {
+          const result = await apiGet<{ ok?: boolean; status?: string }>(
+            `/payments/campay/verify?reference=${encodeURIComponent(reference)}`
+          )
+          const status = String(result?.status ?? '').toLowerCase()
+          if (status === 'completed') {
+            addToast({ variant: 'success', title: 'Wallet', message: 'Recharge confirmée.' })
+            loadSummary()
+            loadTransactions()
+            return
+          }
+          if (status === 'failed') {
+            addToast({ variant: 'error', title: 'Wallet', message: 'Recharge échouée.' })
+            loadTransactions()
+            return
+          }
+        } catch (err) {
+          console.error('CamPay verify failed', err)
+        }
+      }
+      // Délai dépassé : on rafraîchit quand même (le webhook peut confirmer plus tard).
+      loadSummary()
+      loadTransactions()
+    },
+    [addToast, loadSummary, loadTransactions]
+  )
+
   const handleTopup = async () => {
     if (!topupAmount.trim()) return
     const amount = Number(topupAmount)
@@ -173,26 +208,48 @@ export default function Wallet() {
       addToast({ variant: 'error', title: 'Wallet', message: 'Montant invalide.' })
       return
     }
+    if (topupProvider === 'campay' && !topupPhone.trim()) {
+      addToast({ variant: 'error', title: 'Wallet', message: 'Numéro Mobile Money requis.' })
+      return
+    }
     setSubmitting(true)
     try {
-      const response = await apiPost<{ paymentUrl?: string }>(
-        '/payments/wallet/topup',
-        {
-          amount,
-          currency: summary?.currency ?? 'XAF',
-          paymentMethod: topupMethod
-        }
-      )
-      if (response?.paymentUrl) {
-        window.open(response.paymentUrl, '_blank', 'noopener,noreferrer')
-      }
-      addToast({
-        variant: 'success',
-        title: 'Wallet',
-        message: 'Recharge initiée. Vous serez notifié après confirmation.'
+      const response = await apiPost<{
+        paymentUrl?: string
+        reference?: string
+        ussdCode?: string
+      }>('/payments/wallet/topup', {
+        amount,
+        currency: summary?.currency ?? 'XAF',
+        paymentMethod: topupProvider === 'campay' ? 'mobile_money' : topupMethod,
+        provider: topupProvider,
+        ...(topupProvider === 'campay' ? { paymentPhone: topupPhone.trim() } : {})
       })
-      setTopupAmount('')
-      loadTransactions()
+
+      if (topupProvider === 'campay') {
+        addToast({
+          variant: 'info',
+          title: 'Wallet',
+          message: response?.ussdCode
+            ? `Composez ${response.ussdCode} ou validez la demande sur votre téléphone.`
+            : 'Validez la demande de paiement sur votre téléphone.'
+        })
+        setTopupAmount('')
+        if (response?.reference) {
+          void pollCampayTopup(response.reference)
+        }
+      } else {
+        if (response?.paymentUrl) {
+          window.open(response.paymentUrl, '_blank', 'noopener,noreferrer')
+        }
+        addToast({
+          variant: 'success',
+          title: 'Wallet',
+          message: 'Recharge initiée. Vous serez notifié après confirmation.'
+        })
+        setTopupAmount('')
+        loadTransactions()
+      }
     } catch (err) {
       console.error('Wallet topup failed', err)
       addToast({
@@ -506,24 +563,54 @@ export default function Wallet() {
                   placeholder="Montant en FCFA"
                 />
               </FormField>
-              <FormField label="Moyen de paiement">
+              <FormField label="Fournisseur">
                 <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                   <Button
                     type="button"
-                    variant={topupMethod === 'mobile_money' ? 'primary' : 'outline'}
-                    onClick={() => setTopupMethod('mobile_money')}
+                    variant={topupProvider === 'zikopay' ? 'primary' : 'outline'}
+                    onClick={() => setTopupProvider('zikopay')}
                   >
-                    Mobile Money
+                    Zikopay
                   </Button>
                   <Button
                     type="button"
-                    variant={topupMethod === 'card' ? 'primary' : 'outline'}
-                    onClick={() => setTopupMethod('card')}
+                    variant={topupProvider === 'campay' ? 'primary' : 'outline'}
+                    onClick={() => setTopupProvider('campay')}
                   >
-                    Carte bancaire
+                    CamPay (MTN/Orange)
                   </Button>
                 </div>
               </FormField>
+              {topupProvider === 'campay' ? (
+                <FormField label="Numéro Mobile Money" htmlFor="wallet-topup-phone">
+                  <Input
+                    id="wallet-topup-phone"
+                    type="tel"
+                    value={topupPhone}
+                    onChange={event => setTopupPhone(event.target.value)}
+                    placeholder="Ex : 6XX XX XX XX"
+                  />
+                </FormField>
+              ) : (
+                <FormField label="Moyen de paiement">
+                  <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                    <Button
+                      type="button"
+                      variant={topupMethod === 'mobile_money' ? 'primary' : 'outline'}
+                      onClick={() => setTopupMethod('mobile_money')}
+                    >
+                      Mobile Money
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={topupMethod === 'card' ? 'primary' : 'outline'}
+                      onClick={() => setTopupMethod('card')}
+                    >
+                      Carte bancaire
+                    </Button>
+                  </div>
+                </FormField>
+              )}
               <Button onClick={handleTopup} disabled={submitting}>
                 {submitting ? 'Traitement...' : 'Recharger'}
               </Button>
