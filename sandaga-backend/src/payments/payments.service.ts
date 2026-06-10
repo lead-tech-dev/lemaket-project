@@ -1900,6 +1900,40 @@ export class PaymentsService {
   }
 
   /**
+   * Contrôle anti-fraude : on ne "complète" jamais un paiement si le montant
+   * réellement payé (renvoyé par le provider) est inférieur à l'attendu, ou si
+   * la devise diffère. Fail-safe : si le provider ne renvoie pas de montant
+   * exploitable, on ne bloque pas (la preuve de débit reste exigée par ailleurs).
+   */
+  private isAuthoritativeAmountValid(
+    payment: Payment,
+    response: Record<string, any> | null | undefined
+  ): boolean {
+    const data = ((response as Record<string, any>)?.data ?? response ?? {}) as Record<string, any>;
+    const rawAmount = data?.amount ?? (response as Record<string, any>)?.amount;
+    if (rawAmount === undefined || rawAmount === null || rawAmount === '') {
+      return true;
+    }
+    const actual = Number(String(rawAmount).replace(',', '.'));
+    const expected = Number(payment.amount);
+    if (!Number.isFinite(actual) || !Number.isFinite(expected)) {
+      return true;
+    }
+    // Tolérance d'1 unité (arrondi Mobile Money). Sous-paiement = refus.
+    if (actual + 1 < expected) {
+      return false;
+    }
+    const rawCurrency = data?.currency ?? (response as Record<string, any>)?.currency;
+    if (
+      rawCurrency &&
+      String(rawCurrency).toUpperCase() !== String(payment.currency).toUpperCase()
+    ) {
+      return false;
+    }
+    return true;
+  }
+
+  /**
    * Applique à un paiement le statut RÉEL renvoyé par Zikopay (réponse
    * authentifiée par clé API). C'est l'unique source de vérité pour
    * compléter/échouer un paiement : ni le webhook entrant (non signé), ni
@@ -1935,6 +1969,17 @@ export class PaymentsService {
           paymentId: payment.id,
           provider: 'zikopay',
           type: `${source}_success_without_debit_proof`,
+          status,
+          payload: response ?? null
+        });
+        return { ok: true, status: payment.status ?? PaymentStatus.PENDING };
+      }
+
+      if (!this.isAuthoritativeAmountValid(payment, response)) {
+        await this.logPaymentEvent({
+          paymentId: payment.id,
+          provider: 'zikopay',
+          type: `${source}_amount_mismatch`,
           status,
           payload: response ?? null
         });
@@ -2210,6 +2255,17 @@ export class PaymentsService {
           paymentId: payment.id,
           provider: 'campay',
           type: `${source}_success_without_debit_proof`,
+          status,
+          payload: response ?? null
+        });
+        return { ok: true, status: payment.status ?? PaymentStatus.PENDING };
+      }
+
+      if (!this.isAuthoritativeAmountValid(payment, response)) {
+        await this.logPaymentEvent({
+          paymentId: payment.id,
+          provider: 'campay',
+          type: `${source}_amount_mismatch`,
           status,
           payload: response ?? null
         });
