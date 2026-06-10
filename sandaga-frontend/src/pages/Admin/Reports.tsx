@@ -304,8 +304,8 @@ export default function Reports() {
                 <tbody>
                   {reportList.map(report => (
                     <tr key={report.id}>
-                      <td>{report.id}</td>
-                      <td>{report.listing?.title ?? report.listingId}</td>
+                      <td title={report.id}>{`#${report.id.slice(0, 8)}`}</td>
+                      <td>{report.listing?.title ?? t('admin.reports.listingDeleted')}</td>
                       <td>{report.reason}</td>
                       <td>
                         {report.reporter

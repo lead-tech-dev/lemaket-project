@@ -199,9 +199,6 @@ export default function CourierVerifications() {
                   <tr key={user.id}>
                     <td>
                       <strong>{`${user.firstName} ${user.lastName}`.trim() || user.email}</strong>
-                      <div style={{ fontSize: '0.85rem', color: '#6c757d' }}>
-                        {user.email}
-                      </div>
                     </td>
                     <td>
                       <div>{user.email}</div>

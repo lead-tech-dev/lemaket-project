@@ -263,7 +263,6 @@ export default function ListingsModeration() {
               <h1>{t('admin.listingsModeration.title')}</h1>
               <p>{t('admin.listingsModeration.subtitle')}</p>
             </div>
-            <Button variant="outline">{t('admin.listingsModeration.guide')}</Button>
           </header>
 
           <div className="admin-card">
@@ -404,7 +403,15 @@ export default function ListingsModeration() {
                     return (
                       <tr
                         key={listing.id}
+                        role="button"
+                        tabIndex={0}
                         onClick={() => setSelectedListingId(listing.id)}
+                        onKeyDown={event => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault()
+                            setSelectedListingId(listing.id)
+                          }
+                        }}
                         style={{
                           cursor: 'pointer',
                           backgroundColor: isSelected ? '#f0f4ff' : undefined
