@@ -208,6 +208,11 @@ export class PaymentsController {
     return this.paymentsService.withdrawFromWallet(user, dto);
   }
 
+  @Get('verify')
+  verifyPayment(@CurrentUser() user: AuthUser, @Query('reference') reference?: string) {
+    return this.paymentsService.verifyPaymentReference(user, reference ?? '');
+  }
+
   @Get('zikopay/verify')
   verifyZikopay(@CurrentUser() user: AuthUser, @Query('reference') reference?: string) {
     return this.paymentsService.verifyZikopayReference(user, reference ?? '');

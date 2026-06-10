@@ -52,7 +52,7 @@ export default function PaymentReturn() {
       setIsVerifying(true)
       try {
         const response = await apiGet<VerifyResponse>(
-          `/payments/zikopay/verify?reference=${encodeURIComponent(reference)}`
+          `/payments/verify?reference=${encodeURIComponent(reference)}`
         )
         if (!active) return
         const normalized = normalizeStatus(response?.status)

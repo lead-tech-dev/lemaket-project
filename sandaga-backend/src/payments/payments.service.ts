@@ -118,6 +118,8 @@ export class PaymentsService {
   private readonly campayBaseUrl: string;
   private readonly campayWebhookKey: string;
   private readonly campayCallbackUrl: string;
+  // Provider Mobile Money actif (collecte + payout). Carte: toujours Zikopay.
+  private readonly momoProvider: 'campay' | 'zikopay';
   private readonly zeroDecimalCurrencies = new Set([
     'BIF',
     'CLP',
@@ -199,6 +201,11 @@ export class PaymentsService {
     this.campayBaseUrl = campayConfig.baseUrl ?? 'https://www.campay.net/api';
     this.campayWebhookKey = campayConfig.webhookKey ?? '';
     this.campayCallbackUrl = campayConfig.callbackUrl ?? '';
+    this.momoProvider =
+      String(this.configService.get<string>('payments.momoProvider') ?? 'campay').toLowerCase() ===
+      'zikopay'
+        ? 'zikopay'
+        : 'campay';
 
     const promotionPriceMap =
       this.configService.get<Record<string, string>>('payments.promotionPriceMap') ?? {};
@@ -842,7 +849,7 @@ export class PaymentsService {
         );
       }
 
-      const checkout = await this.initZikopayEscrowPayment({
+      const checkout = await this.initEscrowPayment({
         user,
         amount: option.price,
         currency: option.currency,
@@ -1900,6 +1907,47 @@ export class PaymentsService {
   }
 
   /**
+   * Point d'entrée unique de la collecte escrow. La carte reste sur Zikopay
+   * (CamPay ne gère pas la carte) ; le Mobile Money passe par le provider
+   * configuré (`MOMO_PROVIDER`, défaut CamPay). Retour normalisé.
+   */
+  async initEscrowPayment(params: {
+    user: AuthUser;
+    amount: number;
+    currency: string;
+    description: string;
+    deliveryId?: string | null;
+    listingId: string;
+    paymentMethod: 'mobile_money' | 'card';
+    paymentOperator?: 'mtn' | 'orange';
+    paymentPhone?: string;
+    extraMeta?: Record<string, unknown>;
+  }): Promise<{
+    paymentId: string;
+    reference: string;
+    paymentUrl?: string;
+    ussdCode?: string;
+    operator?: string;
+    provider: 'campay' | 'zikopay';
+  }> {
+    if (params.paymentMethod === 'mobile_money' && this.momoProvider === 'campay') {
+      const result = await this.initCampayCollect({
+        user: params.user,
+        amount: params.amount,
+        currency: params.currency,
+        description: params.description,
+        deliveryId: params.deliveryId ?? null,
+        listingId: params.listingId,
+        paymentPhone: params.paymentPhone,
+        extraMeta: params.extraMeta
+      });
+      return { ...result, provider: 'campay' };
+    }
+    const result = await this.initZikopayEscrowPayment(params);
+    return { ...result, provider: 'zikopay' };
+  }
+
+  /**
    * Contrôle anti-fraude : on ne "complète" jamais un paiement si le montant
    * réellement payé (renvoyé par le provider) est inférieur à l'attendu, ou si
    * la devise diffère. Fail-safe : si le provider ne renvoie pas de montant
@@ -2406,6 +2454,33 @@ export class PaymentsService {
       `/transaction/${encodeURIComponent(reference)}/`
     );
     return this.applyCampayAuthoritativeStatus(payment, response, 'verify');
+  }
+
+  /**
+   * Vérification de paiement agnostique du provider : retrouve le paiement par
+   * sa référence et délègue au verify du bon provider (CamPay / Zikopay /
+   * Flutterwave). Permet au front de poller un seul endpoint.
+   */
+  async verifyPaymentReference(user: AuthUser, reference: string) {
+    if (!reference) {
+      throw new BadRequestException('reference manquant');
+    }
+    const payment = await this.paymentsRepository.findOne({
+      where: { externalReference: reference }
+    });
+    if (!payment) {
+      throw new NotFoundException('Payment not found');
+    }
+    if (payment.userId !== user.id) {
+      throw new ForbiddenException('Paiement non autorisé.');
+    }
+    if (payment.provider === 'campay') {
+      return this.verifyCampayReference(user, reference);
+    }
+    if (payment.provider === 'flutterwave') {
+      return this.verifyFlutterwaveReference(user, reference);
+    }
+    return this.verifyZikopayReference(user, reference);
   }
 
   async createCampayMobileMoneyPayout(params: {
@@ -2923,7 +2998,10 @@ export class PaymentsService {
       throw new BadRequestException('Numéro Mobile Money requis.');
     }
 
-    if (dto.provider === 'campay') {
+    // Carte → Zikopay ; sinon provider configuré (défaut CamPay), surchargeable par dto.provider.
+    const topupProvider =
+      paymentMethod === 'card' ? 'zikopay' : (dto.provider ?? this.momoProvider);
+    if (topupProvider === 'campay') {
       return this.initCampayCollect({
         user,
         amount: dto.amount,
@@ -2985,13 +3063,18 @@ export class PaymentsService {
       metadata: { network: payoutNetwork, payoutNumber }
     });
 
-    await this.createZikopayMobileMoneyPayout({
+    const payoutParams = {
       amount,
       currency,
       beneficiaryName: payoutName || seller.email,
       accountNumber: payoutNumber,
       network: payoutNetwork
-    });
+    };
+    if (this.momoProvider === 'campay') {
+      await this.createCampayMobileMoneyPayout(payoutParams);
+    } else {
+      await this.createZikopayMobileMoneyPayout(payoutParams);
+    }
 
     await this.notificationsService.createNotification({
       userId: user.id,

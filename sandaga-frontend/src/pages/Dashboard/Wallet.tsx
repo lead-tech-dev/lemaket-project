@@ -48,7 +48,7 @@ export default function Wallet() {
   const [dateTo, setDateTo] = useState('')
   const [topupAmount, setTopupAmount] = useState('')
   const [topupMethod, setTopupMethod] = useState<'mobile_money' | 'card'>('mobile_money')
-  const [topupProvider, setTopupProvider] = useState<'zikopay' | 'campay'>('zikopay')
+  const [topupProvider, setTopupProvider] = useState<'zikopay' | 'campay'>('campay')
   const [topupPhone, setTopupPhone] = useState('')
   const [withdrawAmount, setWithdrawAmount] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -176,7 +176,7 @@ export default function Wallet() {
         await new Promise(resolve => setTimeout(resolve, 4000))
         try {
           const result = await apiGet<{ ok?: boolean; status?: string }>(
-            `/payments/campay/verify?reference=${encodeURIComponent(reference)}`
+            `/payments/verify?reference=${encodeURIComponent(reference)}`
           )
           const status = String(result?.status ?? '').toLowerCase()
           if (status === 'completed') {

@@ -62,6 +62,8 @@ export default () => ({
         process.env.BACKEND_URL ??
         'http://localhost:3000'
     },
+    // Provider Mobile Money par défaut (collecte + payout) : 'campay' | 'zikopay'.
+    momoProvider: (process.env.MOMO_PROVIDER ?? 'campay').toLowerCase(),
     deliveryCommissionRate: Number(process.env.DELIVERY_COMMISSION_RATE ?? 0.05),
     platformWalletUserId: process.env.PLATFORM_WALLET_USER_ID ?? ''
   }

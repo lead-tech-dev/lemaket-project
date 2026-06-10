@@ -444,7 +444,7 @@ export class DeliveriesService {
       throw new BadRequestException('Numéro Mobile Money requis.');
     }
 
-    const payment = await this.paymentsService.initZikopayEscrowPayment({
+    const payment = await this.paymentsService.initEscrowPayment({
       user,
       amount: paymentAmount,
       currency: listing.currency || 'XAF',
@@ -894,7 +894,7 @@ export class DeliveriesService {
       throw new BadRequestException('Le montant de l’annonce est invalide.');
     }
 
-    const paymentInit = await this.paymentsService.initZikopayEscrowPayment({
+    const paymentInit = await this.paymentsService.initEscrowPayment({
       user,
       amount: listingPrice,
       currency: delivery.listing.currency || 'XAF',
