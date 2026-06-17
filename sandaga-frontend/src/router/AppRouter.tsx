@@ -51,6 +51,7 @@ import Error404 from '../pages/Static/Error404'
 import Error500 from '../pages/Static/Error500'
 import Maintenance from '../pages/Maintenance/Maintenance'
 import SearchResults from '../pages/Search/SearchResults'
+import VisualSearch from '../pages/Search/VisualSearch'
 import StorefrontPage from '../pages/Storefront/Storefront'
 import StorefrontsPage from '../pages/Storefront/Storefronts'
 import PublicUserProfile from '../pages/Users/PublicProfile'
@@ -165,6 +166,7 @@ export function AppRouter() {
           element={<ProtectedRoute element={<EditListing />} />}
         />
         <Route path="/search" element={<SearchResults />} />
+        <Route path="/search/visual" element={<VisualSearch />} />
         <Route path="/category/:slug" element={<Category />} />
         <Route path="/store/:slug" element={<StorefrontPage />} />
         <Route path="/stores" element={<StorefrontsPage />} />

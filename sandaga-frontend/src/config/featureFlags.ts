@@ -12,6 +12,7 @@ export type FeatureFlagName =
   | 'adminSettings'
   | 'adminPromotions'
   | 'adminLogs'
+  | 'visualSearch'
 
 export type FeatureFlags = Record<FeatureFlagName, boolean>
 
@@ -29,7 +30,9 @@ export const defaultFeatureFlags: FeatureFlags = {
   adminConsole: true,
   adminSettings: false,
   adminPromotions: true,
-  adminLogs: false
+  adminLogs: false,
+  // Recherche visuelle par IA : nécessite un backend de reconnaissance d'image.
+  visualSearch: false
 }
 
 export function parseFeatureFlagRecord(value: unknown): Partial<FeatureFlags> {
