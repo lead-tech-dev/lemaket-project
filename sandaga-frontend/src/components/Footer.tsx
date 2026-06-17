@@ -135,7 +135,7 @@ export default function Footer() {
       <Inner>
         <div>
           <Logo size={30} light />
-          <Tagline>{t('footer.brand.tagline')}</Tagline>
+          <Tagline>{t('home.m.footTag')}</Tagline>
           <Socials>
             {socials.map((name) => (
               <SocialBtn key={name} href="#" aria-label={name}>

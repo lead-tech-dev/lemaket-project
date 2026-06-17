@@ -733,18 +733,23 @@ export default function Home() {
             <div>
               <S.HeroBadge>
                 <Icon name="spark" size={14} color="#fff" fill="#fff" sw={1} />{' '}
-                {heroData?.eyebrow ?? t('home.section.popularCategories')}
+                {t('home.m.badge')}
               </S.HeroBadge>
-              <S.HeroTitle>{heroData?.title ?? 'Lemaket'}</S.HeroTitle>
-              {heroData?.subtitle ? <S.HeroSub>{heroData.subtitle}</S.HeroSub> : null}
+              <S.HeroTitle>
+                {t('home.m.titleA')}
+                <br />
+                <span style={{ color: 'var(--color-primary)' }}>{t('home.m.titleB')}</span>
+                {t('home.m.titleC')}
+              </S.HeroTitle>
+              <S.HeroSub>{t('home.m.sub')}</S.HeroSub>
 
               <S.HeroSearch role="search" onSubmit={handleSearch}>
                 <S.HeroField ref={queryFieldRef}>
                   <Icon name="search" size={19} color="#97A199" />
                   <div style={{ flex: 1 }}>
-                    <label>{t('home.search.queryLabel')}</label>
+                    <label>{t('home.m.what')}</label>
                     <input
-                      placeholder={t('home.search.queryPlaceholder')}
+                      placeholder={t('home.m.whatPh')}
                       value={query.term}
                       onFocus={() => setQuerySuggestionsOpen(true)}
                       onBlur={event => {
@@ -790,9 +795,9 @@ export default function Home() {
                 <S.HeroField>
                   <Icon name="pin" size={19} color="#97A199" />
                   <div style={{ flex: 1 }}>
-                    <label>{t('home.search.locationLabel')}</label>
+                    <label>{t('home.m.where')}</label>
                     <input
-                      placeholder={t('home.search.locationPlaceholder')}
+                      placeholder={t('home.m.wherePh')}
                       value={query.location}
                       onChange={event =>
                         setQuery(prev => ({ ...prev, location: event.target.value }))
@@ -800,30 +805,20 @@ export default function Home() {
                     />
                   </div>
                 </S.HeroField>
-                <S.HeroSubmit type="submit">{t('home.search.submit')}</S.HeroSubmit>
+                <S.HeroSubmit type="submit">{t('home.m.btn')}</S.HeroSubmit>
               </S.HeroSearch>
 
-              {heroTags.length ? (
-                <S.HeroTags>
-                  <S.HeroTagLabel>{t('home.search.viewAllListings')}</S.HeroTagLabel>
-                  {heroTags.map(tag => (
-                    <S.HeroTag
-                      key={tag}
-                      type="button"
-                      onClick={() =>
-                        navigate(`/search?category=${encodeURIComponent(tag.toLowerCase())}`)
-                      }
-                    >
-                      {tag}
-                    </S.HeroTag>
-                  ))}
-                </S.HeroTags>
-              ) : null}
-
               <S.HeroTags>
-                <S.HeroTag type="button" onClick={handleCreateAlert} disabled={isCreatingAlert}>
-                  {isCreatingAlert ? t('home.search.alertSaving') : t('home.search.alertCreate')}
-                </S.HeroTag>
+                <S.HeroTagLabel>{t('home.m.popular')}</S.HeroTagLabel>
+                {['Appartements', 'iPhone', 'Toyota', 'Offres d’emploi', 'Terrains'].map(tag => (
+                  <S.HeroTag
+                    key={tag}
+                    type="button"
+                    onClick={() => navigate(`/search?q=${encodeURIComponent(tag)}`)}
+                  >
+                    {tag}
+                  </S.HeroTag>
+                ))}
               </S.HeroTags>
             </div>
 
@@ -859,10 +854,8 @@ export default function Home() {
                     <Badge size={20} />
                   </div>
                   <div>
-                    <div className="pct">{primaryStat?.value ?? '92%'}</div>
-                    <div className="lbl">
-                      {primaryStat?.label ?? t('home.storefronts.companyVerified')}
-                    </div>
+                    <div className="pct">92%</div>
+                    <div className="lbl">{t('home.m.verified')}</div>
                   </div>
                 </S.VerifiedFloat>
               </S.FloatCollage>
@@ -872,10 +865,10 @@ export default function Home() {
 
         <S.Section>
           <SectionHead
-            title={t('home.section.popularCategories')}
+            title={t('home.m.cats')}
             action={
               <Link to="/search" className="lbc-link">
-                {t('home.section.allCategories')}
+                {t('home.m.all')}
               </Link>
             }
           />
@@ -914,12 +907,19 @@ export default function Home() {
         </S.Section>
 
         <section className="lbc-section lbc-section--featured">
-          <div className="lbc-section__head">
-            <h2>{t('home.section.featured')}</h2>
-            <Link to="/search?featured=true" className="lbc-link">
-              {t('home.section.featuredAll')}
-            </Link>
-          </div>
+          <SectionHead
+            title={
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+                {t('home.m.featured')} <Badge size={20} />
+              </span>
+            }
+            sub={t('home.m.featuredSub')}
+            action={
+              <Link to="/search?featured=true" className="lbc-link">
+                {t('home.m.more')}
+              </Link>
+            }
+          />
 	          {featuredLoading && !featuredBase.length ? (
 	            <ListingSkeletonGrid count={4} />
 	          ) : featuredListings.length ? (
@@ -942,93 +942,61 @@ export default function Home() {
           )}
         </section>
 
+        {latestListings.length ? (
+          <S.Section>
+            <SectionHead
+              title={t('home.m.foryou')}
+              sub={t('home.m.foryouSub')}
+              action={
+                <Link to="/search" className="lbc-link">
+                  {t('home.m.more')}
+                </Link>
+              }
+            />
+            <S.Grid4>
+              {latestListings.slice(0, 4).map(listing => (
+                <ListingCard
+                  key={listing.id}
+                  item={toCardItem(listing, numberLocale)}
+                  onOpen={() => navigate(`/listing/${listing.id}`)}
+                  favoriteSlot={
+                    <FavoriteButton listingId={listing.id} className="favorite-toggle--overlay" />
+                  }
+                />
+              ))}
+            </S.Grid4>
+          </S.Section>
+        ) : null}
+
         <S.Section>
           <S.BoostStrip>
             <div className="body">
               <S.BoostTagPill>
                 <Icon name="bolt" size={13} color="#FFD23F" fill="#FFD23F" sw={1} />{' '}
-                {t('home.boost.tag')}
+                {t('home.m.boostTag')}
               </S.BoostTagPill>
-              <h3>{t('home.boost.heading')}</h3>
-              <p>{t('home.boost.text')}</p>
+              <h3>{t('home.m.boostH')}</h3>
+              <p>{t('home.m.boostP')}</p>
             </div>
             <S.BoostCta type="button" onClick={() => navigate('/listings/new')}>
-              {t('home.boost.cta')} <Icon name="arrowR" size={18} />
+              {t('home.m.boostBtn')} <Icon name="arrowR" size={18} />
             </S.BoostCta>
           </S.BoostStrip>
         </S.Section>
 
-        <section className="lbc-section lbc-section--alt">
-          <div className="lbc-section__head">
-            <h2>{t('home.section.nearby')}</h2>
-            <div className="lbc-section__head-actions">
-              <SortSelect value={preferences.sort} onChange={value => setPreference('sort', value)} />
+        <S.Section>
+          <SectionHead
+            title={t('home.m.recent')}
+            action={
               <Link to="/search" className="lbc-link">
-                {t('home.section.nearbyCustomize')}
+                {t('home.m.allAds')}
               </Link>
-            </div>
-          </div>
-
-          <div className="lbc-quick-filters">
-            <div className="lbc-filter-group">
-              <span className="lbc-filter-group__label">{t('filters.sellerType.label')}</span>
-              <div className="lbc-filter-chips" role="group" aria-label={t('filters.sellerType.aria')}>
-                {sellerTypeChips.map(chip => (
-                  <button
-                    key={chip.id}
-                    type="button"
-                    className={`lbc-chip ${
-                      preferences.sellerType === chip.id ? 'lbc-chip--active' : ''
-                    }`}
-                    onClick={() => setPreference('sellerType', chip.id)}
-                  >
-                    {chip.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="lbc-filter-group">
-              <span className="lbc-filter-group__label">{t('filters.price.label')}</span>
-              <div className="lbc-filter-chips" role="group" aria-label={t('filters.price.aria')}>
-                {PRICE_BANDS.map(band => (
-                  <button
-                    key={band.id}
-                    type="button"
-                    className={`lbc-chip ${
-                      preferences.priceBand === band.id ? 'lbc-chip--active' : ''
-                    }`}
-                    onClick={() => setPreference('priceBand', band.id)}
-                  >
-                    {getPriceBandLabel(t, band.id)}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="lbc-filter-group">
-              <span className="lbc-filter-group__label">{t('filters.radius.label')}</span>
-              <div className="lbc-filter-chips" role="group" aria-label={t('filters.radius.aria')}>
-                {RADIUS_OPTIONS.map(option => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    className={`lbc-chip ${
-                      preferences.radius === option.value ? 'lbc-chip--active' : ''
-                    }`}
-                    onClick={() => setPreference('radius', option.value)}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-	          {latestLoading && !latestBase.length ? (
-	            <ListingSkeletonGrid count={6} />
-	          ) : latestListings.length ? (
-	            <S.Grid4>
+            }
+          />
+          {latestLoading && !latestBase.length ? (
+            <ListingSkeletonGrid count={8} />
+          ) : latestListings.length ? (
+            <S.Grid4>
               {latestListings.map(listing => (
                 <ListingCard
                   key={listing.id}
@@ -1041,22 +1009,20 @@ export default function Home() {
               ))}
             </S.Grid4>
           ) : (
-            <p className="ui-feedback ui-feedback--compact">
-              {t('home.latest.empty')}
-            </p>
+            <p className="ui-feedback ui-feedback--compact">{t('home.latest.empty')}</p>
           )}
-        </section>
+        </S.Section>
 
         <S.Section style={{ paddingBottom: 8 }}>
           <S.HowHead>
-            <h2>{t('home.how.title')}</h2>
-            <p>{t('home.how.subtitle')}</p>
+            <h2>{t('home.m.howTitle')}</h2>
+            <p>{t('home.m.howSub')}</p>
           </S.HowHead>
           <S.HowGrid>
             {([
-              { n: '01', ic: 'cam', t: t('home.how.step1.title'), d: t('home.how.step1.desc') },
-              { n: '02', ic: 'spark', t: t('home.how.step2.title'), d: t('home.how.step2.desc') },
-              { n: '03', ic: 'chat', t: t('home.how.step3.title'), d: t('home.how.step3.desc') }
+              { n: '01', ic: 'cam', t: t('home.m.how1t'), d: t('home.m.how1d') },
+              { n: '02', ic: 'spark', t: t('home.m.how2t'), d: t('home.m.how2d') },
+              { n: '03', ic: 'chat', t: t('home.m.how3t'), d: t('home.m.how3d') }
             ] as const).map(step => (
               <S.HowCard key={step.n}>
                 <div className="top">
@@ -1076,7 +1042,7 @@ export default function Home() {
               onClick={() => navigate('/listings/new')}
               style={{ background: 'var(--color-primary)', color: '#fff' }}
             >
-              {t('home.how.cta')}
+              {t('home.m.howCta')}
             </S.BoostCta>
           </S.HowCta>
         </S.Section>
