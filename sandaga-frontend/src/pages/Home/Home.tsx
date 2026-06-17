@@ -1069,6 +1069,22 @@ export default function Home() {
           )}
         </section>
 
+        <S.Section>
+          <S.BoostStrip>
+            <div className="body">
+              <S.BoostTagPill>
+                <Icon name="bolt" size={13} color="#FFD23F" fill="#FFD23F" sw={1} />{' '}
+                {t('home.boost.tag')}
+              </S.BoostTagPill>
+              <h3>{t('home.boost.heading')}</h3>
+              <p>{t('home.boost.text')}</p>
+            </div>
+            <S.BoostCta type="button" onClick={() => navigate('/listings/new')}>
+              {t('home.boost.cta')} <Icon name="arrowR" size={18} />
+            </S.BoostCta>
+          </S.BoostStrip>
+        </S.Section>
+
         <section className="lbc-section lbc-section--alt">
           <div className="lbc-section__head">
             <h2>{t('home.section.nearby')}</h2>
@@ -1291,6 +1307,40 @@ export default function Home() {
             )}
           </section>
         ) : null}
+
+        <S.Section style={{ paddingBottom: 8 }}>
+          <S.HowHead>
+            <h2>{t('home.how.title')}</h2>
+            <p>{t('home.how.subtitle')}</p>
+          </S.HowHead>
+          <S.HowGrid>
+            {([
+              { n: '01', ic: 'cam', t: t('home.how.step1.title'), d: t('home.how.step1.desc') },
+              { n: '02', ic: 'spark', t: t('home.how.step2.title'), d: t('home.how.step2.desc') },
+              { n: '03', ic: 'chat', t: t('home.how.step3.title'), d: t('home.how.step3.desc') }
+            ] as const).map(step => (
+              <S.HowCard key={step.n}>
+                <div className="top">
+                  <div className="ic">
+                    <Icon name={step.ic} size={24} />
+                  </div>
+                  <span className="num">{step.n}</span>
+                </div>
+                <div className="t">{step.t}</div>
+                <div className="d">{step.d}</div>
+              </S.HowCard>
+            ))}
+          </S.HowGrid>
+          <S.HowCta>
+            <S.BoostCta
+              type="button"
+              onClick={() => navigate('/listings/new')}
+              style={{ background: 'var(--color-primary)', color: '#fff' }}
+            >
+              {t('home.how.cta')}
+            </S.BoostCta>
+          </S.HowCta>
+        </S.Section>
       </div>
     </MainLayout>
   )

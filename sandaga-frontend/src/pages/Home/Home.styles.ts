@@ -412,6 +412,7 @@ export const HowCard = styled.div`
     height: 48px;
     border-radius: 13px;
     background: ${({ theme }) => theme.primarySoft};
+    color: ${({ theme }) => theme.primary};
     display: flex;
     align-items: center;
     justify-content: center;
