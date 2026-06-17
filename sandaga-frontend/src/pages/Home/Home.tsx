@@ -1,5 +1,4 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
-import type { CSSProperties } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import MainLayout from '../../layouts/MainLayout'
 import { Card } from '../../components/ui/Card'
@@ -30,6 +29,9 @@ import { useI18n } from '../../contexts/I18nContext'
 import { useFeatureFlagsContext } from '../../contexts/FeatureFlagContext'
 import { resolveMediaUrl } from '../../utils/media'
 import { formatListingLocation } from '../../utils/location'
+import { Icon, Logo, Badge, ListingCard, SectionHead } from '../../components/ds'
+import { toCardItem } from '../../utils/listing-card'
+import * as S from './Home.styles'
 
  
 
@@ -724,196 +726,188 @@ export default function Home() {
   return (
     <MainLayout>
       <div className="lbc-home">
-        <section className="lbc-hero">
-          <div className="lbc-hero__inner">
-            <div className="lbc-hero__content">
-              {heroData ? (
-                <>
-                  <span className="lbc-hero__eyebrow">{heroData.eyebrow}</span>
-                  <h1>{heroData.title}</h1>
-                  <p>{heroData.subtitle}</p>
-                </>
-              ) : (
-                <div>
-                  <Skeleton className="skeleton-line skeleton-line--short" />
-                  <Skeleton className="skeleton-line skeleton-line--wide" />
-                  <Skeleton className="skeleton-line" />
-                </div>
-              )}
-              <form className="lbc-search" role="search" onSubmit={handleSearch}>
-                <div className="lbc-search__field lbc-search__field--query" ref={queryFieldRef}>
-                  <label>{t('home.search.queryLabel')}</label>
-                  <input
-                    className="input"
-                    placeholder={t('home.search.queryPlaceholder')}
-                    value={query.term}
-                    onFocus={() => setQuerySuggestionsOpen(true)}
-                    onBlur={event => {
-                      const nextTarget = event.relatedTarget as Node | null
-                      if (nextTarget && queryFieldRef.current?.contains(nextTarget)) {
-                        return
-                      }
-                      setQuerySuggestionsOpen(false)
-                    }}
-                    onChange={event => {
-                      setQuery(prev => ({ ...prev, term: event.target.value }))
-                      if (!querySuggestionsOpen) {
-                        setQuerySuggestionsOpen(true)
-                      }
-                    }}
-                  />
+        <S.Hero>
+          <S.HeroGlowA />
+          <S.HeroGlowB />
+          <S.HeroInner>
+            <div>
+              <S.HeroBadge>
+                <Icon name="spark" size={14} color="#fff" fill="#fff" sw={1} />{' '}
+                {heroData?.eyebrow ?? t('home.section.popularCategories')}
+              </S.HeroBadge>
+              <S.HeroTitle>{heroData?.title ?? 'Lemaket'}</S.HeroTitle>
+              {heroData?.subtitle ? <S.HeroSub>{heroData.subtitle}</S.HeroSub> : null}
+
+              <S.HeroSearch role="search" onSubmit={handleSearch}>
+                <S.HeroField ref={queryFieldRef}>
+                  <Icon name="search" size={19} color="#97A199" />
+                  <div style={{ flex: 1 }}>
+                    <label>{t('home.search.queryLabel')}</label>
+                    <input
+                      placeholder={t('home.search.queryPlaceholder')}
+                      value={query.term}
+                      onFocus={() => setQuerySuggestionsOpen(true)}
+                      onBlur={event => {
+                        const nextTarget = event.relatedTarget as Node | null
+                        if (nextTarget && queryFieldRef.current?.contains(nextTarget)) {
+                          return
+                        }
+                        setQuerySuggestionsOpen(false)
+                      }}
+                      onChange={event => {
+                        setQuery(prev => ({ ...prev, term: event.target.value }))
+                        if (!querySuggestionsOpen) {
+                          setQuerySuggestionsOpen(true)
+                        }
+                      }}
+                    />
+                  </div>
                   {querySuggestionsOpen ? (
-                    <div className="lbc-search__suggestions" role="listbox">
+                    <S.SuggestBox role="listbox">
                       {categoriesLoading ? (
-                        <p className="lbc-search__suggestions-hint">{t('search.header.loading')}</p>
+                        <S.SuggestHint>{t('search.header.loading')}</S.SuggestHint>
                       ) : categorySuggestions.length ? (
                         categorySuggestions.map(suggestion => (
-                          <button
+                          <S.SuggestItem
                             key={suggestion.id}
                             type="button"
-                            className="lbc-search__suggestion"
                             onMouseDown={event => event.preventDefault()}
                             onClick={() => handleCategorySuggestionSelect(suggestion)}
                           >
-                            <span className="lbc-search__suggestion-label">{suggestion.label}</span>
+                            <span className="label">{suggestion.label}</span>
                             {suggestion.parentLabel ? (
-                              <span className="lbc-search__suggestion-meta">{suggestion.parentLabel}</span>
+                              <span className="meta">{suggestion.parentLabel}</span>
                             ) : null}
-                          </button>
+                          </S.SuggestItem>
                         ))
                       ) : (
-                        <p className="lbc-search__suggestions-hint">{t('header.search.empty')}</p>
+                        <S.SuggestHint>{t('header.search.empty')}</S.SuggestHint>
                       )}
-                    </div>
+                    </S.SuggestBox>
                   ) : null}
-                </div>
-                <div className="lbc-search__field">
-                  <label>{t('home.search.locationLabel')}</label>
-                  <input
-                    className="input"
-                    placeholder={t('home.search.locationPlaceholder')}
-                    value={query.location}
-                    onChange={event =>
-                      setQuery(prev => ({
-                        ...prev,
-                        location: event.target.value
-                      }))
-                    }
-                  />
-                </div>
-                <button type="submit" className="btn btn--primary lbc-search__submit">
-                  {t('home.search.submit')}
-                </button>
-              </form>
+                </S.HeroField>
+                <S.HeroDivider />
+                <S.HeroField>
+                  <Icon name="pin" size={19} color="#97A199" />
+                  <div style={{ flex: 1 }}>
+                    <label>{t('home.search.locationLabel')}</label>
+                    <input
+                      placeholder={t('home.search.locationPlaceholder')}
+                      value={query.location}
+                      onChange={event =>
+                        setQuery(prev => ({ ...prev, location: event.target.value }))
+                      }
+                    />
+                  </div>
+                </S.HeroField>
+                <S.HeroSubmit type="submit">{t('home.search.submit')}</S.HeroSubmit>
+              </S.HeroSearch>
+
               {heroTags.length ? (
-                <div className="lbc-hero__tags">
+                <S.HeroTags>
+                  <S.HeroTagLabel>{t('home.search.viewAllListings')}</S.HeroTagLabel>
                   {heroTags.map(tag => (
-                    <Link
+                    <S.HeroTag
                       key={tag}
-                      to={`/search?category=${encodeURIComponent(tag.toLowerCase())}`}
-                      className="lbc-tag"
+                      type="button"
+                      onClick={() =>
+                        navigate(`/search?category=${encodeURIComponent(tag.toLowerCase())}`)
+                      }
                     >
                       {tag}
-                    </Link>
+                    </S.HeroTag>
                   ))}
-                </div>
+                </S.HeroTags>
               ) : null}
-              <div className="lbc-hero__cta">
-                <Button
-                  variant="outline"
-                  onClick={handleCreateAlert}
-                  disabled={isCreatingAlert}
-                >
-                  {isCreatingAlert ? t('home.search.alertSaving') : t('home.search.alertCreate')}
-                </Button>
-                <Link to="/search" className="lbc-link">
-                  {t('home.search.viewAllListings')}
-                </Link>
-              </div>
-              {heroLoading ? (
-                <p className="ui-feedback ui-feedback--offset-sm" aria-live="polite">
-                  {t('home.search.loadingRecommendations')}
-                </p>
-              ) : null}
-            </div>
-            <div className="lbc-hero__visual">
-              <div className="lbc-hero__stats">
-                {primaryStat ? (
-                  <>
-                    <strong>{primaryStat.value}</strong>
-                    <span>{primaryStat.label}</span>
-                    {primaryStat.detail ? <small>{primaryStat.detail}</small> : null}
-                  </>
-                ) : (
-                  <>
-                    <Skeleton className="skeleton-line skeleton-line--short" />
-                    <Skeleton className="skeleton-line skeleton-line--wide" />
-                  </>
-                )}
-              </div>
-              {heroTestimonial ? (
-                <div className="lbc-hero__card">
-                  <p>« {heroTestimonial.quote} »</p>
-                  <span>
-                    {heroTestimonial.author}
-                    {heroTestimonial.location ? ` • ${heroTestimonial.location}` : ''}
-                  </span>
-                </div>
-              ) : null}
-              {heroBadge ? <div className="lbc-hero__badge">{heroBadge}</div> : null}
-            </div>
-          </div>
-        </section>
 
-        <section className="lbc-section">
-          <div className="lbc-section__head">
-            <h2>{t('home.section.popularCategories')}</h2>
-            <Link to="/search" className="lbc-link">
-              {t('home.section.allCategories')}
-            </Link>
-          </div>
-          {categoriesSkeleton ?? (
-            categoriesToDisplay.length ? (
-              <div className="lbc-categories">
-                {categoriesToDisplay.map(category => {
-                  const style: CSSProperties | undefined = category.gradient
-                    ? { background: category.gradient }
-                    : category.color
-                    ? { backgroundColor: category.color }
-                    : undefined
-                  const subcategoryText =
-                    category.children && category.children.length
-                      ? category.children.slice(0, 4).map(child => child.name).join(', ')
-                      : null
-                  const descriptionText =
-                    subcategoryText ||
-                    category.description ||
-                    t('home.category.fallbackDescription')
-                  return (
-                    <Card key={category.id} className="lbc-category-card" style={style}>
-                      <div className="lbc-category-card__icon">{category.icon ?? '🛒'}</div>
-                      <div className="lbc-category-card__body">
-                        <h3>{category.name}</h3>
-                        <p>{descriptionText}</p>
-                        <span>{t('home.category.listingCount', { count: numberFormatter.format(category.listingCount) })}</span>
-                      </div>
-                      <Link
-                        to={`/search?category=${encodeURIComponent(category.slug)}`}
-                        className="lbc-link"
-                      >
-                        {t('home.category.viewListings')}
-                      </Link>
-                    </Card>
-                  )
-                })}
-              </div>
-            ) : (
-              <p className="ui-feedback ui-feedback--compact">
-                {t('home.categories.empty')}
-              </p>
-            )
+              <S.HeroTags>
+                <S.HeroTag type="button" onClick={handleCreateAlert} disabled={isCreatingAlert}>
+                  {isCreatingAlert ? t('home.search.alertSaving') : t('home.search.alertCreate')}
+                </S.HeroTag>
+              </S.HeroTags>
+            </div>
+
+            <S.HeroAside>
+              {featuredListings.slice(0, 2).map(listing => (
+                <div key={listing.id} style={{ width: 260 }}>
+                  {/* Cartes décoratives du héros : pas de bouton favori actif
+                      (le vrai vit dans la section "À la une" plus bas) pour
+                      éviter les doublons de favori sur la même annonce. */}
+                  <ListingCard
+                    item={toCardItem(listing, numberLocale)}
+                    onOpen={() => navigate(`/listing/${listing.id}`)}
+                  />
+                </div>
+              ))}
+              <S.HeroStatCard>
+                <div
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 19,
+                    background: 'var(--color-primary-soft)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                >
+                  <Badge size={20} />
+                </div>
+                <div>
+                  <strong>{primaryStat?.value ?? '92%'}</strong>
+                  <div>
+                    <span>{primaryStat?.label ?? t('home.storefronts.companyVerified')}</span>
+                  </div>
+                </div>
+              </S.HeroStatCard>
+            </S.HeroAside>
+          </S.HeroInner>
+        </S.Hero>
+
+        <S.Section>
+          <SectionHead
+            title={t('home.section.popularCategories')}
+            action={
+              <Link to="/search" className="lbc-link">
+                {t('home.section.allCategories')}
+              </Link>
+            }
+          />
+          {categoriesToDisplay.length ? (
+            <S.Grid4>
+              {categoriesToDisplay.map(category => {
+                const subcategoryText =
+                  category.children && category.children.length
+                    ? category.children.slice(0, 4).map(child => child.name).join(', ')
+                    : null
+                const descriptionText =
+                  subcategoryText || category.description || t('home.category.fallbackDescription')
+                return (
+                  <S.CategoryCard
+                    key={category.id}
+                    type="button"
+                    onClick={() =>
+                      navigate(`/search?category=${encodeURIComponent(category.slug)}`)
+                    }
+                  >
+                    <div className="icon">{category.icon ?? '🛒'}</div>
+                    <div className="name">{category.name}</div>
+                    <div className="sub">{descriptionText}</div>
+                    <div className="count">
+                      {t('home.category.listingCount', {
+                        count: numberFormatter.format(category.listingCount)
+                      })}
+                    </div>
+                  </S.CategoryCard>
+                )
+              })}
+            </S.Grid4>
+          ) : categoriesSkeleton ? (
+            categoriesSkeleton
+          ) : (
+            <p className="ui-feedback ui-feedback--compact">{t('home.categories.empty')}</p>
           )}
-        </section>
+        </S.Section>
 
         {storefrontsEnabled ? (
         <section className="lbc-section lbc-section--storefronts">
@@ -1056,57 +1050,18 @@ export default function Home() {
 	          {featuredLoading && !featuredBase.length ? (
 	            <ListingSkeletonGrid count={4} />
 	          ) : featuredListings.length ? (
-	            <div className="lbc-listings lbc-listings--featured">
-	              {featuredListings.map(listing => {
-	                const hasCover = Boolean(listing.coverImage)
-	                return (
-	                <Link key={listing.id} to={`/listing/${listing.id}`} className="lbc-listing-card-link">
-	                  <Card className="lbc-listing-card">
-	                  <div
-	                    className={`lbc-listing-card__image${hasCover ? '' : ' is-placeholder'}`}
-	                    style={hasCover ? { backgroundImage: `url(${listing.coverImage})` } : undefined}
-	                  >
-                    {listing.owner?.isCompanyVerified ? (
-                      <div className="lbc-listing-card__badges">
-                        <span className="lbc-listing-card__badge lbc-listing-card__badge--verified">
-                          {t('listings.badge.companyVerified')}
-                        </span>
-                      </div>
-                    ) : null}
-                    <span className="lbc-listing-card__ribbon">{listing.ribbon}</span>
+	            <S.Grid4>
+              {featuredListings.map(listing => (
+                <ListingCard
+                  key={listing.id}
+                  item={toCardItem(listing, numberLocale)}
+                  onOpen={() => navigate(`/listing/${listing.id}`)}
+                  favoriteSlot={
                     <FavoriteButton listingId={listing.id} className="favorite-toggle--overlay" />
-                  </div>
-                  <div className="lbc-listing-card__body">
-                    <h3>{listing.title}</h3>
-                    {getOwnerProfileUrl(listing) && getOwnerLabel(listing) ? (
-                      <button
-                        type="button"
-                        className="listing-seller-link"
-                        onClick={event => {
-                          event.preventDefault()
-                          event.stopPropagation()
-                          navigate(getOwnerProfileUrl(listing)!)
-                        }}
-                      >
-                        {getOwnerLabel(listing)}
-                      </button>
-                    ) : null}
-                    {listing.publishedAt ? (
-                      <p className="lbc-listing-card__meta">
-                        {formatListingDate(listing.publishedAt, locale)}
-                      </p>
-                    ) : null}
-                    <p>
-                      {getListingLocation(listing)} ·{' '}
-                      {listing.category?.name ?? listing.tag ?? t('listing.fallbackCategory')}
-                    </p>
-	                    <p className="lbc-listing-card__price">{formatListingPrice(listing, numberLocale)}</p>
-	                  </div>
-	                  </Card>
-	                </Link>
-	                )
-	              })}
-	            </div>
+                  }
+                />
+              ))}
+            </S.Grid4>
           ) : (
             <p className="ui-feedback ui-feedback--compact">
               {t('home.featured.empty')}
@@ -1184,46 +1139,18 @@ export default function Home() {
 	          {latestLoading && !latestBase.length ? (
 	            <ListingSkeletonGrid count={6} />
 	          ) : latestListings.length ? (
-	            <div className="lbc-listings lbc-listings--grid">
-	              {latestListings.map(listing => {
-	                const hasCover = Boolean(listing.coverImage)
-	                return (
-	                <Link key={listing.id} to={`/listing/${listing.id}`} className="lbc-mini-card lbc-mini-card--with-favorite">
-	                  <FavoriteButton listingId={listing.id} className="favorite-toggle--overlay" />
-	                  <div
-	                    className={`lbc-mini-card__image${hasCover ? '' : ' is-placeholder'}`}
-	                    style={hasCover ? { backgroundImage: `url(${listing.coverImage})` } : undefined}
-	                  />
-                  <div className="lbc-mini-card__body">
-                    <h3>{listing.title}</h3>
-                    {getOwnerProfileUrl(listing) && getOwnerLabel(listing) ? (
-                      <button
-                        type="button"
-                        className="listing-seller-link"
-                        onClick={event => {
-                          event.preventDefault()
-                          event.stopPropagation()
-                          navigate(getOwnerProfileUrl(listing)!)
-                        }}
-                      >
-                        {getOwnerLabel(listing)}
-                      </button>
-                    ) : null}
-                    {listing.publishedAt ? (
-                      <p className="lbc-mini-card__date">
-                        {formatListingDate(listing.publishedAt, locale)}
-                      </p>
-                    ) : null}
-                    <p>{getListingLocation(listing)}</p>
-                    <span>{formatListingPrice(listing, numberLocale)}</span>
-                  </div>
-	                  <span className="lbc-mini-card__category">
-	                    {listing.category?.name ?? listing.tag ?? t('listing.fallbackCategory')}
-	                  </span>
-	                </Link>
-	                )
-	              })}
-	            </div>
+	            <S.Grid4>
+              {latestListings.map(listing => (
+                <ListingCard
+                  key={listing.id}
+                  item={toCardItem(listing, numberLocale)}
+                  onOpen={() => navigate(`/listing/${listing.id}`)}
+                  favoriteSlot={
+                    <FavoriteButton listingId={listing.id} className="favorite-toggle--overlay" />
+                  }
+                />
+              ))}
+            </S.Grid4>
           ) : (
             <p className="ui-feedback ui-feedback--compact">
               {t('home.latest.empty')}
