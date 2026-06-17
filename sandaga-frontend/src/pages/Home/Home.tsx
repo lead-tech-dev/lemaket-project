@@ -1,5 +1,4 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
-import type { CSSProperties } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import MainLayout from '../../layouts/MainLayout'
 import { Card } from '../../components/ui/Card'
@@ -27,10 +26,12 @@ import {
 } from '../../types/home'
 import { useToast } from '../../components/ui/Toast'
 import { useI18n } from '../../contexts/I18nContext'
+import { useFeatureFlagsContext } from '../../contexts/FeatureFlagContext'
 import { resolveMediaUrl } from '../../utils/media'
 import { formatListingLocation } from '../../utils/location'
-import { useFollowedSellers } from '../../hooks/useFollowedSellers'
-import { useAuth } from '../../hooks/useAuth'
+import { Icon, Badge, ListingCard, SectionHead, Photo, BoostTag } from '../../components/ds'
+import { toCardItem } from '../../utils/listing-card'
+import * as S from './Home.styles'
 
  
 
@@ -151,8 +152,9 @@ export default function Home() {
   const { preferences, setPreference } = useUserPreferences()
   const { addToast } = useToast()
   const { locale, t } = useI18n()
-  const { isAuthenticated } = useAuth()
-  const { isFollowing, followSeller, unfollowSeller } = useFollowedSellers()
+  const { isEnabled } = useFeatureFlagsContext()
+  const storefrontsEnabled = isEnabled('homeStorefronts')
+  const proHomeSectionsEnabled = isEnabled('proOverview')
   const [query, setQuery] = useState({ term: '', location: '' })
   const numberLocale = locale === 'fr' ? 'fr-FR' : 'en-US'
   const numberFormatter = useMemo(() => new Intl.NumberFormat(numberLocale), [numberLocale])
@@ -173,17 +175,6 @@ export default function Home() {
     [t]
   )
 
-  const handleFollowSeller = async (sellerId: string, isCurrentlyFollowing: boolean) => {
-    if (!isAuthenticated) {
-      navigate('/login')
-      return
-    }
-    if (isCurrentlyFollowing) {
-      await unfollowSeller(sellerId)
-    } else {
-      await followSeller(sellerId)
-    }
-  }
   const [hero, setHero] = useState<HomeHero | null>(null)
   const [heroLoading, setHeroLoading] = useState(false)
   const [, setHeroError] = useState(false)
@@ -397,6 +388,13 @@ export default function Home() {
   }, [addToast, locale])
 
   useEffect(() => {
+    if (!proHomeSectionsEnabled) {
+      setSellerSplit(null)
+      setSellerSplitLoading(false)
+      setSellerSplitError(false)
+      return
+    }
+
     const controller = new AbortController()
     setSellerSplitLoading(true)
     setSellerSplitError(false)
@@ -421,7 +419,7 @@ export default function Home() {
       .finally(() => setSellerSplitLoading(false))
 
     return () => controller.abort()
-  }, [addToast, locale])
+  }, [addToast, locale, proHomeSectionsEnabled])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -528,6 +526,13 @@ export default function Home() {
   }, [addToast, locale])
 
   useEffect(() => {
+    if (!storefrontsEnabled) {
+      setStorefronts([])
+      setStorefrontsLoading(false)
+      setStorefrontsError(null)
+      return
+    }
+
     const controller = new AbortController()
     setStorefrontsLoading(true)
     setStorefrontsError(null)
@@ -555,7 +560,7 @@ export default function Home() {
       .finally(() => setStorefrontsLoading(false))
 
     return () => controller.abort()
-  }, [addToast, t])
+  }, [addToast, storefrontsEnabled, t])
 
  
   const heroData = hero
@@ -721,387 +726,215 @@ export default function Home() {
   return (
     <MainLayout>
       <div className="lbc-home">
-        <section className="lbc-hero">
-          <div className="lbc-hero__inner">
-            <div className="lbc-hero__content">
-              {heroData ? (
-                <>
-                  <span className="lbc-hero__eyebrow">{heroData.eyebrow}</span>
-                  <h1>{heroData.title}</h1>
-                  <p>{heroData.subtitle}</p>
-                </>
-              ) : (
-                <div>
-                  <Skeleton className="skeleton-line skeleton-line--short" />
-                  <Skeleton className="skeleton-line skeleton-line--wide" />
-                  <Skeleton className="skeleton-line" />
-                </div>
-              )}
-              <form className="lbc-search" role="search" onSubmit={handleSearch}>
-                <div className="lbc-search__field lbc-search__field--query" ref={queryFieldRef}>
-                  <label>{t('home.search.queryLabel')}</label>
-                  <input
-                    className="input"
-                    placeholder={t('home.search.queryPlaceholder')}
-                    value={query.term}
-                    onFocus={() => setQuerySuggestionsOpen(true)}
-                    onBlur={event => {
-                      const nextTarget = event.relatedTarget as Node | null
-                      if (nextTarget && queryFieldRef.current?.contains(nextTarget)) {
-                        return
-                      }
-                      setQuerySuggestionsOpen(false)
-                    }}
-                    onChange={event => {
-                      setQuery(prev => ({ ...prev, term: event.target.value }))
-                      if (!querySuggestionsOpen) {
-                        setQuerySuggestionsOpen(true)
-                      }
-                    }}
-                  />
+        <S.Hero>
+          <S.HeroGlowA />
+          <S.HeroGlowB />
+          <S.HeroInner>
+            <div>
+              <S.HeroBadge>
+                <Icon name="spark" size={14} color="#fff" fill="#fff" sw={1} />{' '}
+                {t('home.m.badge')}
+              </S.HeroBadge>
+              <S.HeroTitle>
+                {t('home.m.titleA')}
+                <br />
+                <span style={{ color: 'var(--color-primary)' }}>{t('home.m.titleB')}</span>
+                {t('home.m.titleC')}
+              </S.HeroTitle>
+              <S.HeroSub>{t('home.m.sub')}</S.HeroSub>
+
+              <S.HeroSearch role="search" onSubmit={handleSearch}>
+                <S.HeroField ref={queryFieldRef}>
+                  <Icon name="search" size={19} color="#97A199" />
+                  <div style={{ flex: 1 }}>
+                    <label>{t('home.m.what')}</label>
+                    <input
+                      placeholder={t('home.m.whatPh')}
+                      value={query.term}
+                      onFocus={() => setQuerySuggestionsOpen(true)}
+                      onBlur={event => {
+                        const nextTarget = event.relatedTarget as Node | null
+                        if (nextTarget && queryFieldRef.current?.contains(nextTarget)) {
+                          return
+                        }
+                        setQuerySuggestionsOpen(false)
+                      }}
+                      onChange={event => {
+                        setQuery(prev => ({ ...prev, term: event.target.value }))
+                        if (!querySuggestionsOpen) {
+                          setQuerySuggestionsOpen(true)
+                        }
+                      }}
+                    />
+                  </div>
                   {querySuggestionsOpen ? (
-                    <div className="lbc-search__suggestions" role="listbox">
+                    <S.SuggestBox role="listbox">
                       {categoriesLoading ? (
-                        <p className="lbc-search__suggestions-hint">{t('search.header.loading')}</p>
+                        <S.SuggestHint>{t('search.header.loading')}</S.SuggestHint>
                       ) : categorySuggestions.length ? (
                         categorySuggestions.map(suggestion => (
-                          <button
+                          <S.SuggestItem
                             key={suggestion.id}
                             type="button"
-                            className="lbc-search__suggestion"
                             onMouseDown={event => event.preventDefault()}
                             onClick={() => handleCategorySuggestionSelect(suggestion)}
                           >
-                            <span className="lbc-search__suggestion-label">{suggestion.label}</span>
+                            <span className="label">{suggestion.label}</span>
                             {suggestion.parentLabel ? (
-                              <span className="lbc-search__suggestion-meta">{suggestion.parentLabel}</span>
+                              <span className="meta">{suggestion.parentLabel}</span>
                             ) : null}
-                          </button>
+                          </S.SuggestItem>
                         ))
                       ) : (
-                        <p className="lbc-search__suggestions-hint">{t('header.search.empty')}</p>
+                        <S.SuggestHint>{t('header.search.empty')}</S.SuggestHint>
                       )}
-                    </div>
+                    </S.SuggestBox>
                   ) : null}
-                </div>
-                <div className="lbc-search__field">
-                  <label>{t('home.search.locationLabel')}</label>
-                  <input
-                    className="input"
-                    placeholder={t('home.search.locationPlaceholder')}
-                    value={query.location}
-                    onChange={event =>
-                      setQuery(prev => ({
-                        ...prev,
-                        location: event.target.value
-                      }))
-                    }
-                  />
-                </div>
-                <button type="submit" className="btn btn--primary lbc-search__submit">
-                  {t('home.search.submit')}
-                </button>
-              </form>
-              {heroTags.length ? (
-                <div className="lbc-hero__tags">
-                  {heroTags.map(tag => (
-                    <Link
-                      key={tag}
-                      to={`/search?category=${encodeURIComponent(tag.toLowerCase())}`}
-                      className="lbc-tag"
-                    >
-                      {tag}
-                    </Link>
-                  ))}
-                </div>
-              ) : null}
-              <div className="lbc-hero__cta">
-                <Button
-                  variant="outline"
-                  onClick={handleCreateAlert}
-                  disabled={isCreatingAlert}
-                >
-                  {isCreatingAlert ? t('home.search.alertSaving') : t('home.search.alertCreate')}
-                </Button>
-                <Link to="/search" className="lbc-link">
-                  {t('home.search.viewAllListings')}
-                </Link>
-              </div>
-              {heroLoading ? (
-                <p className="ui-feedback ui-feedback--offset-sm" aria-live="polite">
-                  {t('home.search.loadingRecommendations')}
-                </p>
-              ) : null}
-            </div>
-            <div className="lbc-hero__visual">
-              <div className="lbc-hero__stats">
-                {primaryStat ? (
-                  <>
-                    <strong>{primaryStat.value}</strong>
-                    <span>{primaryStat.label}</span>
-                    {primaryStat.detail ? <small>{primaryStat.detail}</small> : null}
-                  </>
-                ) : (
-                  <>
-                    <Skeleton className="skeleton-line skeleton-line--short" />
-                    <Skeleton className="skeleton-line skeleton-line--wide" />
-                  </>
-                )}
-              </div>
-              {heroTestimonial ? (
-                <div className="lbc-hero__card">
-                  <p>« {heroTestimonial.quote} »</p>
-                  <span>
-                    {heroTestimonial.author}
-                    {heroTestimonial.location ? ` • ${heroTestimonial.location}` : ''}
-                  </span>
-                </div>
-              ) : null}
-              {heroBadge ? <div className="lbc-hero__badge">{heroBadge}</div> : null}
-            </div>
-          </div>
-        </section>
-
-        <section className="lbc-section">
-          <div className="lbc-section__head">
-            <h2>{t('home.section.popularCategories')}</h2>
-            <Link to="/search" className="lbc-link">
-              {t('home.section.allCategories')}
-            </Link>
-          </div>
-          {categoriesSkeleton ?? (
-            categoriesToDisplay.length ? (
-              <div className="lbc-categories">
-                {categoriesToDisplay.map(category => {
-                  const style: CSSProperties | undefined = category.gradient
-                    ? { background: category.gradient }
-                    : category.color
-                    ? { backgroundColor: category.color }
-                    : undefined
-                  const subcategoryText =
-                    category.children && category.children.length
-                      ? category.children.slice(0, 4).map(child => child.name).join(', ')
-                      : null
-                  const descriptionText =
-                    subcategoryText ||
-                    category.description ||
-                    t('home.category.fallbackDescription')
-                  return (
-                    <Card key={category.id} className="lbc-category-card" style={style}>
-                      <div className="lbc-category-card__icon">{category.icon ?? '🛒'}</div>
-                      <div className="lbc-category-card__body">
-                        <h3>{category.name}</h3>
-                        <p>{descriptionText}</p>
-                        <span>{t('home.category.listingCount', { count: numberFormatter.format(category.listingCount) })}</span>
-                      </div>
-                      <Link
-                        to={`/search?category=${encodeURIComponent(category.slug)}`}
-                        className="lbc-link"
-                      >
-                        {t('home.category.viewListings')}
-                      </Link>
-                    </Card>
-                  )
-                })}
-              </div>
-            ) : (
-              <p className="ui-feedback ui-feedback--compact">
-                {t('home.categories.empty')}
-              </p>
-            )
-          )}
-        </section>
-
-        <section className="lbc-section lbc-section--storefronts">
-          <div className="lbc-section__head">
-            <div>
-              <h2>{t('home.section.storefronts')}</h2>
-              <p>{t('home.section.storefrontsSubtitle')}</p>
-            </div>
-            <Link to="/stores" className="lbc-link">
-              {t('home.section.storefrontsAll')}
-            </Link>
-          </div>
-          {storefrontsSkeleton ?? (
-            storefrontsError ? (
-              <p className="ui-feedback ui-feedback--compact ui-feedback--danger">
-                {storefrontsError}
-              </p>
-            ) : storefronts.length ? (
-              <div className="lbc-storefronts">
-                {storefronts.map(storefront => {
-                  const initials = storefront.name
-                    .split(' ')
-                    .filter(Boolean)
-                    .slice(0, 2)
-                    .map(part => part[0]?.toUpperCase())
-                    .join('')
-                  const ratingText = storefront.totalReviews
-                    ? `(${numberFormatter.format(storefront.totalReviews)})`
-                    : ''
-                  return (
-                    <Card key={storefront.id} className="lbc-storefront-card">
-                      <div
-                        className="lbc-storefront-card__cover"
-                        style={
-                          storefront.heroUrl
-                            ? { backgroundImage: `url(${resolveMediaUrl(storefront.heroUrl)})` }
-                            : undefined
-                        }
-                      >
-                          {storefront.isCompanyVerified ? (
-                            <span className="lbc-storefront-card__badge">
-                              ✅ {t('home.storefronts.companyVerified')}
-                            </span>
-                          ) : null}
-                      </div>
-                      <div className="lbc-storefront-card__body">
-                        <div className="lbc-storefront-card__header">
-                          <div className="lbc-storefront-card__avatar">
-                            {storefront.avatarUrl ? (
-                              <img src={resolveMediaUrl(storefront.avatarUrl)} alt={storefront.name} />
-                            ) : (
-                              <span>{initials || 'LB'}</span>
-                            )}
-                          </div>
-                          <div className="lbc-storefront-card__identity">
-                            <h3>{storefront.name}</h3>
-                            <p>
-                              {storefront.tagline ||
-                                storefront.location ||
-                                t('home.storefronts.locationFallback')}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="lbc-storefront-card__meta">
-                          <span>
-                            ⭐ {storefront.averageRating.toFixed(1)} {ratingText}
-                          </span>
-                          <span>
-                            {t('home.storefronts.listings', {
-                              count: numberFormatter.format(storefront.listingCount)
-                            })}
-                          </span>
-                        </div>
-                        <Link
-                          to={`/store/${storefront.slug}`}
-                          className="lbc-link lbc-link--bold"
-                        >
-                          {t('home.storefronts.view')}
-                        </Link>
-                      </div>
-                    </Card>
-                  )
-                })}
-              </div>
-            ) : (
-              <p className="ui-feedback ui-feedback--compact">
-                {t('home.storefronts.empty')}
-              </p>
-            )
-          )}
-        </section>
-
-        <section className="lbc-section lbc-section--trending">
-          <div className="lbc-section__head">
-            <h2>{t('home.section.trending')}</h2>
-            <Link to="/search" className="lbc-link">
-              {t('home.section.trendingAll')}
-            </Link>
-          </div>
-          <div className="lbc-trending">
-            {trendingLoading && !trendingSearches.length
-              ? Array.from({ length: 4 }).map((_, index) => (
-                  <div key={index} className="lbc-trending-card is-loading">
-                    <Skeleton className="skeleton-line skeleton-line--wide" />
-                    <Skeleton className="skeleton-line skeleton-line--short" />
+                </S.HeroField>
+                <S.HeroDivider />
+                <S.HeroField>
+                  <Icon name="pin" size={19} color="#97A199" />
+                  <div style={{ flex: 1 }}>
+                    <label>{t('home.m.where')}</label>
+                    <input
+                      placeholder={t('home.m.wherePh')}
+                      value={query.location}
+                      onChange={event =>
+                        setQuery(prev => ({ ...prev, location: event.target.value }))
+                      }
+                    />
                   </div>
-                ))
-              : trendingToDisplay.length ? (
-                  trendingToDisplay.map(item => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      className="lbc-trending-card"
-                      onClick={() => handleQuickSearch(item)}
+                </S.HeroField>
+                <S.HeroSubmit type="submit">{t('home.m.btn')}</S.HeroSubmit>
+              </S.HeroSearch>
+
+              <S.HeroTags>
+                <S.HeroTagLabel>{t('home.m.popular')}</S.HeroTagLabel>
+                {['Appartements', 'iPhone', 'Toyota', 'Offres d’emploi', 'Terrains'].map(tag => (
+                  <S.HeroTag
+                    key={tag}
+                    type="button"
+                    onClick={() => navigate(`/search?q=${encodeURIComponent(tag)}`)}
+                  >
+                    {tag}
+                  </S.HeroTag>
+                ))}
+              </S.HeroTags>
+            </div>
+
+            <S.HeroAside>
+              <S.FloatCollage>
+                {[...featuredListings, ...latestListings].slice(0, 3).map((listing, i) => {
+                  const card = toCardItem(listing, numberLocale)
+                  const pos = [
+                    { top: 0, right: 30, width: 230, transform: 'rotate(-4deg)' },
+                    { top: 120, left: 0, width: 235, transform: 'rotate(3deg)', zIndex: 2 },
+                    { bottom: 0, right: 0, width: 225, transform: 'rotate(5deg)' }
+                  ][i]
+                  return (
+                    <S.FloatCard
+                      key={listing.id}
+                      style={pos}
+                      onClick={() => navigate(`/listing/${listing.id}`)}
                     >
-                      <span className="lbc-trending-card__label">{item.label}</span>
-                      <small>
-                        {t('home.trending.results', {
-                          count: numberFormatter.format(Math.max(0, Number(item.resultCount) || 0))
-                        })}
-                      </small>
-                    </button>
-                  ))
-                ) : (
-                  <p className="ui-feedback ui-feedback--compact">
-                    {t('home.trending.empty')}
-                  </p>
-                )}
-          </div>
-        </section>
+                      <Photo item={card} h={120} fz={40}>
+                        {card.boosted ? <BoostTag /> : null}
+                      </Photo>
+                      <S.FloatBody>
+                        <div className="price">
+                          {card.price} <span>FCFA{card.unit ?? ''}</span>
+                        </div>
+                        <div className="title">{card.title}</div>
+                      </S.FloatBody>
+                    </S.FloatCard>
+                  )
+                })}
+                <S.VerifiedFloat>
+                  <div className="circle">
+                    <Badge size={20} />
+                  </div>
+                  <div>
+                    <div className="pct">92%</div>
+                    <div className="lbl">{t('home.m.verified')}</div>
+                  </div>
+                </S.VerifiedFloat>
+              </S.FloatCollage>
+            </S.HeroAside>
+          </S.HeroInner>
+        </S.Hero>
+
+        <S.Section>
+          <SectionHead
+            title={t('home.m.cats')}
+            action={
+              <Link to="/search" className="lbc-link">
+                {t('home.m.all')}
+              </Link>
+            }
+          />
+          {categoriesToDisplay.length ? (
+            <S.Grid4>
+              {categoriesToDisplay.map(category => {
+                const subcategoryText =
+                  category.children && category.children.length
+                    ? category.children.slice(0, 4).map(child => child.name).join(', ')
+                    : null
+                const descriptionText =
+                  subcategoryText || category.description || t('home.category.fallbackDescription')
+                return (
+                  <S.CategoryCard
+                    key={category.id}
+                    type="button"
+                    onClick={() => navigate(`/category/${encodeURIComponent(category.slug)}`)}
+                  >
+                    <div className="icon">{category.icon ?? '🛒'}</div>
+                    <div className="name">{category.name}</div>
+                    <div className="sub">{descriptionText}</div>
+                    <div className="count">
+                      {t('home.category.listingCount', {
+                        count: numberFormatter.format(category.listingCount)
+                      })}
+                    </div>
+                  </S.CategoryCard>
+                )
+              })}
+            </S.Grid4>
+          ) : categoriesSkeleton ? (
+            categoriesSkeleton
+          ) : (
+            <p className="ui-feedback ui-feedback--compact">{t('home.categories.empty')}</p>
+          )}
+        </S.Section>
 
         <section className="lbc-section lbc-section--featured">
-          <div className="lbc-section__head">
-            <h2>{t('home.section.featured')}</h2>
-            <Link to="/search?featured=true" className="lbc-link">
-              {t('home.section.featuredAll')}
-            </Link>
-          </div>
+          <SectionHead
+            title={
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+                {t('home.m.featured')} <Badge size={20} />
+              </span>
+            }
+            sub={t('home.m.featuredSub')}
+            action={
+              <Link to="/search?featured=true" className="lbc-link">
+                {t('home.m.more')}
+              </Link>
+            }
+          />
 	          {featuredLoading && !featuredBase.length ? (
 	            <ListingSkeletonGrid count={4} />
 	          ) : featuredListings.length ? (
-	            <div className="lbc-listings lbc-listings--featured">
-	              {featuredListings.map(listing => {
-	                const hasCover = Boolean(listing.coverImage)
-	                return (
-	                <Link key={listing.id} to={`/listing/${listing.id}`} className="lbc-listing-card-link">
-	                  <Card className="lbc-listing-card">
-	                  <div
-	                    className={`lbc-listing-card__image${hasCover ? '' : ' is-placeholder'}`}
-	                    style={hasCover ? { backgroundImage: `url(${listing.coverImage})` } : undefined}
-	                  >
-                    {listing.owner?.isCompanyVerified ? (
-                      <div className="lbc-listing-card__badges">
-                        <span className="lbc-listing-card__badge lbc-listing-card__badge--verified">
-                          {t('listings.badge.companyVerified')}
-                        </span>
-                      </div>
-                    ) : null}
-                    <span className="lbc-listing-card__ribbon">{listing.ribbon}</span>
+	            <S.Grid4>
+              {featuredListings.map(listing => (
+                <ListingCard
+                  key={listing.id}
+                  item={toCardItem(listing, numberLocale)}
+                  onOpen={() => navigate(`/listing/${listing.id}`)}
+                  favoriteSlot={
                     <FavoriteButton listingId={listing.id} className="favorite-toggle--overlay" />
-                  </div>
-                  <div className="lbc-listing-card__body">
-                    <h3>{listing.title}</h3>
-                    {getOwnerProfileUrl(listing) && getOwnerLabel(listing) ? (
-                      <button
-                        type="button"
-                        className="listing-seller-link"
-                        onClick={event => {
-                          event.preventDefault()
-                          event.stopPropagation()
-                          navigate(getOwnerProfileUrl(listing)!)
-                        }}
-                      >
-                        {getOwnerLabel(listing)}
-                      </button>
-                    ) : null}
-                    {listing.publishedAt ? (
-                      <p className="lbc-listing-card__meta">
-                        {formatListingDate(listing.publishedAt, locale)}
-                      </p>
-                    ) : null}
-                    <p>
-                      {getListingLocation(listing)} ·{' '}
-                      {listing.category?.name ?? listing.tag ?? t('listing.fallbackCategory')}
-                    </p>
-	                    <p className="lbc-listing-card__price">{formatListingPrice(listing, numberLocale)}</p>
-	                  </div>
-	                  </Card>
-	                </Link>
-	                )
-	              })}
-	            </div>
+                  }
+                />
+              ))}
+            </S.Grid4>
           ) : (
             <p className="ui-feedback ui-feedback--compact">
               {t('home.featured.empty')}
@@ -1109,252 +942,110 @@ export default function Home() {
           )}
         </section>
 
-        <section className="lbc-section lbc-section--alt">
-          <div className="lbc-section__head">
-            <h2>{t('home.section.nearby')}</h2>
-            <div className="lbc-section__head-actions">
-              <SortSelect value={preferences.sort} onChange={value => setPreference('sort', value)} />
+        {latestListings.length ? (
+          <S.Section>
+            <SectionHead
+              title={t('home.m.foryou')}
+              sub={t('home.m.foryouSub')}
+              action={
+                <Link to="/search" className="lbc-link">
+                  {t('home.m.more')}
+                </Link>
+              }
+            />
+            <S.Grid4>
+              {latestListings.slice(0, 4).map(listing => (
+                <ListingCard
+                  key={listing.id}
+                  item={toCardItem(listing, numberLocale)}
+                  onOpen={() => navigate(`/listing/${listing.id}`)}
+                  favoriteSlot={
+                    <FavoriteButton listingId={listing.id} className="favorite-toggle--overlay" />
+                  }
+                />
+              ))}
+            </S.Grid4>
+          </S.Section>
+        ) : null}
+
+        <S.Section>
+          <S.BoostStrip>
+            <div className="body">
+              <S.BoostTagPill>
+                <Icon name="bolt" size={13} color="#FFD23F" fill="#FFD23F" sw={1} />{' '}
+                {t('home.m.boostTag')}
+              </S.BoostTagPill>
+              <h3>{t('home.m.boostH')}</h3>
+              <p>{t('home.m.boostP')}</p>
+            </div>
+            <S.BoostCta type="button" onClick={() => navigate('/listings/new')}>
+              {t('home.m.boostBtn')} <Icon name="arrowR" size={18} />
+            </S.BoostCta>
+          </S.BoostStrip>
+        </S.Section>
+
+        <S.Section>
+          <SectionHead
+            title={t('home.m.recent')}
+            action={
               <Link to="/search" className="lbc-link">
-                {t('home.section.nearbyCustomize')}
+                {t('home.m.allAds')}
               </Link>
-            </div>
-          </div>
-
-          <div className="lbc-quick-filters">
-            <div className="lbc-filter-group">
-              <span className="lbc-filter-group__label">{t('filters.sellerType.label')}</span>
-              <div className="lbc-filter-chips" role="group" aria-label={t('filters.sellerType.aria')}>
-                {sellerTypeChips.map(chip => (
-                  <button
-                    key={chip.id}
-                    type="button"
-                    className={`lbc-chip ${
-                      preferences.sellerType === chip.id ? 'lbc-chip--active' : ''
-                    }`}
-                    onClick={() => setPreference('sellerType', chip.id)}
-                  >
-                    {chip.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="lbc-filter-group">
-              <span className="lbc-filter-group__label">{t('filters.price.label')}</span>
-              <div className="lbc-filter-chips" role="group" aria-label={t('filters.price.aria')}>
-                {PRICE_BANDS.map(band => (
-                  <button
-                    key={band.id}
-                    type="button"
-                    className={`lbc-chip ${
-                      preferences.priceBand === band.id ? 'lbc-chip--active' : ''
-                    }`}
-                    onClick={() => setPreference('priceBand', band.id)}
-                  >
-                    {getPriceBandLabel(t, band.id)}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="lbc-filter-group">
-              <span className="lbc-filter-group__label">{t('filters.radius.label')}</span>
-              <div className="lbc-filter-chips" role="group" aria-label={t('filters.radius.aria')}>
-                {RADIUS_OPTIONS.map(option => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    className={`lbc-chip ${
-                      preferences.radius === option.value ? 'lbc-chip--active' : ''
-                    }`}
-                    onClick={() => setPreference('radius', option.value)}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-	          {latestLoading && !latestBase.length ? (
-	            <ListingSkeletonGrid count={6} />
-	          ) : latestListings.length ? (
-	            <div className="lbc-listings lbc-listings--grid">
-	              {latestListings.map(listing => {
-	                const hasCover = Boolean(listing.coverImage)
-	                return (
-	                <Link key={listing.id} to={`/listing/${listing.id}`} className="lbc-mini-card lbc-mini-card--with-favorite">
-	                  <FavoriteButton listingId={listing.id} className="favorite-toggle--overlay" />
-	                  <div
-	                    className={`lbc-mini-card__image${hasCover ? '' : ' is-placeholder'}`}
-	                    style={hasCover ? { backgroundImage: `url(${listing.coverImage})` } : undefined}
-	                  />
-                  <div className="lbc-mini-card__body">
-                    <h3>{listing.title}</h3>
-                    {getOwnerProfileUrl(listing) && getOwnerLabel(listing) ? (
-                      <button
-                        type="button"
-                        className="listing-seller-link"
-                        onClick={event => {
-                          event.preventDefault()
-                          event.stopPropagation()
-                          navigate(getOwnerProfileUrl(listing)!)
-                        }}
-                      >
-                        {getOwnerLabel(listing)}
-                      </button>
-                    ) : null}
-                    {listing.publishedAt ? (
-                      <p className="lbc-mini-card__date">
-                        {formatListingDate(listing.publishedAt, locale)}
-                      </p>
-                    ) : null}
-                    <p>{getListingLocation(listing)}</p>
-                    <span>{formatListingPrice(listing, numberLocale)}</span>
-                  </div>
-	                  <span className="lbc-mini-card__category">
-	                    {listing.category?.name ?? listing.tag ?? t('listing.fallbackCategory')}
-	                  </span>
-	                </Link>
-	                )
-	              })}
-	            </div>
+            }
+          />
+          {latestLoading && !latestBase.length ? (
+            <ListingSkeletonGrid count={8} />
+          ) : latestListings.length ? (
+            <S.Grid4>
+              {latestListings.map(listing => (
+                <ListingCard
+                  key={listing.id}
+                  item={toCardItem(listing, numberLocale)}
+                  onOpen={() => navigate(`/listing/${listing.id}`)}
+                  favoriteSlot={
+                    <FavoriteButton listingId={listing.id} className="favorite-toggle--overlay" />
+                  }
+                />
+              ))}
+            </S.Grid4>
           ) : (
-            <p className="ui-feedback ui-feedback--compact">
-              {t('home.latest.empty')}
-            </p>
+            <p className="ui-feedback ui-feedback--compact">{t('home.latest.empty')}</p>
           )}
-        </section>
+        </S.Section>
 
-        <section className="lbc-section lbc-section--testimonials">
-          <div className="lbc-section__head">
-            <h2>{t('home.section.testimonials')}</h2>
-            <Link to="/search?sellerType=pro" className="lbc-link">
-              {t('home.section.proListings')}
-            </Link>
-          </div>
-          <div className="lbc-testimonials">
-            {testimonialLoading && !testimonials.length
-              ? Array.from({ length: 3 }).map((_, index) => (
-                  <Card key={index} className="lbc-testimonial-card is-loading">
-                    <Skeleton className="skeleton-line skeleton-line--wide" />
-                    <Skeleton className="skeleton-line" />
-                    <Skeleton className="skeleton-line skeleton-line--short" />
-                  </Card>
-                ))
-              : testimonialsToDisplay.length ? (
-                  testimonialsToDisplay.map(testimonial => (
-                    <Card key={testimonial.id} className="lbc-testimonial-card">
-                      <p>« {testimonial.quote} »</p>
-                      <span>
-                        {testimonial.author}
-                        {testimonial.location ? ` • ${testimonial.location}` : ''}
-                      </span>
-                    </Card>
-                  ))
-                ) : (
-                  <p className="ui-feedback ui-feedback--compact">
-                    {t('home.testimonials.empty')}
-                  </p>
-                )}
-          </div>
-        </section>
-
-        <section className="lbc-section lbc-section--services">
-          <div className="lbc-section__head">
-            <h2>{t('home.section.services')}</h2>
-            <p>{t('home.section.servicesSubtitle')}</p>
-          </div>
-          {servicesLoading && !services.length ? (
-            <div className="lbc-services">
-              {Array.from({ length: 3 }).map((_, index) => (
-                <div key={index} className="lbc-service-card is-loading">
-                  <Skeleton className="skeleton-line skeleton-line--wide" />
-                  <Skeleton className="skeleton-line" />
-                  <Skeleton className="skeleton-line skeleton-line--short" />
+        <S.Section style={{ paddingBottom: 8 }}>
+          <S.HowHead>
+            <h2>{t('home.m.howTitle')}</h2>
+            <p>{t('home.m.howSub')}</p>
+          </S.HowHead>
+          <S.HowGrid>
+            {([
+              { n: '01', ic: 'cam', t: t('home.m.how1t'), d: t('home.m.how1d') },
+              { n: '02', ic: 'spark', t: t('home.m.how2t'), d: t('home.m.how2d') },
+              { n: '03', ic: 'chat', t: t('home.m.how3t'), d: t('home.m.how3d') }
+            ] as const).map(step => (
+              <S.HowCard key={step.n}>
+                <div className="top">
+                  <div className="ic">
+                    <Icon name={step.ic} size={24} />
+                  </div>
+                  <span className="num">{step.n}</span>
                 </div>
-              ))}
-            </div>
-          ) : servicesToDisplay.length ? (
-            <div className="lbc-services">
-              {servicesToDisplay.map(service => (
-                <div key={service.title} className="lbc-service-card">
-                  <h3>{service.title}</h3>
-                  <p>{service.description}</p>
-                  <Link to={service.actionUrl} className="lbc-link">
-                    {service.actionLabel}
-                  </Link>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="ui-feedback ui-feedback--compact">
-              {t('home.services.empty')}
-            </p>
-          )}
-        </section>
-
-        <section className="lbc-section">
-          <div className="lbc-section__head">
-            <h2>{t('home.section.sellerSplit')}</h2>
-          </div>
-          {sellerSplitLoading && !sellerSplitData ? (
-            <div className="lbc-seller-split">
-              {Array.from({ length: 2 }).map((_, index) => (
-                <Card key={index} className="lbc-seller-card is-loading">
-                  <Skeleton className="skeleton-line skeleton-line--wide" />
-                  <Skeleton className="skeleton-line" />
-                  <Skeleton className="skeleton-line skeleton-line--short" />
-                </Card>
-              ))}
-            </div>
-          ) : sellerSplitData ? (
-            <>
-              <div className="lbc-seller-split">
-                <Card className="lbc-seller-card lbc-seller-card--pro">
-                  <div className="lbc-seller-card__header">
-                    <span className="lbc-seller-card__badge">{t('home.sellerSplit.proBadge')}</span>
-                    <strong>{shareFormatter.format(sellerSplitData.proShare)}%</strong>
-                  </div>
-                  <p className="lbc-seller-card__count">
-                    {t('home.sellerSplit.proListings', {
-                      count: numberFormatter.format(sellerSplitData.proListings)
-                    })}
-                  </p>
-                  <p className="lbc-seller-card__hint">
-                    {t('home.sellerSplit.proHint')}
-                  </p>
-                </Card>
-                <Card className="lbc-seller-card lbc-seller-card--individual">
-                  <div className="lbc-seller-card__header">
-                    <span className="lbc-seller-card__badge">{t('home.sellerSplit.individualBadge')}</span>
-                    <strong>{shareFormatter.format(sellerSplitData.individualShare)}%</strong>
-                  </div>
-                  <p className="lbc-seller-card__count">
-                    {t('home.sellerSplit.individualListings', {
-                      count: numberFormatter.format(sellerSplitData.individualListings)
-                    })}
-                  </p>
-                  <p className="lbc-seller-card__hint">
-                    {t('home.sellerSplit.individualHint')}
-                  </p>
-                </Card>
-              </div>
-              <p className="lbc-seller-split__summary">
-                {totalSellerListings
-                  ? t('home.sellerSplit.summary', {
-                      share: shareFormatter.format(sellerSplitData.proShare),
-                      count: numberFormatter.format(totalSellerListings)
-                    })
-                  : t('home.sellerSplit.summaryEmpty')}
-              </p>
-            </>
-          ) : (
-            <p className="ui-feedback ui-feedback--compact">
-              {t('home.sellerSplit.unavailable')}
-            </p>
-          )}
-        </section>
+                <div className="t">{step.t}</div>
+                <div className="d">{step.d}</div>
+              </S.HowCard>
+            ))}
+          </S.HowGrid>
+          <S.HowCta>
+            <S.BoostCta
+              type="button"
+              onClick={() => navigate('/listings/new')}
+              style={{ background: 'var(--color-primary)', color: '#fff' }}
+            >
+              {t('home.m.howCta')}
+            </S.BoostCta>
+          </S.HowCta>
+        </S.Section>
       </div>
     </MainLayout>
   )

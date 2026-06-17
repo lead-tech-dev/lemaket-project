@@ -126,6 +126,7 @@ export default function Payments() {
   const [error, setError] = useState<string | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingMethod, setEditingMethod] = useState<PaymentMethod | null>(null)
+  const [paymentMethodFormError, setPaymentMethodFormError] = useState<string | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [updatingMethodId, setUpdatingMethodId] = useState<string | null>(null)
@@ -333,10 +334,19 @@ export default function Payments() {
   }, [location.pathname, location.search, addToast, navigate])
 
   const handleSaveMethod = async (data: PaymentMethodForm) => {
+    setPaymentMethodFormError(null)
+    const normalizedProvider = data.provider === 'orange' ? 'orange' : 'mtn'
     const payload = {
-      ...data,
+      type: 'wallet' as const,
+      provider: normalizedProvider,
+      externalId: data.externalId,
       holderName: data.holderName.trim(),
-      label: data.label && data.label.length > 0 ? data.label.trim() : undefined,
+      label:
+        data.label && data.label.length > 0
+          ? data.label.trim()
+          : normalizedProvider === 'orange'
+            ? 'Orange Money'
+            : 'MTN Mobile Money',
       isDefault: Boolean(data.isDefault)
     }
 
@@ -359,14 +369,13 @@ export default function Payments() {
 
       setIsModalOpen(false)
       setEditingMethod(null)
+      setPaymentMethodFormError(null)
       await loadPayments(undefined, { silent: true })
     } catch (err) {
       console.error('Unable to save payment method', err)
-      addToast({
-        variant: 'error',
-        title: t('dashboard.payments.methods.saveErrorTitle'),
-        message: err instanceof Error ? err.message : t('dashboard.payments.methods.saveErrorMessage')
-      })
+      setPaymentMethodFormError(
+        err instanceof Error ? err.message : t('dashboard.payments.methods.saveErrorMessage')
+      )
     }
   }
 
@@ -427,12 +436,14 @@ export default function Payments() {
 
   const handleOpenModal = (method?: PaymentMethod) => {
     setEditingMethod(method ?? null)
+    setPaymentMethodFormError(null)
     setIsModalOpen(true)
   }
 
   const handleCloseModal = () => {
     setIsModalOpen(false)
     setEditingMethod(null)
+    setPaymentMethodFormError(null)
   }
 
   const handleOpenVerification = (method: PaymentMethod) => {
@@ -719,20 +730,29 @@ export default function Payments() {
                           </span>
                         ) : null}
                       </div>
-                      <span>
-                        {t('dashboard.payments.methods.typeLabel')} {formatPaymentMethod({ ...method, label: undefined }, t)}
-                      </span>
-                      {method.holderName ? (
-                        <span>
-                          {t('dashboard.payments.methods.holderLabel')} {method.holderName}
-                        </span>
-                      ) : null}
-                      {method.mandateReference ? (
-                        <span>
-                          {t('dashboard.payments.methods.mandateLabel')}{' '}
-                          <strong>{method.mandateReference}</strong>
-                        </span>
-                      ) : null}
+                      <div
+                        style={{
+                          display: 'grid',
+                          gap: '4px',
+                          marginTop: '2px'
+                        }}
+                      >
+                        <p style={{ margin: 0 }}>
+                          {t('dashboard.payments.methods.typeLabel')}{' '}
+                          {formatPaymentMethod({ ...method, label: undefined }, t)}
+                        </p>
+                        {method.holderName ? (
+                          <p style={{ margin: 0 }}>
+                            {t('dashboard.payments.methods.holderLabel')} {method.holderName}
+                          </p>
+                        ) : null}
+                        {method.mandateReference ? (
+                          <p style={{ margin: 0 }}>
+                            {t('dashboard.payments.methods.mandateLabel')}{' '}
+                            <strong>{method.mandateReference}</strong>
+                          </p>
+                        ) : null}
+                      </div>
                       <div>{renderVerificationStatus(method)}</div>
                       <div
                         style={{
@@ -956,6 +976,7 @@ export default function Payments() {
           onClose={handleCloseModal}
           onSubmit={handleSaveMethod}
           method={editingMethod}
+          submitError={paymentMethodFormError}
         />
 
         <Modal

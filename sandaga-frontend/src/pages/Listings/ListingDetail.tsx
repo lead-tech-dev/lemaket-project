@@ -1,9 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import MainLayout from '../../layouts/MainLayout'
 import { Button } from '../../components/ui/Button'
+import { FormField } from '../../components/ui/FormField'
+import { Input } from '../../components/ui/Input'
 import { FavoriteButton } from '../../components/ui/FavoriteButton'
-import { apiGet, apiPost } from '../../utils/api'
+import { apiGet, apiPost, getApiUrl } from '../../utils/api'
+import { getAuthToken } from '../../utils/auth-token'
 import type { Listing } from '../../types/listing'
 import type { Review, ReviewSummary, SellerReviewsResponse } from '../../types/review'
 import { Modal } from '../../components/ui/Modal'
@@ -13,14 +16,12 @@ import { useAuth } from '../../hooks/useAuth'
 import { useFollowedSellers } from '../../hooks/useFollowedSellers'
 import { useI18n } from '../../contexts/I18nContext'
 import { formatCityZip } from '../../utils/location'
+import { geoGeocodeFirst } from '../../utils/geo'
 import { toRenderableRichTextHtml } from '../../utils/richText'
-type MapboxMap = import('mapbox-gl').Map
-type MapboxMarker = import('mapbox-gl').Marker
-import 'mapbox-gl/dist/mapbox-gl.css'
+import { LocationPinIcon } from '../../components/ui/LocationPinIcon'
 
 const STREET_SEGMENT_PATTERN = /\b(rue|avenue|av\.?|boulevard|bd\.?|street|st\.?|road|rd\.?|route|impasse|allee|lotissement)\b/i
 const COUNTRY_SEGMENT_PATTERN = /^(cameroon|cameroun)$/i
-
 function normalizeLocationToken(value: string): string {
   return value
     .toLowerCase()
@@ -202,6 +203,13 @@ function formatDate(value: string | null | undefined, locale: string): string | 
   }
 }
 
+function wasRecentlyActive(value?: string | null, minutes = 5): boolean {
+  if (!value) return false
+  const ts = new Date(value).getTime()
+  if (Number.isNaN(ts)) return false
+  return Date.now() - ts <= minutes * 60 * 1000
+}
+
 function formatRating(value?: number | null): string {
   if (!value || !Number.isFinite(value)) {
     return '0/5'
@@ -209,20 +217,26 @@ function formatRating(value?: number | null): string {
   return `${value}/5`
 }
 
-function formatDeliveryLabel(delivery: import('../../types/deliveries').Delivery | null): string | null {
+function formatDeliveryLabel(
+  delivery: import('../../types/deliveries').Delivery | null,
+  t: (key: string, values?: Record<string, string | number>) => string
+): string | null {
   if (!delivery) return null
   const statusMap: Record<string, string> = {
-    requested: 'En attente',
-    accepted: 'Assignée',
-    picked_up: 'En cours',
-    delivered: delivery.handoverMode === 'pickup' ? 'Remise effectuée' : 'Livrée',
-    canceled: 'Annulée'
+    requested: t('listings.detail.delivery.status.requested'),
+    accepted: t('listings.detail.delivery.status.accepted'),
+    picked_up: t('listings.detail.delivery.status.pickedUp'),
+    delivered:
+      delivery.handoverMode === 'pickup'
+        ? t('listings.detail.delivery.status.deliveredPickup')
+        : t('listings.detail.delivery.status.delivered'),
+    canceled: t('listings.detail.delivery.status.canceled')
   }
   const escrowMap: Record<string, string> = {
-    pending: 'Paiement en attente',
-    held: 'Paiement sécurisé',
-    released: 'Paiement libéré',
-    refunded: 'Paiement remboursé'
+    pending: t('listings.detail.delivery.escrow.pending'),
+    held: t('listings.detail.delivery.escrow.held'),
+    released: t('listings.detail.delivery.escrow.released'),
+    refunded: t('listings.detail.delivery.escrow.refunded')
   }
   const statusLabel = statusMap[delivery.status] ?? delivery.status
   const escrowLabel =
@@ -261,6 +275,31 @@ function buildDefaultHighlights(
   return computed.slice(0, 4)
 }
 
+function parseLooseBoolean(value: unknown): boolean {
+  if (typeof value === 'boolean') {
+    return value
+  }
+  if (typeof value === 'number') {
+    return value === 1
+  }
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    if (normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'on') {
+      return true
+    }
+    if (
+      normalized === 'false' ||
+      normalized === '0' ||
+      normalized === 'no' ||
+      normalized === 'off' ||
+      normalized === ''
+    ) {
+      return false
+    }
+  }
+  return false
+}
+
 export default function ListingDetail() {
   const { t, locale } = useI18n()
   const { id } = useParams<{ id: string }>()
@@ -294,6 +333,7 @@ export default function ListingDetail() {
     comment: '',
     location: ''
   })
+  const [ownerPresence, setOwnerPresence] = useState<{ isOnline?: boolean; lastLoginAt?: string | null } | null>(null)
   const [isSubmittingReview, setIsSubmittingReview] = useState(false)
   const [activeImageIndex, setActiveImageIndex] = useState(0)
   const [lightboxOpen, setLightboxOpen] = useState(false)
@@ -378,6 +418,27 @@ export default function ListingDetail() {
   useEffect(() => {
     return loadReviews(listing?.owner?.id)
   }, [listing?.owner?.id, loadReviews])
+
+  useEffect(() => {
+    if (!listing?.owner?.id) {
+      setOwnerPresence(null)
+      return
+    }
+
+    const controller = new AbortController()
+
+    apiGet<{ isOnline?: boolean; lastLoginAt?: string | null }>(`/users/public/${listing.owner.id}`, {
+      signal: controller.signal
+    })
+      .then(data => {
+        setOwnerPresence({ isOnline: data.isOnline, lastLoginAt: data.lastLoginAt ?? null })
+      })
+      .catch(() => {
+        setOwnerPresence(null)
+      })
+
+    return () => controller.abort()
+  }, [listing?.owner?.id])
 
   useEffect(() => {
     if (!listingId || !isAuthenticated) {
@@ -582,8 +643,11 @@ export default function ListingDetail() {
     if (!listing) return
     setIsExporting(true)
     try {
-      const response = await fetch(`/listings/${listing.id}/export`, {
-        method: 'GET'
+      const token = getAuthToken()
+      const response = await fetch(getApiUrl(`/listings/${listing.id}/export`), {
+        method: 'GET',
+        credentials: 'include',
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined
       })
       if (!response.ok) {
         throw new Error(`Statut ${response.status}`)
@@ -641,6 +705,7 @@ export default function ListingDetail() {
   const activeImage = images[activeImageIndex] ?? mainImage
   const publishedAt = formatDate(listing?.publishedAt, locale)
   const publishedFallback = publishedAt ?? formatDate(listing?.created_at, locale)
+  const ownerOnline = Boolean(ownerPresence?.isOnline || wasRecentlyActive(ownerPresence?.lastLoginAt))
   const highlights = listing?.highlights?.length
     ? listing.highlights
     : buildDefaultHighlights(listing, t)
@@ -720,10 +785,6 @@ export default function ListingDetail() {
     () => Boolean(user?.id && reviews.some(review => review.reviewer.id === user.id)),
     [reviews, user?.id]
   )
-
-  const mapContainerRef = useRef<HTMLDivElement | null>(null)
-  const mapInstanceRef = useRef<MapboxMap | null>(null)
-  const mapMarkerRef = useRef<MapboxMarker | null>(null)
 
   const reservedDetailKeys = useMemo(
     () =>
@@ -874,7 +935,7 @@ export default function ListingDetail() {
     (resolvedLocation && typeof resolvedLocation === 'object' ? resolvedLocation.label : '') || ''
   const locationHideExact =
     resolvedLocation && typeof resolvedLocation === 'object'
-      ? Boolean((resolvedLocation as { hideExact?: boolean }).hideExact)
+      ? parseLooseBoolean((resolvedLocation as { hideExact?: unknown }).hideExact)
       : false
   const locationPostalCode =
     (resolvedLocation && typeof resolvedLocation === 'object'
@@ -971,12 +1032,6 @@ export default function ListingDetail() {
     ) ?? null
 
   useEffect(() => {
-    const token = import.meta.env.VITE_MAPBOX_TOKEN
-    console.log('[ListingDetail] Mapbox token present:', Boolean(token))
-    if (!token) {
-      setApproxCoords(null)
-      return
-    }
     if (!locationHideExact) {
       setApproxCoords(null)
       return
@@ -987,32 +1042,16 @@ export default function ListingDetail() {
     }
 
     let isCancelled = false
-    const controller = new AbortController()
     const query = [locationPostalCode, locationCity].filter(Boolean).join(' ')
-    console.log('[ListingDetail] Mapbox geocode query:', query)
-
     const fetchCoords = async () => {
       try {
-        const response = await fetch(
-          `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?` +
-            `limit=1&types=place,postcode&access_token=${token}`,
-          { signal: controller.signal }
-        )
-        console.log('[ListingDetail] Mapbox geocode status:', response.status)
-        if (!response.ok) {
-          throw new Error(`Mapbox ${response.status}`)
-        }
-        const data = (await response.json()) as { features?: Array<{ center?: [number, number] }> }
-        const center = data.features?.[0]?.center
-        if (!isCancelled && center && Number.isFinite(center[0]) && Number.isFinite(center[1])) {
-          setApproxCoords({ lng: center[0], lat: center[1] })
-        } else if (!isCancelled) {
-          setApproxCoords(null)
+        const center = await geoGeocodeFirst(query)
+        if (!isCancelled && center && Number.isFinite(center.lng) && Number.isFinite(center.lat)) {
+          setApproxCoords({ lng: center.lng, lat: center.lat })
         }
       } catch (error) {
         if (!isCancelled) {
-          console.error('Unable to geocode masked location', error)
-          setApproxCoords(null)
+          console.error('Unable to resolve masked location', error)
         }
       }
     }
@@ -1021,75 +1060,40 @@ export default function ListingDetail() {
 
     return () => {
       isCancelled = true
-      controller.abort()
     }
   }, [locationHideExact, locationCity, locationPostalCode])
 
-  useEffect(() => {
-    const token = import.meta.env.VITE_MAPBOX_TOKEN
-    const targetLat = locationHideExact ? approxCoords?.lat ?? null : latitude
-    const targetLng = locationHideExact ? approxCoords?.lng ?? null : longitude
-    if (!token || targetLat === null || targetLng === null) {
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove()
-        mapInstanceRef.current = null
-        mapMarkerRef.current = null
+  const mapCenter = useMemo(() => {
+    if (locationHideExact) {
+      if (approxCoords?.lat !== undefined && approxCoords?.lng !== undefined) {
+        return { lat: approxCoords.lat, lng: approxCoords.lng }
       }
-      return
+      return null
     }
-
-    if (!mapContainerRef.current) {
-      return
+    if (latitude !== null && longitude !== null) {
+      return { lat: latitude, lng: longitude }
     }
+    return null
+  }, [locationHideExact, approxCoords, latitude, longitude])
 
-    let isCancelled = false
-
-    import('mapbox-gl')
-      .then(module => {
-        if (isCancelled) {
-          return
-        }
-        const mapboxgl = (module.default ?? module) as unknown as typeof import('mapbox-gl')
-        ;(mapboxgl as any).accessToken = token
-
-        if (mapInstanceRef.current) {
-          mapInstanceRef.current.remove()
-        }
-
-        const map = new mapboxgl.Map({
-          container: mapContainerRef.current as HTMLDivElement,
-          style: 'mapbox://styles/mapbox/streets-v11',
-          center: [targetLng, targetLat],
-          zoom: locationHideExact ? 11 : 13,
-          pitch: 20,
-          bearing: 0
-        })
-
-        map.on('load', () => {
-          if (!locationHideExact) {
-            const marker =
-              mapMarkerRef.current ??
-              new mapboxgl.Marker({ color: '#ff6e14' }).setLngLat([targetLng, targetLat])
-            marker.setLngLat([targetLng, targetLat]).addTo(map)
-            mapMarkerRef.current = marker
-          }
-        })
-
-        mapInstanceRef.current = map
-      })
-      .catch(err => {
-        console.error('Unable to initialize mapbox on listing detail', err)
-      })
-
-    return () => {
-      isCancelled = true
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove()
-        mapInstanceRef.current = null
-        mapMarkerRef.current = null
-      }
+  const mapEmbedUrl = useMemo(() => {
+    if (!mapCenter) {
+      return null
     }
-  }, [latitude, longitude, approxCoords, locationHideExact])
+    const { lat, lng } = mapCenter
+    const delta = locationHideExact ? 0.03 : 0.012
+    const minLng = lng - delta
+    const minLat = lat - delta
+    const maxLng = lng + delta
+    const maxLat = lat + delta
+    const bbox = `${minLng},${minLat},${maxLng},${maxLat}`
+    return `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(
+      bbox
+    )}&layer=mapnik&marker=${encodeURIComponent(`${lat},${lng}`)}`
+  }, [mapCenter, locationHideExact])
+
+  const hasApproxQuery = Boolean(locationCity || locationPostalCode)
+  const shouldShowMapInfo = !mapEmbedUrl && !hasApproxQuery
 
   return (
     <MainLayout>
@@ -1325,7 +1329,10 @@ export default function ListingDetail() {
                 ) : null}
 
                 <section className="listing-details__section">
-                  <h2>{t('listings.detail.locationTitle')}</h2>
+                  <h2 style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                    <LocationPinIcon variant="filled" />
+                    {t('listings.detail.locationTitle')}
+                  </h2>
                   <div className="listing-location">
                     <div className="listing-location__row">
                       <span className="listing-location__label">
@@ -1347,22 +1354,144 @@ export default function ListingDetail() {
                       </p>
                     ) : null}
                   </div>
-                  {locationHideExact ? (
-                    approxCoords ? (
-                      <div ref={mapContainerRef} className="listing-details__map" />
-                    ) : (
-                      <p style={{ color: '#64748b' }}>
-                        {t('listings.detail.locationNotProvided')}
-                      </p>
-                    )
-                  ) : latitude !== null && longitude !== null ? (
-                    <div ref={mapContainerRef} className="listing-details__map" />
+                  {mapEmbedUrl ? (
+                    <iframe
+                      className="listing-details__map"
+                      src={mapEmbedUrl}
+                      title={t('listings.detail.locationTitle')}
+                      loading="lazy"
+                      referrerPolicy="no-referrer-when-downgrade"
+                    />
                   ) : (
+                    <div className="listing-details__map" aria-hidden="true" />
+                  )}
+                  {shouldShowMapInfo ? (
                     <p style={{ color: '#64748b' }}>
                       {t('listings.detail.locationNotProvided')}
                     </p>
-                  )}
+                  ) : null}
                 </section>
+              </section>
+
+              <section className="listing-details__section listing-reviews">
+                <div className="listing-reviews__head">
+                  <h2>{t('listings.detail.reviews.title')}</h2>
+                  {reviewSummary && reviewSummary.totalReviews > 0 ? (
+                    <p className="listing-reviews__summary">
+                      {t('listings.detail.reviews.summary', {
+                        rating: reviewSummary.averageRating.toFixed(1),
+                        count: reviewSummary.totalReviews
+                      })}
+                    </p>
+                  ) : null}
+                </div>
+
+                {reviewsLoading ? (
+                  <p className="listing-reviews__state">{t('listings.detail.reviews.loading')}</p>
+                ) : reviewsError ? (
+                  <p className="listing-reviews__state" role="alert">{reviewsError}</p>
+                ) : reviews.length === 0 ? (
+                  <p className="listing-reviews__state">{t('listings.detail.reviews.empty')}</p>
+                ) : (
+                  <ul className="listing-reviews__list">
+                    {reviews.map(review => {
+                      const rounded = Math.max(0, Math.min(5, Math.round(review.rating)))
+                      return (
+                        <li key={review.id} className="listing-reviews__item">
+                          <div className="listing-reviews__item-head">
+                            <strong>
+                              {review.reviewer.name || t('listings.detail.reviews.reviewerFallback')}
+                            </strong>
+                            <span
+                              className="listing-reviews__stars"
+                              aria-label={`${review.rating}/5`}
+                            >
+                              {'★'.repeat(rounded)}
+                              {'☆'.repeat(5 - rounded)}
+                            </span>
+                          </div>
+                          {review.location ? (
+                            <p className="listing-reviews__location">{review.location}</p>
+                          ) : null}
+                          <p className="listing-reviews__comment">{review.comment}</p>
+                          <p className="listing-reviews__date">
+                            {formatListingDate(review.createdAt)}
+                          </p>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+
+                {isSeller ? (
+                  <p className="listing-reviews__state">
+                    {t('listings.detail.reviews.selfReview')}
+                  </p>
+                ) : !isAuthenticated ? (
+                  <p className="listing-reviews__state">
+                    <Link to="/login" className="lbc-link">
+                      {t('header.login')}
+                    </Link>{' '}
+                    {t('listings.detail.reviews.loginPrompt')}
+                  </p>
+                ) : hasReviewed ? (
+                  <p className="listing-reviews__state">
+                    {t('listings.detail.reviews.alreadyReviewed')}
+                  </p>
+                ) : (
+                  <form className="listing-reviews__form" onSubmit={handleSubmitReview}>
+                    <FormField
+                      label={t('listings.detail.reviews.form.rating')}
+                      htmlFor="review-rating"
+                    >
+                      <select
+                        id="review-rating"
+                        className="input"
+                        value={reviewForm.rating}
+                        onChange={event =>
+                          setReviewForm(prev => ({ ...prev, rating: Number(event.target.value) }))
+                        }
+                      >
+                        {[5, 4, 3, 2, 1].map(value => (
+                          <option key={value} value={value}>
+                            {value}
+                          </option>
+                        ))}
+                      </select>
+                    </FormField>
+                    <FormField
+                      label={t('listings.detail.reviews.form.comment')}
+                      htmlFor="review-comment"
+                    >
+                      <textarea
+                        id="review-comment"
+                        className="input"
+                        rows={3}
+                        value={reviewForm.comment}
+                        onChange={event =>
+                          setReviewForm(prev => ({ ...prev, comment: event.target.value }))
+                        }
+                        placeholder={t('listings.detail.reviews.form.commentPlaceholder')}
+                      />
+                    </FormField>
+                    <FormField
+                      label={t('listings.detail.reviews.form.location')}
+                      htmlFor="review-location"
+                    >
+                      <Input
+                        id="review-location"
+                        value={reviewForm.location}
+                        onChange={event =>
+                          setReviewForm(prev => ({ ...prev, location: event.target.value }))
+                        }
+                        placeholder={t('listings.detail.reviews.form.locationPlaceholder')}
+                      />
+                    </FormField>
+                    <Button type="submit" disabled={isSubmittingReview}>
+                      {t('listings.detail.reviews.form.submit')}
+                    </Button>
+                  </form>
+                )}
               </section>
 
               <section className="listing-details__section">
@@ -1435,15 +1564,14 @@ export default function ListingDetail() {
                         <strong>{ownerName}</strong>
                       )}
                       <p className="listing-agent__badge">
-                        {listing.owner?.isPro
-                          ? t('listings.detail.seller.proBadge')
-                          : t('listings.detail.seller.individualBadge')}
+                        {t('listings.detail.seller.individualBadge')}
                       </p>
-                      {publishedAt ? (
-                        <span className="listing-agent__since">
-                          {t('listings.detail.seller.since', { date: publishedAt })}
-                        </span>
-                      ) : null}
+                      <span className={`listing-agent__since ${ownerOnline ? 'is-online' : 'is-offline'}`}>
+                        <span className="listing-agent__status-dot" />
+                        {ownerOnline
+                          ? t('listings.detail.presence.online')
+                          : t('listings.detail.presence.offline')}
+                      </span>
                     </div>
                   </div>
                   {ownerLink ? (
@@ -1464,8 +1592,10 @@ export default function ListingDetail() {
                   ) : null}
                   {deliveryInfo ? (
                     <span className="listing-agent__stat">
-                      {deliveryInfo.handoverMode === 'pickup' ? 'Remise:' : 'Livraison:'}{' '}
-                      {formatDeliveryLabel(deliveryInfo)}
+                      {deliveryInfo.handoverMode === 'pickup'
+                        ? t('listings.detail.delivery.handoverPickup')
+                        : t('listings.detail.delivery.handoverDelivery')}{' '}
+                      {formatDeliveryLabel(deliveryInfo, t)}
                     </span>
                   ) : null}
                 </div>
@@ -1475,12 +1605,16 @@ export default function ListingDetail() {
                       disabled={isBuyerPurchaseInProgress}
                       onClick={handleBuyNow}
                     >
-                      {isBuyerPurchaseInProgress ? 'En cours' : 'Acheter'}
+                      {isBuyerPurchaseInProgress
+                        ? t('listings.detail.actions.buyInProgress')
+                        : t('listings.detail.actions.buy')}
                     </Button>
                   ) : null}
                   {canFollowSeller ? (
                     <Button variant={isFollowingSeller ? 'ghost' : 'outline'} onClick={handleFollowSeller}>
-                      {isFollowingSeller ? 'Suivi' : 'Suivre'}
+                      {isFollowingSeller
+                        ? t('listings.detail.actions.following')
+                        : t('listings.detail.actions.follow')}
                     </Button>
                   ) : null}
                   <Link to={ownerLink ?? '/search'} className="btn btn--outline">
@@ -1488,7 +1622,7 @@ export default function ListingDetail() {
                     {ownerListingCount ? ` (${ownerListingCount})` : ''}
                   </Link>
                   {deliveryInfo && deliveryInfo.escrowStatus === 'pending' ? (
-                    <span className="listing-agent__stat">Paiement en attente de confirmation</span>
+                    <span className="listing-agent__stat">{t('listings.detail.delivery.paymentPending')}</span>
                   ) : null}
                   {deliveryInfo &&
                   deliveryInfo.buyer?.id === user?.id &&
@@ -1511,13 +1645,13 @@ export default function ListingDetail() {
                           console.error('Unable to release escrow', err)
                           addToast({
                             variant: 'error',
-                            title: 'Paiement sécurisé',
-                            message: 'Impossible de libérer le paiement.'
+                            title: t('listings.detail.delivery.releaseErrorTitle'),
+                            message: t('listings.detail.delivery.releaseErrorMessage')
                           })
                         }
                       }}
                     >
-                      Confirmer la réception
+                      {t('listings.detail.delivery.confirmReceipt')}
                     </Button>
                   ) : null}
                   <Button onClick={() => setShowContactModal(true)}>
@@ -1527,8 +1661,13 @@ export default function ListingDetail() {
               </div>
 
               <p>
-                {listing.isFeatured ? t('listings.detail.badges.featured') : null}
-                {listing.isBoosted ? ` • ${t('listings.detail.badges.boosted')}` : null}
+                {[
+                  listing.isPremium ? 'Premium' : null,
+                  listing.isFeatured ? t('listings.detail.badges.featured') : null,
+                  listing.isBoosted ? t('listings.detail.badges.boosted') : null
+                ]
+                  .filter(Boolean)
+                  .join(' • ')}
               </p>
               <div className="listing-overview__badges">
                 {listing.tag ? <span>{listing.tag}</span> : null}
@@ -1626,7 +1765,9 @@ export default function ListingDetail() {
                     disabled={isBuyerPurchaseInProgress}
                     onClick={handleBuyNow}
                   >
-                    {isBuyerPurchaseInProgress ? 'En cours' : 'Acheter'}
+                    {isBuyerPurchaseInProgress
+                      ? t('listings.detail.actions.buyInProgress')
+                      : t('listings.detail.actions.buy')}
                   </Button>
                 ) : null}
                 {!isSeller ? (
@@ -1707,13 +1848,13 @@ export default function ListingDetail() {
 
       <Modal
         open={showPayoutModal}
-        title="Payout requis"
-        description="Le vendeur doit renseigner son Mobile Money pour recevoir le paiement."
+        title={t('listings.detail.payout.modalTitle')}
+        description={t('listings.detail.payout.modalDescription')}
         onClose={() => setShowPayoutModal(false)}
         footer={
           <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', width: '100%' }}>
             <Button type="button" variant="outline" onClick={() => setShowPayoutModal(false)}>
-              Fermer
+              {t('listings.detail.payout.close')}
             </Button>
           </div>
         }

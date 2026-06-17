@@ -55,6 +55,7 @@ export type HomeListingCard = {
   publishedAt: string | null;
   isFeatured: boolean;
   isBoosted: boolean;
+  isPremium: boolean;
 };
 
 export type HomeServiceCard = {

@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "types": ["node"],
+    "outDir": ".test-dist",
+    "rootDir": "."
+  },
+  "include": [
+    "src/features/search/search-contract.ts",
+    "src/features/search/search-contract.test.ts",
+    "src/features/search/search-utils.ts",
+    "src/features/search/search-utils.test.ts"
+  ]
+}

@@ -83,6 +83,26 @@ function formatEscrowStatus(status?: string) {
   }
 }
 
+async function withTimeout<T>(promise: Promise<T>, ms: number, controller?: AbortController): Promise<T> {
+  let timeoutId: number | undefined
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = window.setTimeout(() => {
+      if (controller) {
+        controller.abort()
+      }
+      reject(new Error('timeout'))
+    }, ms)
+  })
+
+  try {
+    return await Promise.race([promise, timeoutPromise])
+  } finally {
+    if (timeoutId) {
+      window.clearTimeout(timeoutId)
+    }
+  }
+}
+
 export default function Conversation() {
   const { id } = useParams<{ id: string }>()
   const { addToast } = useToast()
@@ -121,6 +141,7 @@ export default function Conversation() {
     return fullName || counterpart.firstName || counterpart.lastName || t('dashboard.conversation.counterpartFallback')
   }, [conversation, t, user])
 
+
   const isSeller = useMemo(() => {
     if (!conversation || !user) {
       return false
@@ -147,21 +168,20 @@ export default function Conversation() {
     return deliveryInfo.status !== 'delivered' && deliveryInfo.status !== 'canceled'
   }, [deliveryInfo])
 
-  const refreshDelivery = useCallback(
-    async (listingId: string) => {
-      try {
-        const delivery = await apiGet<Delivery | null>(`/deliveries/listing/${listingId}`)
-        setDeliveryInfo(delivery)
-        if (!delivery || delivery.id !== deliveryInfo?.id) {
+  const refreshDelivery = useCallback(async (listingId: string) => {
+    try {
+      const delivery = await apiGet<Delivery | null>(`/deliveries/listing/${listingId}`, { silent: true })
+      setDeliveryInfo(prev => {
+        if (!delivery || delivery.id !== prev?.id) {
           setPickupCode(null)
         }
-      } catch {
-        setDeliveryInfo(null)
-        setPickupCode(null)
-      }
-    },
-    [deliveryInfo?.id]
-  )
+        return delivery
+      })
+    } catch {
+      setDeliveryInfo(null)
+      setPickupCode(null)
+    }
+  }, [])
 
   const updateMessages = useCallback((incoming: ConversationMessage[]) => {
     setMessages(prev => {
@@ -176,23 +196,40 @@ export default function Conversation() {
   }, [])
 
   const fetchConversation = useCallback(async () => {
-    if (!id) return
+    if (!id) {
+      setIsLoading(false)
+      setError(t('dashboard.conversation.loadError'))
+      return
+    }
     setIsLoading(true)
     setError(null)
     try {
-      const [conv, msgs] = await Promise.all([
-        apiGet<ConversationDetail>(`/messages/conversations/${id}`),
-        apiGet<MessageListResponse>(`/messages/conversations/${id}/messages?limit=${DEFAULT_LIMIT}`)
-      ])
+      const controller = new AbortController()
+
+      const [conv, msgs] = await withTimeout(
+        Promise.all([
+          apiGet<ConversationDetail>(`/messages/conversations/${id}`, { signal: controller.signal, silent: true }),
+          apiGet<MessageListResponse>(`/messages/conversations/${id}/messages?limit=${DEFAULT_LIMIT}`, {
+            signal: controller.signal,
+            silent: true
+          })
+        ]),
+        12000,
+        controller
+      )
       setConversation(conv)
-      await refreshDelivery(conv.listing.id)
+      void refreshDelivery(conv.listing.id)
       updateMessages(msgs.data)
       setNextCursor(msgs.nextCursor)
-      await apiPost(`/messages/conversations/${id}/read`)
+      await apiPost(`/messages/conversations/${id}/read`, undefined, { silent: true })
     } catch (err) {
       console.error('Unable to load conversation', err)
       const message =
-        err instanceof Error
+        err instanceof DOMException && err.name === 'AbortError'
+          ? t('dashboard.conversation.loadError')
+          : err instanceof Error && err.message === 'timeout'
+          ? t('dashboard.conversation.loadError')
+          : err instanceof Error
           ? err.message
           : t('dashboard.conversation.loadError')
       setError(message)
@@ -208,8 +245,14 @@ export default function Conversation() {
     }
     setIsLoadingMore(true)
     try {
-      const response = await apiGet<MessageListResponse>(
-        `/messages/conversations/${id}/messages?cursor=${encodeURIComponent(nextCursor)}&limit=${DEFAULT_LIMIT}`
+      const controller = new AbortController()
+      const response = await withTimeout(
+        apiGet<MessageListResponse>(
+          `/messages/conversations/${id}/messages?cursor=${encodeURIComponent(nextCursor)}&limit=${DEFAULT_LIMIT}`,
+          { signal: controller.signal, silent: true }
+        ),
+        12000,
+        controller
       )
       setNextCursor(response.nextCursor)
       updateMessages(response.data)
@@ -233,21 +276,53 @@ export default function Conversation() {
       return
     }
     try {
-      const response = await apiGet<MessageListResponse>(
-        `/messages/conversations/${id}/messages?limit=${DEFAULT_LIMIT}`
+      const controller = new AbortController()
+      const response = await withTimeout(
+        apiGet<MessageListResponse>(
+          `/messages/conversations/${id}/messages?limit=${DEFAULT_LIMIT}`,
+          { signal: controller.signal, silent: true }
+        ),
+        12000,
+        controller
       )
       updateMessages(response.data)
       setNextCursor(response.nextCursor)
       if (conversation?.listing?.id) {
-        await refreshDelivery(conversation.listing.id)
+        void refreshDelivery(conversation.listing.id)
       }
-      await apiPost(`/messages/conversations/${id}/read`)
+      await apiPost(`/messages/conversations/${id}/read`, undefined, { silent: true })
     } catch (err) {
       console.error('Unable to refresh messages', err)
     }
   }, [conversation?.listing?.id, id, refreshDelivery, updateMessages])
 
   useEffect(() => {
+    if (!id) {
+      setIsLoading(false)
+      setError(t('dashboard.conversation.loadError'))
+      return
+    }
+
+    if (!isLoading) {
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setIsLoading(false)
+      if (!error) {
+        setError(t('dashboard.conversation.loadError'))
+      }
+    }, 14000)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [error, id, isLoading, t])
+
+  useEffect(() => {
+    if (!id) {
+      setIsLoading(false)
+      setError(t('dashboard.conversation.loadError'))
+      return
+    }
     fetchConversation().catch(() => {
       /* handled */
     })
@@ -256,7 +331,7 @@ export default function Conversation() {
         window.clearInterval(pollRef.current)
       }
     }
-  }, [fetchConversation])
+  }, [id])
 
   useEffect(() => {
     if (!id) {
@@ -283,6 +358,8 @@ export default function Conversation() {
       .then(data => setQuickReplies(data))
       .catch(err => console.error('Unable to load quick replies', err))
   }, [id])
+
+  // Realtime typing/events disabled.
 
   const uploadAttachment = useCallback(
     (file: File) => {

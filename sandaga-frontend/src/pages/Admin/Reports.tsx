@@ -257,7 +257,7 @@ export default function Reports() {
                 {t('admin.reports.export.xlsx')}
               </Button>
               {isExportRunning ? (
-                <span style={{ color: '#6c757d', fontSize: '0.85rem' }}>
+                <span style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>
                   {t('admin.reports.export.progress', { progress: exportProgress })}
                 </span>
               ) : null}
@@ -285,7 +285,7 @@ export default function Reports() {
             ) : null}
 
             {isLoading ? (
-              <p style={{ padding: '1rem', color: '#6c757d' }}>
+              <p style={{ padding: '1rem', color: 'var(--color-text-muted)' }}>
                 {t('admin.reports.loading')}
               </p>
             ) : (
@@ -304,8 +304,8 @@ export default function Reports() {
                 <tbody>
                   {reportList.map(report => (
                     <tr key={report.id}>
-                      <td>{report.id}</td>
-                      <td>{report.listing?.title ?? report.listingId}</td>
+                      <td title={report.id}>{`#${report.id.slice(0, 8)}`}</td>
+                      <td>{report.listing?.title ?? t('admin.reports.listingDeleted')}</td>
                       <td>{report.reason}</td>
                       <td>
                         {report.reporter
@@ -353,7 +353,7 @@ export default function Reports() {
               >
                 {t('admin.reports.pagination.prev')}
               </Button>
-              <span style={{ alignSelf: 'center', color: '#6c757d' }}>
+              <span style={{ alignSelf: 'center', color: 'var(--color-text-muted)' }}>
                 {t('admin.reports.pagination.label', { page, total: totalPages })}
               </span>
               <Button
@@ -376,7 +376,7 @@ export default function Reports() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <div>
                   <h3>{selectedReport.listing?.title ?? selectedReport.listingId}</h3>
-                  <p style={{ color: '#6c757d', fontSize: '0.9rem' }}>
+                  <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
                     {t('admin.reports.details.reportedAt', {
                       date: dateTimeFormatter.format(new Date(selectedReport.created_at))
                     })}
@@ -422,7 +422,7 @@ export default function Reports() {
                 <div>
                   <strong>{t('admin.reports.history.title')}</strong>
                   {isAuditLoading ? (
-                    <p style={{ color: '#6c757d', marginTop: '6px' }}>
+                    <p style={{ color: 'var(--color-text-muted)', marginTop: '6px' }}>
                       {t('admin.reports.history.loading')}
                     </p>
                   ) : auditEvents.length ? (
@@ -440,7 +440,7 @@ export default function Reports() {
                         <li
                           key={event.id}
                           style={{
-                            border: '1px solid #e5e7eb',
+                            border: '1px solid var(--color-border)',
                             borderRadius: '6px',
                             padding: '8px'
                           }}
@@ -454,28 +454,28 @@ export default function Reports() {
                             }}
                           >
                             <span>{event.action}</span>
-                            <span style={{ color: '#6c757d' }}>
+                            <span style={{ color: 'var(--color-text-muted)' }}>
                               {dateTimeFormatter.format(new Date(event.created_at))}
                             </span>
                           </div>
                           {event.details ? (
-                            <p style={{ marginTop: '4px', color: '#4b5563' }}>{event.details}</p>
+                            <p style={{ marginTop: '4px', color: 'var(--color-text-muted)' }}>{event.details}</p>
                           ) : null}
-                          <p style={{ marginTop: '4px', color: '#6c757d', fontSize: '0.8rem' }}>
+                          <p style={{ marginTop: '4px', color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>
                             {event.actorName ?? t('admin.reports.history.system')}
                           </p>
                         </li>
                       ))}
                     </ul>
                   ) : (
-                    <p style={{ color: '#6c757d', marginTop: '6px' }}>
+                    <p style={{ color: 'var(--color-text-muted)', marginTop: '6px' }}>
                       {t('admin.reports.history.empty')}
                     </p>
                   )}
                 </div>
               </div>
             ) : (
-              <p style={{ color: '#6c757d' }}>
+              <p style={{ color: 'var(--color-text-muted)' }}>
                 {t('admin.reports.details.empty')}
               </p>
             )}

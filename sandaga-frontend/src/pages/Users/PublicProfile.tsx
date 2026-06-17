@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import MainLayout from '../../layouts/MainLayout'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
@@ -8,12 +8,17 @@ import { RetryBanner } from '../../components/ui/RetryBanner'
 import { FavoriteButton } from '../../components/ui/FavoriteButton'
 import { Modal } from '../../components/ui/Modal'
 import { useToast } from '../../components/ui/Toast'
+import { useAuth } from '../../hooks/useAuth'
+import { useFollowedSellers } from '../../hooks/useFollowedSellers'
 import { apiGet, apiPost } from '../../utils/api'
 import { resolveMediaUrl } from '../../utils/media'
 import { formatListingLocation } from '../../utils/location'
 import type { Listing } from '../../types/listing'
 import type { Paginated } from '../../types/pagination'
 import { LocationPinIcon } from '../../components/ui/LocationPinIcon'
+import { useI18n } from '../../contexts/I18nContext'
+
+type Translate = (key: string, values?: Record<string, string | number>) => string
 
 type PublicUserProfile = {
   id: string
@@ -23,6 +28,7 @@ type PublicUserProfile = {
   location?: string | null
   createdAt: string
   lastLoginAt?: string | null
+  isOnline?: boolean
   hasPhoneNumber?: boolean
   averageRating?: number
   reviewsCount?: number
@@ -34,11 +40,12 @@ type PublicUserProfile = {
 
 const LISTINGS_LIMIT = 12
 
+const toIntlLocale = (locale: string): string => (locale === 'fr' ? 'fr-FR' : 'en-US')
+
 const formatDate = (value: string | null | undefined, locale: string): string => {
   if (!value) return ''
   try {
-    const dateLocale = locale === 'fr' ? 'fr-FR' : 'en-US'
-    return new Date(value).toLocaleDateString(dateLocale, {
+    return new Date(value).toLocaleDateString(toIntlLocale(locale), {
       day: '2-digit',
       month: 'long',
       year: 'numeric'
@@ -51,8 +58,7 @@ const formatDate = (value: string | null | undefined, locale: string): string =>
 const formatMemberSinceDate = (value: string, locale: string): string => {
   if (!value) return ''
   try {
-    const dateLocale = locale === 'fr' ? 'fr-FR' : 'en-US'
-    return new Date(value).toLocaleDateString(dateLocale, {
+    return new Date(value).toLocaleDateString(toIntlLocale(locale), {
       month: 'long',
       year: 'numeric'
     })
@@ -61,45 +67,55 @@ const formatMemberSinceDate = (value: string, locale: string): string => {
   }
 }
 
-const formatLastActive = (value: string | null | undefined, locale: string): string => {
-  if (!value) return locale === 'fr' ? 'Activité récente indisponible' : 'Recent activity unavailable'
+const formatLastActive = (value: string | null | undefined, t: Translate): string => {
+  if (!value) return t('profile.activity.unavailable')
   try {
     const last = new Date(value).getTime()
     const now = Date.now()
     const diff = Math.max(0, now - last)
     const hours = Math.floor(diff / (1000 * 60 * 60))
     if (hours < 24) {
-      return locale === 'fr'
-        ? `Dernière activité il y a ${Math.max(1, hours)} heures`
-        : `Last active ${Math.max(1, hours)} hours ago`
+      return t('profile.activity.lastActiveHours', { hours: Math.max(1, hours) })
     }
     const days = Math.floor(hours / 24)
-    return locale === 'fr'
-      ? `Dernière activité il y a ${days} jours`
-      : `Last active ${days} days ago`
+    return t('profile.activity.lastActiveDays', { days })
   } catch {
-    return locale === 'fr' ? 'Activité récente indisponible' : 'Recent activity unavailable'
+    return t('profile.activity.unavailable')
   }
 }
 
-const formatResponseTime = (hours: number | null | undefined): string => {
-  if (!hours || hours <= 0) return 'Réponse moyenne indisponible'
-  if (hours < 1) return 'Répond en moyenne en moins d’1 heure'
-  if (hours <= 2) return 'Répond en moyenne en 1–2 heures'
-  if (hours <= 4) return 'Répond en moyenne en 2–4 heures'
-  if (hours <= 8) return 'Répond en moyenne en 4–8 heures'
-  if (hours <= 24) return 'Répond en moyenne en 8–24 heures'
-  return 'Répond en moyenne en plus de 24 heures'
+const wasRecentlyActive = (value: string | null | undefined, minutes = 5) => {
+  if (!value) return false
+  const ts = new Date(value).getTime()
+  if (Number.isNaN(ts)) return false
+  return Date.now() - ts <= minutes * 60 * 1000
 }
 
-const formatResponseRate = (rate: number | null | undefined): string => {
-  if (rate === null || rate === undefined) return 'Taux de réponse indisponible'
+const resolveOnlineLabel = (isOnline: boolean | undefined, lastLoginAt: string | null | undefined, t: Translate) => {
+  if (isOnline || wasRecentlyActive(lastLoginAt)) {
+    return t('profile.activity.online')
+  }
+  return formatLastActive(lastLoginAt, t)
+}
+
+const formatResponseTime = (hours: number | null | undefined, t: Translate): string => {
+  if (!hours || hours <= 0) return t('profile.responseTime.unavailable')
+  if (hours < 1) return t('profile.responseTime.under1h')
+  if (hours <= 2) return t('profile.responseTime.1to2h')
+  if (hours <= 4) return t('profile.responseTime.2to4h')
+  if (hours <= 8) return t('profile.responseTime.4to8h')
+  if (hours <= 24) return t('profile.responseTime.8to24h')
+  return t('profile.responseTime.over24h')
+}
+
+const formatResponseRate = (rate: number | null | undefined, t: Translate): string => {
+  if (rate === null || rate === undefined) return t('profile.responseRate.unavailable')
   const rounded = Math.round(rate / 5) * 5
-  return `Taux de réponse à ${Math.min(100, Math.max(0, rounded))} %`
+  return t('profile.responseRate.value', { rate: Math.min(100, Math.max(0, rounded)) })
 }
 
 const formatListingPrice = (listing: Listing, locale: string): string => {
-  const formatter = new Intl.NumberFormat(locale === 'fr' ? 'fr-FR' : 'en-US')
+  const formatter = new Intl.NumberFormat(toIntlLocale(locale))
   const numeric = Number(listing.price ?? 0)
   if (Number.isFinite(numeric) && numeric > 0) {
     return `${formatter.format(numeric)} ${listing.currency ?? ''}`.trim()
@@ -114,11 +130,12 @@ const getListingLocation = (listing: Listing, fallback: string) => {
 export default function PublicUserProfile() {
   const { id, slug } = useParams<{ id?: string; slug?: string }>()
   const identifier = slug ?? id
-  const locale = document.documentElement.lang || 'fr'
+  const { t, locale } = useI18n()
 
   const [profile, setProfile] = useState<PublicUserProfile | null>(null)
   const [profileLoading, setProfileLoading] = useState(true)
   const [profileError, setProfileError] = useState<string | null>(null)
+  const [retryKey, setRetryKey] = useState(0)
 
   const [sectionTab, setSectionTab] = useState<'listings' | 'reviews'>('listings')
   const [tab, setTab] = useState<'published' | 'archived'>('published')
@@ -150,9 +167,31 @@ export default function PublicUserProfile() {
   const [isReporting, setIsReporting] = useState(false)
   const menuRef = useRef<HTMLDivElement | null>(null)
   const { addToast } = useToast()
+  const navigate = useNavigate()
+  const { isAuthenticated } = useAuth()
+  const { isFollowing, followSeller, unfollowSeller } = useFollowedSellers()
+
+  const isFollowed = profile?.id ? isFollowing(profile.id) : false
+  const handleFollowClick = async () => {
+    if (!profile?.id) return
+    if (!isAuthenticated) {
+      navigate('/login')
+      return
+    }
+    try {
+      if (isFollowed) {
+        await unfollowSeller(profile.id)
+      } else {
+        await followSeller(profile.id)
+      }
+    } catch (err) {
+      console.error('Unable to toggle follow', err)
+      addToast({ variant: 'error', title: t('profile.follow.toast.title'), message: t('profile.follow.toast.error') })
+    }
+  }
 
   const numberFormatter = useMemo(
-    () => new Intl.NumberFormat(locale === 'fr' ? 'fr-FR' : 'en-US'),
+    () => new Intl.NumberFormat(toIntlLocale(locale)),
     [locale]
   )
 
@@ -179,7 +218,7 @@ export default function PublicUserProfile() {
       .catch(err => {
         if (controller.signal.aborted) return
         console.error('Unable to load public profile', err)
-        setProfileError(err instanceof Error ? err.message : 'Impossible de charger le profil.')
+        setProfileError(err instanceof Error ? err.message : t('profile.error.profile.load'))
       })
       .finally(() => {
         if (controller.signal.aborted) return
@@ -187,7 +226,7 @@ export default function PublicUserProfile() {
       })
 
     return () => controller.abort()
-  }, [identifier, isUuid])
+  }, [identifier, isUuid, retryKey])
 
   useEffect(() => {
     const ownerId = profile?.id ?? (isUuid ? identifier : undefined)
@@ -211,7 +250,7 @@ export default function PublicUserProfile() {
       .catch(err => {
         if (controller.signal.aborted) return
         console.error('Unable to load user listings', err)
-        setListingsError(err instanceof Error ? err.message : 'Impossible de charger les annonces.')
+        setListingsError(err instanceof Error ? err.message : t('profile.error.listings.load'))
       })
       .finally(() => {
         if (controller.signal.aborted) return
@@ -239,7 +278,7 @@ export default function PublicUserProfile() {
       .catch(err => {
         if (controller.signal.aborted) return
         console.error('Unable to load reviews', err)
-        setReviewsError(err instanceof Error ? err.message : 'Impossible de charger les avis.')
+        setReviewsError(err instanceof Error ? err.message : t('profile.error.reviews.load'))
       })
       .finally(() => {
         if (controller.signal.aborted) return
@@ -276,15 +315,15 @@ export default function PublicUserProfile() {
       await navigator.clipboard.writeText(url)
       addToast({
         variant: 'success',
-        title: 'Lien copié',
-        message: 'Le lien du profil a été copié.'
+        title: t('profile.share.toast.title'),
+        message: t('profile.share.toast.message')
       })
     } catch (err) {
       console.error('Unable to share profile', err)
       addToast({
         variant: 'error',
-        title: 'Erreur',
-        message: 'Impossible de partager ce profil.'
+        title: t('profile.error.generic.title'),
+        message: t('profile.share.toast.error')
       })
     }
   }
@@ -302,8 +341,8 @@ export default function PublicUserProfile() {
       })
       addToast({
         variant: 'success',
-        title: 'Signalement envoyé',
-        message: 'Merci, votre signalement a bien été enregistré.'
+        title: t('profile.report.toast.title'),
+        message: t('profile.report.toast.message')
       })
       setShowReportModal(false)
       setReportReason('')
@@ -313,8 +352,8 @@ export default function PublicUserProfile() {
       console.error('Unable to submit user report', err)
       addToast({
         variant: 'error',
-        title: 'Erreur',
-        message: err instanceof Error ? err.message : "Impossible d'envoyer le signalement."
+        title: t('profile.error.generic.title'),
+        message: err instanceof Error ? err.message : t('profile.report.toast.error')
       })
     } finally {
       setIsReporting(false)
@@ -335,8 +374,8 @@ export default function PublicUserProfile() {
       })
       addToast({
         variant: 'success',
-        title: 'Avis envoyé',
-        message: 'Merci pour votre avis.'
+        title: t('profile.review.toast.title'),
+        message: t('profile.review.toast.message')
       })
       setShowReviewModal(false)
       setReviewComment('')
@@ -357,8 +396,8 @@ export default function PublicUserProfile() {
       console.error('Unable to submit user review', err)
       addToast({
         variant: 'error',
-        title: 'Erreur',
-        message: err instanceof Error ? err.message : "Impossible d'envoyer l'avis."
+        title: t('profile.error.generic.title'),
+        message: err instanceof Error ? err.message : t('profile.review.toast.error')
       })
     } finally {
       setIsSubmittingReview(false)
@@ -369,10 +408,10 @@ export default function PublicUserProfile() {
     return (
       <MainLayout>
         <RetryBanner
-          title="Profil introuvable"
-          message="Identifiant manquant."
+          title={t('profile.notFound.title')}
+          message={t('profile.notFound.message')}
           accessory="⚠️"
-          onRetry={() => window.location.assign('/')}
+          onRetry={() => navigate('/')}
         />
       </MainLayout>
     )
@@ -395,10 +434,10 @@ export default function PublicUserProfile() {
           </Card>
         ) : profileError ? (
           <RetryBanner
-            title="Profil indisponible"
+            title={t('profile.error.profile.title')}
             message={profileError}
             accessory="⚠️"
-            onRetry={() => window.location.reload()}
+            onRetry={() => setRetryKey(key => key + 1)}
           />
         ) : profile ? (
           <Card className="user-public__header">
@@ -406,7 +445,7 @@ export default function PublicUserProfile() {
               <div className="user-public__identity">
                 <div className="user-public__avatar">
                   {profile.avatarUrl ? (
-                    <img src={resolveMediaUrl(profile.avatarUrl)} alt={profile.firstName} />
+                    <img src={resolveMediaUrl(profile.avatarUrl)} alt={profile.firstName || t('profile.avatar.alt')} />
                   ) : (
                     <span>
                       {(profile.firstName?.[0] ?? '').toUpperCase()}
@@ -422,24 +461,24 @@ export default function PublicUserProfile() {
                     <div className="user-public__rating">
                       <span>★</span>
                       <strong>{profile.averageRating?.toFixed(1) ?? '0.0'}</strong>
-                      <span>({profile.reviewsCount} avis)</span>
+                      <span>({t('profile.rating.count', { count: profile.reviewsCount })})</span>
                     </div>
                   ) : (
                     <div className="user-public__rating user-public__rating--empty">
                       <span>★</span>
-                      <span>0 avis</span>
+                      <span>{t('profile.rating.count', { count: 0 })}</span>
                     </div>
                   )}
                   <ul className="user-public__facts">
-                    <li>👥 {numberFormatter.format(profile.proFollowsCount ?? 0)} Pro suivis</li>
-                    <li>📅 Membre depuis {formatMemberSinceDate(profile.createdAt, locale)}</li>
+                    <li>👥 {t('profile.facts.follows', { count: numberFormatter.format(profile.proFollowsCount ?? 0) })}</li>
+                    <li>📅 {t('profile.facts.memberSince', { date: formatMemberSinceDate(profile.createdAt, locale) })}</li>
                     <li>
                       <span className="user-public__fact-icon" aria-hidden>
                         <LocationPinIcon />
                       </span>
-                      {profile.location ?? '—'}
+                      {profile.location ?? t('profile.facts.locationFallback')}
                     </li>
-                    <li>⏱ {formatLastActive(profile.lastLoginAt, locale)}</li>
+                    <li>⏱ {resolveOnlineLabel(profile.isOnline, profile.lastLoginAt, t)}</li>
                   </ul>
                 </div>
               </div>
@@ -447,7 +486,7 @@ export default function PublicUserProfile() {
                 <button
                   type="button"
                   className="user-public__menu"
-                  aria-label="Menu"
+                  aria-label={t('profile.menu.label')}
                   onClick={() => setMenuOpen(prev => !prev)}
                 >
                   ⋮
@@ -455,12 +494,12 @@ export default function PublicUserProfile() {
                 {menuOpen ? (
                   <div className="user-public__menu-dropdown">
                     <div className="user-public__menu-header">
-                      <span>Plus d&apos;options</span>
+                      <span>{t('profile.menu.moreOptions')}</span>
                       <button
                         type="button"
                         className="user-public__menu-close"
                         onClick={() => setMenuOpen(false)}
-                        aria-label="Fermer"
+                        aria-label={t('profile.menu.close')}
                       >
                         ✕
                       </button>
@@ -473,7 +512,7 @@ export default function PublicUserProfile() {
                         setMenuOpen(false)
                       }}
                     >
-                      🚩 Signaler cet utilisateur
+                      {t('profile.menu.report')}
                     </button>
                     <button
                       type="button"
@@ -483,12 +522,18 @@ export default function PublicUserProfile() {
                         void handleShare()
                       }}
                     >
-                      🔗 Partager
+                      {t('profile.menu.share')}
                     </button>
                   </div>
                 ) : null}
-                <Button className="user-public__follow" variant="outline" disabled>
-                  Suivre
+                <Button
+                  className="user-public__follow"
+                  variant="outline"
+                  onClick={() => {
+                    void handleFollowClick()
+                  }}
+                >
+                  {isFollowed ? t('profile.actions.following') : t('profile.actions.follow')}
                 </Button>
               </div>
             </div>
@@ -499,17 +544,17 @@ export default function PublicUserProfile() {
                 onClick={() => setShowResponsiveModal(true)}
               >
                 <span className="user-public__badge-icon">💬</span>
-                <span className="user-public__badge-label">Réactif</span>
+                <span className="user-public__badge-label">{t('profile.badges.responsive')}</span>
               </button>
               {profile.hasPhoneNumber ? (
                 <div className="user-public__badge">
                   <span className="user-public__badge-icon">📞</span>
-                  <span className="user-public__badge-label">Numéro vérifié</span>
+                  <span className="user-public__badge-label">{t('profile.badges.phoneVerified')}</span>
                 </div>
               ) : null}
               <div className="user-public__review-cta">
                 <Button onClick={() => setShowReviewModal(true)}>
-                  Laisser un avis
+                  {t('profile.actions.leaveReview')}
                 </Button>
               </div>
             </div>
@@ -522,14 +567,14 @@ export default function PublicUserProfile() {
             className={sectionTab === 'listings' ? 'is-active' : ''}
             onClick={() => setSectionTab('listings')}
           >
-            Annonces ({numberFormatter.format(profile?.listingCount ?? 0)})
+            {t('profile.tabs.listings', { count: numberFormatter.format(profile?.listingCount ?? 0) })}
           </button>
           <button
             type="button"
             className={sectionTab === 'reviews' ? 'is-active' : ''}
             onClick={() => setSectionTab('reviews')}
           >
-            Avis ({numberFormatter.format(profile?.reviewsCount ?? 0)})
+            {t('profile.tabs.reviews', { count: numberFormatter.format(profile?.reviewsCount ?? 0) })}
           </button>
         </div>
 
@@ -540,14 +585,14 @@ export default function PublicUserProfile() {
               className={tab === 'published' ? 'is-active' : ''}
               onClick={() => setTab('published')}
             >
-              En vente
+              {t('profile.listings.onSale')}
             </button>
             <button
               type="button"
               className={tab === 'archived' ? 'is-active' : ''}
               onClick={() => setTab('archived')}
             >
-              Vendu
+              {t('profile.listings.sold')}
             </button>
           </div>
         )}
@@ -590,7 +635,7 @@ export default function PublicUserProfile() {
                         </p>
                       ) : null}
                       <p>
-                        {getListingLocation(listing, 'Localisation indisponible')}
+                        {getListingLocation(listing, t('profile.listings.locationFallback'))}
                       </p>
                       <p className="lbc-listing-card__price">{formatListingPrice(listing, locale)}</p>
                     </div>
@@ -602,15 +647,15 @@ export default function PublicUserProfile() {
         ) : sectionTab === 'listings' ? (
           <p style={{ color: '#6c757d' }}>
             {tab === 'published'
-              ? 'Aucune annonce en vente pour le moment.'
-              : 'Aucune annonce vendue pour le moment.'}
+              ? t('profile.listings.empty.published')
+              : t('profile.listings.empty.archived')}
           </p>
         ) : null}
 
         {sectionTab === 'listings' && listingsTotal > LISTINGS_LIMIT ? (
           <div className="user-public__more">
             <Link to={`/search?owner=${profile?.id ?? id}`} className="btn btn--outline">
-              Voir toutes les annonces
+              {t('profile.listings.viewAll')}
             </Link>
           </div>
         ) : null}
@@ -631,8 +676,8 @@ export default function PublicUserProfile() {
                   </div>
                   <p>
                     {reviewSummary?.totalReviews
-                      ? `${reviewSummary.totalReviews} avis`
-                      : 'Aucun avis pour le moment.'}
+                      ? t('profile.reviews.count', { count: reviewSummary.totalReviews })
+                      : t('profile.reviews.emptySummary')}
                   </p>
                 </div>
                 <div className="user-public__reviews-list">
@@ -647,7 +692,7 @@ export default function PublicUserProfile() {
                       </div>
                     ))
                   ) : (
-                    <p style={{ color: '#6c757d' }}>Aucun avis publié.</p>
+                    <p style={{ color: '#6c757d' }}>{t('profile.reviews.empty')}</p>
                   )}
                 </div>
               </>
@@ -658,8 +703,8 @@ export default function PublicUserProfile() {
 
       <Modal
         open={showReportModal}
-        title="Signaler cet utilisateur"
-        description="Merci de préciser la raison du signalement."
+        title={t('profile.report.modal.title')}
+        description={t('profile.report.modal.description')}
         onClose={() => {
           if (!isReporting) setShowReportModal(false)
         }}
@@ -671,42 +716,42 @@ export default function PublicUserProfile() {
               onClick={() => setShowReportModal(false)}
               disabled={isReporting}
             >
-              Annuler
+              {t('profile.actions.cancel')}
             </Button>
             <Button type="submit" form="user-report-form" disabled={isReporting || !reportReason.trim()}>
-              {isReporting ? 'Envoi...' : 'Envoyer'}
+              {isReporting ? t('profile.actions.submitting') : t('profile.actions.submit')}
             </Button>
           </div>
         }
       >
         <form id="user-report-form" onSubmit={handleReportSubmit} className="listing-report-form">
           <label className="form-field">
-            <span className="form-field__label">Raison</span>
+            <span className="form-field__label">{t('profile.report.field.reason')}</span>
             <input
               className="input"
               value={reportReason}
               onChange={event => setReportReason(event.target.value)}
-              placeholder="Ex: arnaque, contenu inapproprié..."
+              placeholder={t('profile.report.field.reason.placeholder')}
             />
           </label>
           <label className="form-field">
-            <span className="form-field__label">Détails (optionnel)</span>
+            <span className="form-field__label">{t('profile.report.field.details')}</span>
             <textarea
               className="input"
               rows={4}
               value={reportDetails}
               onChange={event => setReportDetails(event.target.value)}
-              placeholder="Expliquez brièvement le problème."
+              placeholder={t('profile.report.field.details.placeholder')}
             />
           </label>
           <label className="form-field">
-            <span className="form-field__label">Email de contact (optionnel)</span>
+            <span className="form-field__label">{t('profile.report.field.email')}</span>
             <input
               className="input"
               type="email"
               value={reportEmail}
               onChange={event => setReportEmail(event.target.value)}
-              placeholder="email@exemple.com"
+              placeholder={t('profile.report.field.email.placeholder')}
             />
           </label>
         </form>
@@ -714,8 +759,8 @@ export default function PublicUserProfile() {
 
       <Modal
         open={showReviewModal}
-        title="Laisser un avis"
-        description="Votre avis concerne uniquement cet utilisateur."
+        title={t('profile.review.modal.title')}
+        description={t('profile.review.modal.description')}
         onClose={() => {
           if (!isSubmittingReview) setShowReviewModal(false)
         }}
@@ -727,21 +772,21 @@ export default function PublicUserProfile() {
               onClick={() => setShowReviewModal(false)}
               disabled={isSubmittingReview}
             >
-              Annuler
+              {t('profile.actions.cancel')}
             </Button>
             <Button
               type="submit"
               form="user-review-form"
               disabled={isSubmittingReview || !reviewComment.trim()}
             >
-              {isSubmittingReview ? 'Envoi...' : 'Envoyer'}
+              {isSubmittingReview ? t('profile.actions.submitting') : t('profile.actions.submit')}
             </Button>
           </div>
         }
       >
         <form id="user-review-form" onSubmit={handleSubmitUserReview} className="listing-review-form">
           <label className="form-field">
-            <span className="form-field__label">Note</span>
+            <span className="form-field__label">{t('profile.review.field.rating')}</span>
             <select
               className="input"
               value={reviewRating}
@@ -749,28 +794,28 @@ export default function PublicUserProfile() {
             >
               {[5, 4, 3, 2, 1].map(value => (
                 <option key={value} value={value}>
-                  {value} / 5
+                  {t('profile.review.field.ratingOption', { value })}
                 </option>
               ))}
             </select>
           </label>
           <label className="form-field">
-            <span className="form-field__label">Commentaire</span>
+            <span className="form-field__label">{t('profile.review.field.comment')}</span>
             <textarea
               className="input"
               rows={4}
               value={reviewComment}
               onChange={event => setReviewComment(event.target.value)}
-              placeholder="Votre avis..."
+              placeholder={t('profile.review.field.comment.placeholder')}
             />
           </label>
           <label className="form-field">
-            <span className="form-field__label">Localisation (optionnel)</span>
+            <span className="form-field__label">{t('profile.review.field.location')}</span>
             <input
               className="input"
               value={reviewLocation}
               onChange={event => setReviewLocation(event.target.value)}
-              placeholder="Ex: Douala"
+              placeholder={t('profile.review.field.location.placeholder')}
             />
           </label>
           <label className="switch-toggle">
@@ -779,15 +824,15 @@ export default function PublicUserProfile() {
               checked={reviewAsTestimonial}
               onChange={event => setReviewAsTestimonial(event.target.checked)}
             />
-            <span>Autoriser l’affichage de mon avis dans les témoignages de la page d’accueil</span>
+            <span>{t('profile.review.field.testimonial')}</span>
           </label>
         </form>
       </Modal>
 
       <Modal
         open={showResponsiveModal}
-        title="Réactif"
-        description="Ce membre est facile à joindre et répond aux messages, mais à son propre rythme."
+        title={t('profile.responsive.modal.title')}
+        description={t('profile.responsive.modal.description')}
         onClose={() => setShowResponsiveModal(false)}
       >
         <div className="user-public__responsive-modal">
@@ -795,11 +840,11 @@ export default function PublicUserProfile() {
           <div className="user-public__responsive-stats">
             <div>
               <span>⏱</span>
-              <p>{formatResponseTime(profile?.responseTimeHours ?? null)}</p>
+              <p>{formatResponseTime(profile?.responseTimeHours ?? null, t)}</p>
             </div>
             <div>
               <span>📊</span>
-              <p>{formatResponseRate(profile?.responseRate ?? null)}</p>
+              <p>{formatResponseRate(profile?.responseRate ?? null, t)}</p>
             </div>
           </div>
         </div>

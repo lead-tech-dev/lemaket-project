@@ -22,6 +22,9 @@ export type FormSchemaDTO = {
       name: string
       label: string
       type: string
+      disabled?: boolean
+      active?: boolean
+      isActive?: boolean
       unit?: string | null
       info?: string[]
       description?: string | null
@@ -87,7 +90,6 @@ export function useListingFormSchema(categoryId: string | null): UseListingFormS
     apiGet<FormSchemaDTO>(`/listings/form-schema/${categoryId}`, { signal: controller.signal })
       .then(payload => {
         if (!isMounted) return
-        console.log(payload)
         setSchema(payload)
       })
       .catch(err => {

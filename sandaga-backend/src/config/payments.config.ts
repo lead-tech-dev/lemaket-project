@@ -36,7 +36,6 @@ export default () => ({
       apiKey: process.env.ZIKOPAY_API_KEY ?? '',
       apiSecret: process.env.ZIKOPAY_API_SECRET ?? '',
       baseUrl: process.env.ZIKOPAY_BASE_URL ?? 'https://api.payment.zikopay.com/v1',
-      mockMode: String(process.env.ZIKOPAY_MOCK_MODE ?? 'false').toLowerCase() === 'true',
       returnUrl:
         process.env.ZIKOPAY_RETURN_URL ??
         process.env.APP_PUBLIC_URL ??
@@ -53,6 +52,39 @@ export default () => ({
         process.env.BACKEND_URL ??
         'http://localhost:3000'
     },
+    campay: {
+      permanentToken: process.env.CAMPAY_PERMANENT_TOKEN ?? '',
+      baseUrl: process.env.CAMPAY_BASE_URL ?? 'https://www.campay.net/api',
+      webhookKey: process.env.CAMPAY_WEBHOOK_KEY ?? '',
+      callbackUrl:
+        process.env.CAMPAY_CALLBACK_URL ??
+        process.env.API_PUBLIC_URL ??
+        process.env.BACKEND_URL ??
+        'http://localhost:3000'
+    },
+    tranzak: {
+      appId: process.env.TRANZAK_APP_ID ?? '',
+      appKey: process.env.TRANZAK_APP_KEY ?? '',
+      // 'sandbox' | 'live'. Détermine la base URL par défaut si TRANZAK_BASE_URL absent.
+      mode: (process.env.TRANZAK_MODE ?? 'sandbox').toLowerCase(),
+      baseUrl:
+        process.env.TRANZAK_BASE_URL ??
+        ((process.env.TRANZAK_MODE ?? 'sandbox').toLowerCase() === 'live'
+          ? 'https://dsapi.tranzak.me'
+          : 'https://sandbox.dsapi.tranzak.me'),
+      returnUrl:
+        process.env.TRANZAK_RETURN_URL ??
+        process.env.APP_PUBLIC_URL ??
+        process.env.FRONTEND_URL ??
+        'http://localhost:5173',
+      callbackUrl:
+        process.env.TRANZAK_CALLBACK_URL ??
+        process.env.API_PUBLIC_URL ??
+        process.env.BACKEND_URL ??
+        'http://localhost:3000'
+    },
+    // Provider Mobile Money par défaut (collecte + payout) : 'campay' | 'zikopay' | 'tranzak'.
+    momoProvider: (process.env.MOMO_PROVIDER ?? 'campay').toLowerCase(),
     deliveryCommissionRate: Number(process.env.DELIVERY_COMMISSION_RATE ?? 0.05),
     platformWalletUserId: process.env.PLATFORM_WALLET_USER_ID ?? ''
   }

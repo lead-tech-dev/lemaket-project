@@ -4,6 +4,8 @@ import { PromotionType } from '../common/enums/promotion-type.enum';
 import { PromotionStatus } from '../common/enums/promotion-status.enum';
 import { Listing } from '../listings/listing.entity';
 
+export type PromotionPaymentStatus = 'unpaid' | 'pending' | 'paid' | 'failed';
+
 @Entity({ name: 'promotions' })
 export class Promotion extends CoreEntity {
   @Column()
@@ -26,6 +28,26 @@ export class Promotion extends CoreEntity {
 
   @Column({ nullable: true, type: 'text' })
   description?: string;
+
+  @Column({ name: 'source_option_id', nullable: true })
+  sourceOptionId?: string | null;
+
+  @Column({
+    name: 'payment_status',
+    type: 'varchar',
+    length: 32,
+    default: 'unpaid'
+  })
+  paymentStatus!: PromotionPaymentStatus;
+
+  @Column({ name: 'payment_id', nullable: true })
+  paymentId?: string | null;
+
+  @Column({ name: 'auto_bump_interval_hours', type: 'integer', nullable: true })
+  autoBumpIntervalHours?: number | null;
+
+  @Column({ name: 'next_auto_bump_at', type: 'timestamp', nullable: true })
+  nextAutoBumpAt?: Date | null;
 
   @Column({ name: 'listing_id', nullable: true })
   listingId?: string | null;

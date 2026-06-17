@@ -4,17 +4,20 @@ import userEvent from '@testing-library/user-event'
 import { I18nProvider } from '../contexts/I18nContext'
 import { FeatureFlagProvider } from '../contexts/FeatureFlagContext'
 import { ToastProvider } from '../components/ui/Toast'
+import { AppThemeProvider } from '../theme/ThemeProvider'
 import { App } from '../App'
 
 function renderApp() {
   return render(
-    <I18nProvider>
-      <FeatureFlagProvider>
-        <ToastProvider>
-          <App />
-        </ToastProvider>
-      </FeatureFlagProvider>
-    </I18nProvider>
+    <AppThemeProvider>
+      <I18nProvider>
+        <FeatureFlagProvider>
+          <ToastProvider>
+            <App />
+          </ToastProvider>
+        </FeatureFlagProvider>
+      </I18nProvider>
+    </AppThemeProvider>
   )
 }
 

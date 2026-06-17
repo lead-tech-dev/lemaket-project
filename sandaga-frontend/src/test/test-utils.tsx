@@ -4,6 +4,7 @@ import { MemoryRouter, MemoryRouterProps } from 'react-router-dom'
 import { I18nProvider } from '../contexts/I18nContext'
 import { FeatureFlagProvider } from '../contexts/FeatureFlagContext'
 import { ToastProvider } from '../components/ui/Toast'
+import { AppThemeProvider } from '../theme/ThemeProvider'
 
 export type RenderOptions = {
   router?: MemoryRouterProps
@@ -25,13 +26,15 @@ function Providers({ children, router, useRouter = false }: PropsWithChildren<{ 
     <>{children}</>
   )
   return (
-    <I18nProvider>
-      <FeatureFlagProvider>
-        <ToastProvider>
-          {content}
-        </ToastProvider>
-      </FeatureFlagProvider>
-    </I18nProvider>
+    <AppThemeProvider>
+      <I18nProvider>
+        <FeatureFlagProvider>
+          <ToastProvider>
+            {content}
+          </ToastProvider>
+        </FeatureFlagProvider>
+      </I18nProvider>
+    </AppThemeProvider>
   )
 }
 

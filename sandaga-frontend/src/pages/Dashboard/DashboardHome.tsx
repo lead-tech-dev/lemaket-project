@@ -5,7 +5,7 @@ import { Button } from '../../components/ui/Button'
 import { Modal } from '../../components/ui/Modal'
 import { useAuth } from '../../hooks/useAuth'
 import { useToast } from '../../components/ui/Toast'
-import { apiGet, apiPatch, apiPost } from '../../utils/api'
+import { apiGet, apiPatch } from '../../utils/api'
 import type {
   DashboardNotificationSummary,
   DashboardNotificationCategory,
@@ -13,13 +13,6 @@ import type {
   DashboardReminder,
   OnboardingChecklist
 } from '../../types/dashboard'
-import type { CheckoutResult } from '../../types/payment'
-import {
-  buildProPlanOptions,
-  buildProPlanProcessingKey,
-  formatProSubscriptionDate,
-  type PlanActionMode
-} from '../../constants/proPlans'
 import { updateSettings } from '../../utils/auth'
 import { useI18n } from '../../contexts/I18nContext'
 import { dictionaries } from '../../i18n/translations'
@@ -30,35 +23,19 @@ const DISCOVER_ACTION_LABELS = new Set<string>([
 ])
 
 export default function DashboardHome() {
-  const { user, isPro, justPromotedPro, acknowledgePromotion } = useAuth()
+  const { user } = useAuth()
   const { addToast } = useToast()
   const navigate = useNavigate()
   const { locale, t } = useI18n()
   const numberLocale = locale === 'fr' ? 'fr-FR' : 'en-US'
   const dateLocale = numberLocale
 
-  const [showProWelcome, setShowProWelcome] = useState(false)
-  const [showProUpgrade, setShowProUpgrade] = useState(false)
   const [showOnboardingModal, setShowOnboardingModal] = useState(false)
-  const [proProcessingKey, setProProcessingKey] = useState<string | null>(null)
   const [overview, setOverview] = useState<DashboardOverviewResponse | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [markingNotificationId, setMarkingNotificationId] = useState<string | null>(null)
   const [markingAllNotifications, setMarkingAllNotifications] = useState(false)
-  const proPlans = useMemo(() => buildProPlanOptions(t), [t])
-
-  useEffect(() => {
-    if (justPromotedPro) {
-      setShowProWelcome(true)
-      addToast({
-        variant: 'success',
-        title: t('dashboard.home.proActivatedTitle'),
-        message: t('dashboard.home.proActivatedMessage')
-      })
-      acknowledgePromotion()
-    }
-  }, [justPromotedPro, addToast, acknowledgePromotion, t])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -109,7 +86,7 @@ export default function DashboardHome() {
   }, [overview])
 
   const stats = overview?.stats ?? []
-  const reminders = overview?.reminders ?? []
+  const reminders = useMemo(() => overview?.reminders ?? [], [overview?.reminders])
   const messages = overview?.messages ?? []
   const notificationSummary = overview?.notificationSummary ?? null
   const onboardingChecklist: OnboardingChecklist | null =
@@ -135,11 +112,8 @@ export default function DashboardHome() {
     DISCOVER_ACTION_LABELS.has(action)
 
   const visibleReminders = useMemo(() => {
-    if (isPro) {
-      return reminders
-    }
     return reminders.filter(reminder => !isDiscoverAction(reminder.action))
-  }, [isPro, reminders])
+  }, [reminders])
 
   const handleReminderAction = (reminder: DashboardReminder) => {
     if (isDiscoverAction(reminder.action)) {
@@ -147,58 +121,6 @@ export default function DashboardHome() {
     }
 
     navigate('/dashboard/listings')
-  }
-
-  const handlePlanAction = async (planId: string, mode: PlanActionMode) => {
-    setProProcessingKey(buildProPlanProcessingKey(planId, mode))
-    try {
-      const result = await apiPost<CheckoutResult>('/payments/pro-plans', { planId, mode })
-
-      if (result.redirectUrl) {
-        addToast({
-          variant: 'info',
-          title: t('dashboard.home.plan.redirectTitle'),
-          message: t('dashboard.home.plan.redirectMessage')
-        })
-        setShowProUpgrade(false)
-        window.location.assign(result.redirectUrl)
-        return
-      }
-
-      const formattedDate = formatProSubscriptionDate(result.nextRenewalAt ?? null, dateLocale)
-      if (mode === 'trial') {
-        addToast({
-          variant: 'success',
-          title: t('dashboard.home.plan.trialTitle'),
-          message: formattedDate
-            ? t('dashboard.home.plan.trialMessageWithDate', { date: formattedDate })
-            : t('dashboard.home.plan.trialMessageNoDate')
-        })
-        setShowProUpgrade(false)
-      } else {
-        addToast({
-          variant: 'success',
-          title: t('dashboard.home.plan.subscribeTitle'),
-          message: formattedDate
-            ? t('dashboard.home.plan.subscribeMessageWithDate', { date: formattedDate })
-            : t('dashboard.home.plan.subscribeMessageNoDate')
-        })
-        setShowProUpgrade(false)
-        navigate('/dashboard/payments')
-      }
-    } catch (err) {
-      console.error('Unable to request PRO plan', err)
-      addToast({
-        variant: 'error',
-        title: t('dashboard.home.plan.errorTitle'),
-        message:
-          err instanceof Error
-            ? err.message
-            : t('dashboard.home.plan.errorMessage')
-      })
-    } finally {
-      setProProcessingKey(null)
-    }
   }
 
   const handleMarkNotification = async (notificationId: string) => {
@@ -441,7 +363,7 @@ export default function DashboardHome() {
                   <Button
                     variant="outline"
                     onClick={() => handleReminderAction(reminder)}
-                    disabled={proProcessingKey !== null && isDiscoverAction(reminder.action)}
+                    disabled={isDiscoverAction(reminder.action)}
                   >
                     {resolveReminderAction(reminder.action)}
                   </Button>
@@ -451,7 +373,7 @@ export default function DashboardHome() {
           </section>
         ) : null}
 
-        {!isLoading && isPro && messages.length ? (
+        {!isLoading && messages.length ? (
           <section className="dashboard-section">
             <div className="dashboard-section__head">
               <h2>{t('dashboard.home.messages.title')}</h2>
@@ -525,17 +447,6 @@ export default function DashboardHome() {
           </section>
         ) : null}
 
-        {isPro ? (
-          <section className="dashboard-section">
-            <div className="dashboard-section__head">
-              <h2>{t('dashboard.home.compare.title')}</h2>
-              <Link to="/dashboard/overview" className="lbc-link">{t('dashboard.home.compare.cta')}</Link>
-            </div>
-            <p className="dashboard-section__description">
-              {t('dashboard.home.compare.description')}
-            </p>
-          </section>
-        ) : null}
       </div>
       <Modal
         open={showOnboardingModal && Boolean(incompleteTasks.length)}
@@ -578,88 +489,6 @@ export default function DashboardHome() {
           ))}
         </ul>
       </Modal>
-      {isPro ? (
-        <>
-          <Modal
-            open={showProUpgrade}
-            title={t('dashboard.home.proUpgrade.title')}
-            description={t('dashboard.home.proUpgrade.description')}
-            onClose={() => {
-              if (!proProcessingKey) {
-                setShowProUpgrade(false)
-              }
-            }}
-          >
-            <div className="message-list">
-              {proPlans.map(plan => {
-                const currentKey = buildProPlanProcessingKey(plan.id, plan.mode)
-                const isProcessing = proProcessingKey === currentKey
-                return (
-                  <div key={plan.id} className="message-item">
-                    <div>
-                      <span className="message-item__title">{plan.name}</span>
-                      <span className="message-item__snippet">{plan.description}</span>
-                    </div>
-                    <span className="message-item__snippet">{plan.priceLabel}</span>
-                    <Button
-                      variant={plan.buttonVariant ?? 'primary'}
-                      onClick={() => handlePlanAction(plan.id, plan.mode)}
-                      disabled={isProcessing}
-                    >
-                      {isProcessing ? plan.loadingLabel : plan.cta}
-                    </Button>
-                  </div>
-                )
-              })}
-            </div>
-          </Modal>
-          <Modal
-            open={showProWelcome}
-            title={t('dashboard.home.proWelcome.title')}
-            description={t('dashboard.home.proWelcome.description')}
-            onClose={() => {
-              setShowProWelcome(false)
-            }}
-            footer={
-              <div className="dashboard-pro-modal__actions">
-                <Link
-                  to="/dashboard/overview"
-                  className="btn btn--outline"
-                  onClick={() => {
-                    setShowProWelcome(false)
-                  }}
-                >
-                  {t('dashboard.home.proWelcome.ctaCompare')}
-                </Link>
-                <Link
-                  to="/dashboard/promotions"
-                  className="btn btn--primary"
-                  onClick={() => {
-                    setShowProWelcome(false)
-                  }}
-                >
-                  {t('dashboard.home.proWelcome.ctaPromote')}
-                </Link>
-              </div>
-            }
-          >
-            <ul className="auth-feature__list">
-              <li>
-                <span className="auth-feature__icon">✓</span>
-                <span>{t('dashboard.home.proWelcome.benefit1')}</span>
-              </li>
-              <li>
-                <span className="auth-feature__icon">✓</span>
-                <span>{t('dashboard.home.proWelcome.benefit2')}</span>
-              </li>
-              <li>
-                <span className="auth-feature__icon">✓</span>
-                <span>{t('dashboard.home.proWelcome.benefit3')}</span>
-              </li>
-            </ul>
-          </Modal>
-        </>
-      ) : null}
     </DashboardLayout>
   )
 }

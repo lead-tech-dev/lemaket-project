@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import Home from '../pages/Home/Home'
+import Category from '../pages/Category/Category'
 import ListingDetail from '../pages/Listings/ListingDetail'
 import ListingCheckout from '../pages/Listings/ListingCheckout'
 import NewListing from '../pages/Listings/NewListing'
@@ -11,7 +12,6 @@ import ForgotPassword from '../pages/Auth/ForgotPassword'
 import ResetPassword from '../pages/Auth/ResetPassword'
 import LogoutPage from '../pages/Auth/Logout'
 import DashboardHome from '../pages/Dashboard/DashboardHome'
-import DashboardOverview from '../pages/Dashboard/DashboardOverview'
 import PromotionsPage from '../pages/Dashboard/Promotions'
 import MyListings from '../pages/Dashboard/MyListings'
 import FollowedSellers from '../pages/Dashboard/FollowedSellers'
@@ -24,7 +24,6 @@ import Conversation from '../pages/Dashboard/Conversation'
 import Profile from '../pages/Dashboard/Profile'
 import Settings from '../pages/Dashboard/Settings'
 import Payments from '../pages/Dashboard/Payments'
-import ProAccount from '../pages/Dashboard/ProAccount'
 import Wallet from '../pages/Dashboard/Wallet'
 import AdminHome from '../pages/Admin/AdminHome'
 import ListingsModeration from '../pages/Admin/ListingsModeration'
@@ -41,6 +40,8 @@ import AddCategory from '../pages/Admin/AddCategory'
 import CategoryFormBuilder from '../pages/Admin/CategoryFormBuilder'
 import PlatformWallet from '../pages/Admin/PlatformWallet'
 import ZikopayTransactions from '../pages/Admin/ZikopayTransactions'
+import AdminMonitoring from '../pages/Admin/Monitoring'
+import SearchRelevance from '../pages/Admin/SearchRelevance'
 import About from '../pages/Static/About'
 import Contact from '../pages/Static/Contact'
 import Terms from '../pages/Static/Terms'
@@ -50,6 +51,7 @@ import Error404 from '../pages/Static/Error404'
 import Error500 from '../pages/Static/Error500'
 import Maintenance from '../pages/Maintenance/Maintenance'
 import SearchResults from '../pages/Search/SearchResults'
+import VisualSearch from '../pages/Search/VisualSearch'
 import StorefrontPage from '../pages/Storefront/Storefront'
 import StorefrontsPage from '../pages/Storefront/Storefronts'
 import PublicUserProfile from '../pages/Users/PublicProfile'
@@ -70,7 +72,7 @@ type ProtectedRouteProps = {
 
 function ProtectedRoute({ element, requirePro, requireAdmin, featureFlag }: ProtectedRouteProps) {
   const { t } = useI18n()
-  const { loading, error, isAuthenticated, isPro, isAdmin } = useAuth()
+  const { loading, error, isAuthenticated, isPro, isStaff } = useAuth()
   const { isEnabled } = useFeatureFlagsContext()
 
   if (loading) {
@@ -105,11 +107,11 @@ function ProtectedRoute({ element, requirePro, requireAdmin, featureFlag }: Prot
     return <Navigate to="/login" replace />
   }
 
-  if (isAdmin && !requireAdmin) {
+  if (isStaff && !requireAdmin) {
     return <Navigate to="/admin" replace />
   }
 
-  if (requireAdmin && !isAdmin) {
+  if (requireAdmin && !isStaff) {
     return <Navigate to="/dashboard" replace />
   }
 
@@ -118,7 +120,7 @@ function ProtectedRoute({ element, requirePro, requireAdmin, featureFlag }: Prot
   }
 
   if (featureFlag && !isEnabled(featureFlag)) {
-    const fallbackPath = requireAdmin ? '/admin' : '/dashboard'
+    const fallbackPath = '/dashboard'
     return <Navigate to={fallbackPath} replace />
   }
 
@@ -159,8 +161,13 @@ export function AppRouter() {
           path="/listings/new"
           element={<ProtectedRoute element={<NewListing />} />}
         />
-        <Route path="/listings/edit/:id" element={<EditListing />} />
+        <Route
+          path="/listings/edit/:id"
+          element={<ProtectedRoute element={<EditListing />} />}
+        />
         <Route path="/search" element={<SearchResults />} />
+        <Route path="/search/visual" element={<VisualSearch />} />
+        <Route path="/category/:slug" element={<Category />} />
         <Route path="/store/:slug" element={<StorefrontPage />} />
         <Route path="/stores" element={<StorefrontsPage />} />
         <Route path="/user/:id" element={<PublicUserProfile />} />
@@ -174,21 +181,10 @@ export function AppRouter() {
 
         <Route path="/dashboard" element={<ProtectedRoute element={<DashboardHome />} />} />
         <Route
-          path="/dashboard/overview"
-          element={
-            <ProtectedRoute
-              element={<DashboardOverview />}
-              requirePro
-              featureFlag="proOverview"
-            />
-          }
-        />
-        <Route
           path="/dashboard/promotions"
           element={
             <ProtectedRoute
               element={<PromotionsPage />}
-              requirePro
               featureFlag="proPromotions"
             />
           }
@@ -211,19 +207,27 @@ export function AppRouter() {
         />
         <Route
           path="/dashboard/deliveries"
-          element={<ProtectedRoute element={<Deliveries />} />}
+          element={
+            <ProtectedRoute
+              element={<Deliveries />}
+              featureFlag="dashboardDeliveries"
+            />
+          }
         />
         <Route
           path="/dashboard/orders"
-          element={<ProtectedRoute element={<Orders />} />}
+          element={
+            <ProtectedRoute
+              element={<Orders />}
+              featureFlag="dashboardOrders"
+            />
+          }
         />
         <Route
           path="/dashboard/messages"
           element={
             <ProtectedRoute
               element={<Messages />}
-              requirePro
-              featureFlag="proMessaging"
             />
           }
         />
@@ -232,8 +236,6 @@ export function AppRouter() {
           element={
             <ProtectedRoute
               element={<Conversation />}
-              requirePro
-              featureFlag="proMessaging"
             />
           }
         />
@@ -247,29 +249,22 @@ export function AppRouter() {
         />
         <Route
           path="/dashboard/wallet"
-          element={<ProtectedRoute element={<Wallet />} />}
+          element={
+            <ProtectedRoute
+              element={<Wallet />}
+              featureFlag="dashboardWallet"
+            />
+          }
         />
         <Route
           path="/dashboard/payments"
           element={
             <ProtectedRoute
               element={<Payments />}
-              requirePro
               featureFlag="proPayments"
             />
           }
         />
-        <Route
-          path="/dashboard/pro"
-          element={
-            <ProtectedRoute
-              element={<ProAccount />}
-              requirePro
-              featureFlag="proPortal"
-            />
-          }
-        />
-
         <Route
           path="/admin"
           element={
@@ -306,7 +301,7 @@ export function AppRouter() {
             <ProtectedRoute
               element={<CompanyVerifications />}
               requireAdmin
-              featureFlag="adminConsole"
+              featureFlag="adminSettings"
             />
           }
         />
@@ -316,7 +311,7 @@ export function AppRouter() {
             <ProtectedRoute
               element={<CourierVerifications />}
               requireAdmin
-              featureFlag="adminConsole"
+              featureFlag="adminSettings"
             />
           }
         />
@@ -326,7 +321,7 @@ export function AppRouter() {
             <ProtectedRoute
               element={<PlatformWallet />}
               requireAdmin
-              featureFlag="adminConsole"
+              featureFlag="adminSettings"
             />
           }
         />
@@ -335,6 +330,26 @@ export function AppRouter() {
           element={
             <ProtectedRoute
               element={<ZikopayTransactions />}
+              requireAdmin
+              featureFlag="adminConsole"
+            />
+          }
+        />
+        <Route
+          path="/admin/monitoring"
+          element={
+            <ProtectedRoute
+              element={<AdminMonitoring />}
+              requireAdmin
+              featureFlag="adminConsole"
+            />
+          }
+        />
+        <Route
+          path="/admin/search-relevance"
+          element={
+            <ProtectedRoute
+              element={<SearchRelevance />}
               requireAdmin
               featureFlag="adminConsole"
             />

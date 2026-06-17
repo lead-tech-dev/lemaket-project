@@ -444,7 +444,7 @@ export class DeliveriesService {
       throw new BadRequestException('Numéro Mobile Money requis.');
     }
 
-    const payment = await this.paymentsService.initZikopayEscrowPayment({
+    const payment = await this.paymentsService.initEscrowPayment({
       user,
       amount: paymentAmount,
       currency: listing.currency || 'XAF',
@@ -565,6 +565,22 @@ export class DeliveriesService {
       relations: { listing: true, buyer: true, seller: true, courier: true },
       order: { created_at: 'DESC' }
     });
+  }
+
+  async getById(user: AuthUser, id: string): Promise<Delivery & { sellerPayoutReady: boolean }> {
+    const delivery = await this.findOrFail(id);
+    const isParticipant =
+      delivery.buyerId === user.id || delivery.sellerId === user.id || delivery.courierId === user.id;
+
+    if (!isParticipant) {
+      throw new ForbiddenException('Accès refusé.');
+    }
+
+    const sellerPayoutReady = await this.isSellerPayoutReady(delivery.sellerId);
+    return {
+      ...delivery,
+      sellerPayoutReady
+    } as Delivery & { sellerPayoutReady: boolean };
   }
 
   async acceptDelivery(id: string, user: AuthUser): Promise<Delivery> {
@@ -878,7 +894,7 @@ export class DeliveriesService {
       throw new BadRequestException('Le montant de l’annonce est invalide.');
     }
 
-    const paymentInit = await this.paymentsService.initZikopayEscrowPayment({
+    const paymentInit = await this.paymentsService.initEscrowPayment({
       user,
       amount: listingPrice,
       currency: delivery.listing.currency || 'XAF',

@@ -12,6 +12,7 @@ import { Favorite } from '../src/favorites/favorite.entity';
 import { UserFollow } from '../src/users/user-follow.entity';
 import { Review } from '../src/reviews/review.entity';
 import { Message } from '../src/messages/message.entity';
+import { PresenceService } from '../src/presence/presence.service';
 
 describe('UsersService', () => {
   let service: UsersService;
@@ -45,6 +46,12 @@ describe('UsersService', () => {
     createQueryBuilder: jest.fn(),
   };
 
+  const mockPresenceService = {
+    isOnline: jest.fn().mockReturnValue(false),
+    getPresenceByUserId: jest.fn().mockResolvedValue(null),
+    upsertPresence: jest.fn().mockResolvedValue(undefined),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -59,6 +66,7 @@ describe('UsersService', () => {
         { provide: getRepositoryToken(UserFollow), useValue: mockSimpleRepository },
         { provide: getRepositoryToken(Review), useValue: mockSimpleRepository },
         { provide: getRepositoryToken(Message), useValue: mockSimpleRepository },
+        { provide: PresenceService, useValue: mockPresenceService },
       ],
     }).compile();
 

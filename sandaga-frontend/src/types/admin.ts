@@ -73,12 +73,15 @@ export type PromotionStatus =
   | 'cancelled'
 
 export type PromotionType = 'featured' | 'boost' | 'premium' | 'highlight'
+export type PromotionPaymentStatus = 'unpaid' | 'pending' | 'paid' | 'failed'
 
 export type AdminPromotion = {
   id: string
   name: string
   type: PromotionType
   status: PromotionStatus
+  paymentStatus: PromotionPaymentStatus
+  paymentId?: string | null
   startDate: string
   endDate: string
   budget: number
@@ -174,4 +177,78 @@ export type ExportJob = {
   updatedAt: string
   filename?: string
   error?: string
+}
+
+export type SearchOperationalSummary = {
+  total: number
+  errors: number
+  errorRate: number
+  successRate: number
+  p95LatencyMs: number
+}
+
+export type SearchOperationalStatus = {
+  status: 'ok' | 'degraded' | 'critical'
+  generatedAt: string
+  thresholds: {
+    windowSeconds: number
+    minListingsRequests: number
+    minSuggestionsRequests: number
+    listingsP95Ms: number
+    listingsErrorRate: number
+    suggestionsP95Ms: number
+    suggestionsErrorRate: number
+  }
+  snapshot: {
+    windowSeconds: number
+    listings: {
+      withSearch: SearchOperationalSummary
+      all: SearchOperationalSummary
+    }
+    suggestions: SearchOperationalSummary
+  }
+  alerts: Array<{
+    severity: 'degraded' | 'critical'
+    component: 'listings' | 'suggestions'
+    metric: 'p95LatencyMs' | 'errorRate'
+    value: number
+    threshold: number
+    message: string
+  }>
+  notes: string[]
+}
+
+export type SearchAlertDispatchResult = {
+  status: SearchOperationalStatus['status']
+  generatedAt: string
+  dispatched: boolean
+  suppressed: boolean
+  cooldownSeconds: number
+  fingerprint: string | null
+  channels: Array<{
+    channel: 'webhook' | 'email'
+    sent: boolean
+    reason?: string
+  }>
+  message: string
+}
+
+export type SearchRelevanceSettings = {
+  enableBusinessBoost: boolean
+  enableDynamicSynonyms: boolean
+  popularCityBoost: number
+  proSellerBoost: number
+  categoryPriorityWeights: Record<string, number>
+  categoryWeightsText: string
+}
+
+export type SearchSynonymEntry = {
+  id: string
+  term: string
+  synonym: string
+  normalizedTerm: string
+  normalizedSynonym: string
+  isActive: boolean
+  created_at: string
+  updatedAt: string
 }

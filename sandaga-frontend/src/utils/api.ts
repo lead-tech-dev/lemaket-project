@@ -1,19 +1,25 @@
 import { API_BASE_URL } from './constants'
-import { getAuthToken } from './auth-token'
+import { getAuthToken, clearAuthToken } from './auth-token'
 import { beginGlobalLoading, endGlobalLoading } from '../state/globalLoading'
 
 type RequestOptions = {
   signal?: AbortSignal
   body?: unknown
   headers?: Record<string, string>
+  silent?: boolean
 }
 
 type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE'
 
 let preferredLocale: string | undefined
+let unauthorizedHandler: (() => void) | null = null
 
 export function setApiLocale(locale: string) {
   preferredLocale = locale
+}
+
+export function setUnauthorizedHandler(handler: (() => void) | null) {
+  unauthorizedHandler = handler
 }
 
 function buildUrl(path: string): string {
@@ -47,7 +53,10 @@ async function apiRequest<T>(
     delete headers['Content-Type']
   }
 
-  beginGlobalLoading()
+  const useGlobalLoading = !options.silent
+  if (useGlobalLoading) {
+    beginGlobalLoading()
+  }
   try {
     const response = await fetch(url, {
       method,
@@ -58,6 +67,10 @@ async function apiRequest<T>(
     })
 
     if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        clearAuthToken()
+        unauthorizedHandler?.()
+      }
       const rawText = await response.text().catch(() => '')
       let resolvedMessage = rawText
 
@@ -94,7 +107,9 @@ async function apiRequest<T>(
 
     return response.json() as Promise<T>
   } finally {
-    endGlobalLoading()
+    if (useGlobalLoading) {
+      endGlobalLoading()
+    }
   }
 }
 
@@ -140,7 +155,10 @@ export async function apiPostFormData<T>(
     ...(token ? { Authorization: `Bearer ${token}` } : {})
   }
 
-  beginGlobalLoading()
+  const useGlobalLoading = !(options?.silent ?? false)
+  if (useGlobalLoading) {
+    beginGlobalLoading()
+  }
   try {
     const response = await fetch(url, {
       method: 'POST',
@@ -151,6 +169,10 @@ export async function apiPostFormData<T>(
     })
 
     if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        clearAuthToken()
+        unauthorizedHandler?.()
+      }
       const rawText = await response.text().catch(() => '')
       let resolvedMessage = rawText
 
@@ -187,6 +209,8 @@ export async function apiPostFormData<T>(
 
     return response.json() as Promise<T>
   } finally {
-    endGlobalLoading()
+    if (useGlobalLoading) {
+      endGlobalLoading()
+    }
   }
 }

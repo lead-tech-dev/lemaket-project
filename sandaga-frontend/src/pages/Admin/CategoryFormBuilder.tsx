@@ -2,10 +2,11 @@ import { useEffect, useMemo, useState, type MouseEventHandler, type ReactNode } 
 import { useParams } from 'react-router-dom'
 import { apiGet, apiPost, apiPatch, apiDelete } from '../../utils/api'
 import { Category, FormStep, FormField } from '../../types/category'
-import DashboardLayout from '../../layouts/DashboardLayout'
+import AdminLayout from '../../layouts/AdminLayout'
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
+import { Modal } from '../../components/ui/Modal'
 import { useI18n } from '../../contexts/I18nContext'
 
 type FieldOptionDraft = {
@@ -291,7 +292,7 @@ const styles = {
   subtitle: {
     marginTop: '6px',
     fontSize: '0.95rem',
-    color: '#6b7280'
+    color: 'var(--color-text-muted)'
   },
   layout: {
     display: 'grid',
@@ -305,8 +306,8 @@ const styles = {
     gap: '16px',
     padding: '18px',
     borderRadius: '16px',
-    border: '1px solid #e5e7eb',
-    background: '#f8fafc'
+    border: '1px solid var(--color-border)',
+    background: 'var(--color-surface-alt)'
   },
   main: {
     position: 'relative',
@@ -338,7 +339,7 @@ const styles = {
     textAlign: 'left',
     cursor: 'pointer',
     transition: 'all 0.15s ease',
-    color: '#0f172a'
+    color: 'var(--color-text)'
   },
   stepListItemActive: {
     borderColor: 'var(--color-primary, #ff6e14)',
@@ -357,7 +358,7 @@ const styles = {
   },
   stepListMeta: {
     fontSize: '0.8rem',
-    color: '#94a3b8'
+    color: 'var(--color-text-muted)'
   },
   stepFlow: {
     fontSize: '0.8rem',
@@ -376,7 +377,7 @@ const styles = {
     padding: '2px 8px',
     borderRadius: '999px',
     background: '#f1f5f9',
-    color: '#334155',
+    color: 'var(--color-text)',
     border: '1px solid #cbd5e1',
     fontSize: '0.68rem',
     fontWeight: 700,
@@ -413,7 +414,7 @@ const styles = {
   emptyStateCard: {
     borderRadius: '16px',
     border: '1px dashed #cbd5f5',
-    background: '#f8fafc',
+    background: 'var(--color-surface-alt)',
     padding: '32px 28px',
     display: 'flex',
     flexDirection: 'column',
@@ -423,7 +424,7 @@ const styles = {
   fieldComposer: {
     position: 'relative',
     borderRadius: '20px',
-    border: '1px solid #e5e7eb',
+    border: '1px solid var(--color-border)',
     background: '#ffffff',
     padding: '24px',
     boxShadow: '0 12px 32px rgba(15, 23, 42, 0.08)',
@@ -442,7 +443,7 @@ const styles = {
   },
   fieldComposerSubtitle: {
     fontSize: '0.9rem',
-    color: '#94a3b8',
+    color: 'var(--color-text-muted)',
     marginTop: '4px'
   },
   fieldGrid: {
@@ -454,8 +455,8 @@ const styles = {
   fieldCard: {
     padding: '18px',
     borderRadius: '14px',
-    border: '1px solid #e2e8f0',
-    background: '#f8fafc',
+    border: '1px solid var(--color-border)',
+    background: 'var(--color-surface-alt)',
     display: 'flex',
     flexDirection: 'column',
     gap: '12px'
@@ -473,7 +474,7 @@ const styles = {
   },
   fieldCardName: {
     fontWeight: 600,
-    color: '#0f172a'
+    color: 'var(--color-text)'
   },
   fieldChip: {
     fontSize: '0.75rem',
@@ -494,7 +495,7 @@ const styles = {
     display: 'flex',
     gap: '8px',
     fontSize: '0.85rem',
-    color: '#475569'
+    color: 'var(--color-text-muted)'
   },
   fieldInfoList: {
     margin: 0,
@@ -542,11 +543,11 @@ const styles = {
     margin: 0,
     fontSize: '1.5rem',
     fontWeight: 600,
-    color: '#0f172a'
+    color: 'var(--color-text)'
   },
   fieldModalSubtitle: {
     marginTop: '6px',
-    color: '#64748b',
+    color: 'var(--color-text-muted)',
     fontSize: '0.95rem'
   },
   fieldModalBody: {
@@ -570,7 +571,7 @@ const styles = {
   fieldModalHint: {
     marginTop: '4px',
     fontSize: '0.8rem',
-    color: '#94a3b8'
+    color: 'var(--color-text-muted)'
   },
   errorBanner: {
     display: 'flex',
@@ -578,12 +579,12 @@ const styles = {
     gap: '8px',
     padding: '12px 18px',
     borderRadius: '12px',
-    background: '#fee2e2',
-    color: '#b91c1c',
+    background: 'var(--color-danger-soft)',
+    color: 'var(--color-danger)',
     marginBottom: '12px'
   },
   optionSection: {
-    borderTop: '1px solid #e2e8f0',
+    borderTop: '1px solid var(--color-border)',
     paddingTop: '12px',
     marginTop: '12px',
     display: 'flex',
@@ -623,7 +624,7 @@ const styles = {
   },
   fieldToggleHelp: {
     fontSize: '0.8rem',
-    color: '#94a3b8'
+    color: 'var(--color-text-muted)'
   },
   modalOverlay: {
     position: 'fixed',
@@ -660,17 +661,17 @@ const styles = {
     width: '34px',
     height: '34px',
     borderRadius: '10px',
-    border: '1px solid #e2e8f0',
+    border: '1px solid var(--color-border)',
     background: '#ffffff',
-    color: '#475569',
+    color: 'var(--color-text-muted)',
     boxShadow: '0 1px 2px rgba(15, 23, 42, 0.08)',
     cursor: 'pointer',
     transition: 'all 0.15s ease'
   },
   iconButtonDanger: {
-    color: '#dc2626',
-    borderColor: '#fecaca',
-    background: '#fff7f7'
+    color: 'var(--color-danger)',
+    borderColor: 'var(--color-danger-soft)',
+    background: 'var(--color-danger-soft)'
   }
 } as const
 
@@ -1224,90 +1225,97 @@ export default function CategoryFormBuilder() {
   }
 
   const renderStepModal = () => {
-    if (!stepModal) return null
-    const isEdit = stepModal.mode === 'edit'
+    const isEdit = stepModal?.mode === 'edit'
     return (
-      <div style={styles.modalOverlay}>
-        <div style={styles.modalCard}>
-          <h3>{isEdit ? t('admin.formBuilder.step.modalEditTitle') : t('admin.formBuilder.step.modalCreateTitle')}</h3>
-          <p>{t('admin.formBuilder.step.modalDescription')}</p>
-          <div style={styles.formGrid}>
-            <div>
-              <label>{t('admin.formBuilder.step.fields.name')}</label>
-              <Input
-                value={stepDraft.name}
-                onChange={event => setStepDraft(prev => ({ ...prev, name: event.target.value }))}
-                placeholder={t('admin.formBuilder.step.fields.namePlaceholder')}
-              />
-            </div>
-            <div>
-              <label>{t('admin.formBuilder.step.fields.label')}</label>
-              <Input
-                value={stepDraft.label}
-                onChange={event => setStepDraft(prev => ({ ...prev, label: event.target.value }))}
-                placeholder={t('admin.formBuilder.step.fields.labelPlaceholder')}
-              />
-            </div>
-            <div>
-              <label>{t('admin.formBuilder.step.fields.order')}</label>
-              <Input
-                type="number"
-                min={0}
-                value={stepDraft.order}
-                onChange={event =>
-                  setStepDraft(prev => ({ ...prev, order: event.target.value }))
-                }
-                placeholder={t('admin.formBuilder.step.fields.orderPlaceholder')}
-              />
-            </div>
-            <div>
-              <label>{t('admin.formBuilder.step.fields.variant')}</label>
-              <Input
-                value={stepDraft.variant}
-                onChange={event =>
-                  setStepDraft(prev => ({ ...prev, variant: event.target.value }))
-                }
-                placeholder={t('admin.formBuilder.step.fields.variantPlaceholder')}
-                list="step-variant-suggestions"
-              />
-              <datalist id="step-variant-suggestions">
-                {stepVariantOptions.filter(option => option.value).map(option => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </datalist>
-              <p style={styles.fieldModalHint}>
-                {t('admin.formBuilder.step.fields.variantHint')}
-              </p>
-            </div>
-          </div>
-          <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <label>{t('admin.formBuilder.step.fields.info')}</label>
-            <textarea
-              className="input"
-              value={stepDraft.info}
-              onChange={event =>
-                setStepDraft(prev => ({ ...prev, info: event.target.value }))
-              }
-              rows={4}
-              placeholder={t('admin.formBuilder.step.fields.infoPlaceholder')}
-              style={{ resize: 'vertical' }}
-            />
-            <p style={styles.fieldModalHint}>
-              {t('admin.formBuilder.step.fields.infoHint')}
-            </p>
-          </div>
-          <div style={styles.modalActions}>
+      <Modal
+        open={Boolean(stepModal)}
+        title={isEdit ? t('admin.formBuilder.step.modalEditTitle') : t('admin.formBuilder.step.modalCreateTitle')}
+        description={t('admin.formBuilder.step.modalDescription')}
+        onClose={closeStepModal}
+        footer={
+          <>
             <Button type="button" variant="ghost" onClick={closeStepModal}>
               {t('actions.cancel')}
             </Button>
             <Button type="button" onClick={handleStepSubmit}>
               {isEdit ? t('actions.save') : t('admin.formBuilder.step.create')}
             </Button>
+          </>
+        }
+      >
+        <div style={styles.formGrid}>
+          <div>
+            <label htmlFor="step-field-name">{t('admin.formBuilder.step.fields.name')}</label>
+            <Input
+              id="step-field-name"
+              value={stepDraft.name}
+              onChange={event => setStepDraft(prev => ({ ...prev, name: event.target.value }))}
+              placeholder={t('admin.formBuilder.step.fields.namePlaceholder')}
+            />
+          </div>
+          <div>
+            <label htmlFor="step-field-label">{t('admin.formBuilder.step.fields.label')}</label>
+            <Input
+              id="step-field-label"
+              value={stepDraft.label}
+              onChange={event => setStepDraft(prev => ({ ...prev, label: event.target.value }))}
+              placeholder={t('admin.formBuilder.step.fields.labelPlaceholder')}
+            />
+          </div>
+          <div>
+            <label htmlFor="step-field-order">{t('admin.formBuilder.step.fields.order')}</label>
+            <Input
+              id="step-field-order"
+              type="number"
+              min={0}
+              value={stepDraft.order}
+              onChange={event =>
+                setStepDraft(prev => ({ ...prev, order: event.target.value }))
+              }
+              placeholder={t('admin.formBuilder.step.fields.orderPlaceholder')}
+            />
+          </div>
+          <div>
+            <label htmlFor="step-field-variant">{t('admin.formBuilder.step.fields.variant')}</label>
+            <Input
+              id="step-field-variant"
+              value={stepDraft.variant}
+              onChange={event =>
+                setStepDraft(prev => ({ ...prev, variant: event.target.value }))
+              }
+              placeholder={t('admin.formBuilder.step.fields.variantPlaceholder')}
+              list="step-variant-suggestions"
+            />
+            <datalist id="step-variant-suggestions">
+              {stepVariantOptions.filter(option => option.value).map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </datalist>
+            <p style={styles.fieldModalHint}>
+              {t('admin.formBuilder.step.fields.variantHint')}
+            </p>
           </div>
         </div>
-      </div>
+        <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <label htmlFor="step-field-info">{t('admin.formBuilder.step.fields.info')}</label>
+          <textarea
+            id="step-field-info"
+            className="input"
+            value={stepDraft.info}
+            onChange={event =>
+              setStepDraft(prev => ({ ...prev, info: event.target.value }))
+            }
+            rows={4}
+            placeholder={t('admin.formBuilder.step.fields.infoPlaceholder')}
+            style={{ resize: 'vertical' }}
+          />
+          <p style={styles.fieldModalHint}>
+            {t('admin.formBuilder.step.fields.infoHint')}
+          </p>
+        </div>
+      </Modal>
     )
   }
 
@@ -1462,209 +1470,213 @@ export default function CategoryFormBuilder() {
   }
 
   const renderFieldModal = () => {
-    if (!fieldModal) return null
-    const isEdit = fieldModal.mode === 'edit'
+    const isEdit = fieldModal?.mode === 'edit'
 
     return (
-      <div style={styles.fieldModalOverlay}>
-        <div style={styles.fieldModalCard}>
-          <div style={styles.fieldModalHeader}>
-            <div>
-              <h3 style={styles.fieldModalTitle}>
-                {isEdit
-                  ? t('admin.formBuilder.field.modalEditTitle')
-                  : t('admin.formBuilder.field.modalCreateTitle')}
-              </h3>
-              <p style={styles.fieldModalSubtitle}>
-                {selectedStep
-                  ? t('admin.formBuilder.field.modalSubtitleWithStep', { step: selectedStep.label })
-                  : t('admin.formBuilder.field.modalSubtitle')}
-              </p>
-            </div>
-            <Button type="button" variant="ghost" onClick={closeFieldModal}>
-              {t('admin.formBuilder.field.modalClose')}
-            </Button>
-          </div>
-
-          <div style={styles.fieldModalBody}>
-            <div style={styles.fieldModalGrid}>
-              <div>
-                <label>{t('admin.formBuilder.field.fields.name')}</label>
-                <Input
-                  value={fieldDraft.name}
-                  onChange={event =>
-                    setFieldDraft(prev => ({ ...prev, name: event.target.value }))
-                  }
-                  placeholder={t('admin.formBuilder.field.fields.namePlaceholder')}
-                />
-              </div>
-
-              <div>
-                <label>{t('admin.formBuilder.field.fields.label')}</label>
-                <Input
-                  value={fieldDraft.label}
-                  onChange={event =>
-                    setFieldDraft(prev => ({ ...prev, label: event.target.value }))
-                  }
-                  placeholder={t('admin.formBuilder.field.fields.labelPlaceholder')}
-                />
-              </div>
-
-              <div>
-                <Select
-                  label={t('admin.formBuilder.field.fields.type')}
-                  options={fieldTypeOptions}
-                  value={fieldDraft.type}
-                  onChange={value => handleFieldTypeChange(String(value))}
-                />
-              </div>
-
-              <div>
-                <label>{t('admin.formBuilder.field.fields.unit')}</label>
-                <Input
-                  value={fieldDraft.unit}
-                  onChange={event =>
-                    setFieldDraft(prev => ({ ...prev, unit: event.target.value }))
-                  }
-                  placeholder={t('admin.formBuilder.field.fields.unitPlaceholder')}
-                />
-              </div>
-              <div>
-                <label>{t('admin.formBuilder.field.fields.uiRole')}</label>
-                <Input
-                  value={fieldDraft.uiRole}
-                  onChange={event =>
-                    setFieldDraft(prev => ({ ...prev, uiRole: event.target.value }))
-                  }
-                  placeholder={t('admin.formBuilder.field.fields.uiRolePlaceholder')}
-                  list="field-ui-role-suggestions"
-                />
-                <datalist id="field-ui-role-suggestions">
-                  {fieldUiRoleOptions.filter(option => option.value).map(option => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </datalist>
-                <p style={styles.fieldModalHint}>
-                  {t('admin.formBuilder.field.fields.uiRoleHint')}
-                </p>
-              </div>
-            </div>
-
-            <div style={styles.fieldToggleRow}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
-                <input
-                  type="checkbox"
-                  checked={!fieldDraft.disabled}
-                  onChange={event =>
-                    setFieldDraft(prev => ({ ...prev, disabled: !event.target.checked }))
-                  }
-                />
-                <span>{t('admin.formBuilder.field.fields.active')}</span>
-              </label>
-              <span style={styles.fieldToggleHelp}>
-                {t('admin.formBuilder.field.fields.activeHint')}
-              </span>
-            </div>
-
-            <div>
-              <label>{t('admin.formBuilder.field.fields.info')}</label>
-              <textarea
-                className="input"
-                value={fieldDraft.info}
-                onChange={event =>
-                  setFieldDraft(prev => ({ ...prev, info: event.target.value }))
-                }
-                rows={4}
-                placeholder={t('admin.formBuilder.field.fields.infoPlaceholder')}
-                style={{ resize: 'vertical' }}
-              />
-              <p style={styles.fieldModalHint}>
-                {t('admin.formBuilder.field.fields.infoHint')}
-              </p>
-            </div>
-
-            <div>
-              <label>{t('admin.formBuilder.field.fields.rules')}</label>
-              <textarea
-                className="input"
-                value={fieldDraft.rules}
-                onChange={event =>
-                  setFieldDraft(prev => ({ ...prev, rules: event.target.value }))
-                }
-                rows={6}
-                placeholder={t('admin.formBuilder.field.fields.rulesPlaceholder')}
-                style={{ resize: 'vertical' }}
-              />
-              <p style={styles.fieldModalHint}>
-                {t('admin.formBuilder.field.fields.rulesHint')}
-              </p>
-            </div>
-
-            {isChoiceType(fieldDraft.type) ? (
-              <div style={styles.optionSection}>
-                <strong>{t('admin.formBuilder.field.options.title')}</strong>
-                <div style={styles.optionList}>
-                  {fieldDraft.options.map(option => (
-                    <div key={option.key} style={styles.optionRow}>
-                      <div style={styles.optionInputs}>
-                        <Input
-                          value={option.value}
-                          onChange={event =>
-                            handleOptionChange(option.key, 'value', event.target.value)
-                          }
-                          placeholder={t('admin.formBuilder.field.options.valuePlaceholder')}
-                        />
-                        <Input
-                          value={option.label}
-                          onChange={event =>
-                            handleOptionChange(option.key, 'label', event.target.value)
-                          }
-                          placeholder={t('admin.formBuilder.field.options.labelPlaceholder')}
-                        />
-                        <Input
-                          value={option.description ?? ''}
-                          onChange={event =>
-                            handleOptionChange(option.key, 'description', event.target.value)
-                          }
-                          placeholder={t('admin.formBuilder.field.options.descriptionPlaceholder')}
-                        />
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        style={styles.optionRemoveButton}
-                        onClick={() => handleRemoveOption(option.key)}
-                        disabled={fieldDraft.options.length <= 1}
-                      >
-                        {t('admin.formBuilder.field.options.remove')}
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-                <Button type="button" variant="outline" onClick={handleAddOption}>
-                  {t('admin.formBuilder.field.options.add')}
-                </Button>
-              </div>
-            ) : null}
-          </div>
-
-          <div style={styles.fieldModalFooter}>
+      <Modal
+        open={Boolean(fieldModal)}
+        title={
+          isEdit
+            ? t('admin.formBuilder.field.modalEditTitle')
+            : t('admin.formBuilder.field.modalCreateTitle')
+        }
+        description={
+          selectedStep
+            ? t('admin.formBuilder.field.modalSubtitleWithStep', { step: selectedStep.label })
+            : t('admin.formBuilder.field.modalSubtitle')
+        }
+        onClose={closeFieldModal}
+        footer={
+          <>
             <Button type="button" variant="ghost" onClick={closeFieldModal}>
               {t('actions.cancel')}
             </Button>
             <Button type="button" onClick={handleFieldSubmit}>
               {isEdit ? t('actions.save') : t('admin.formBuilder.field.create')}
             </Button>
+          </>
+        }
+      >
+        <div style={styles.fieldModalBody}>
+          <div style={styles.fieldModalGrid}>
+            <div>
+              <label htmlFor="field-field-name">{t('admin.formBuilder.field.fields.name')}</label>
+              <Input
+                id="field-field-name"
+                value={fieldDraft.name}
+                onChange={event =>
+                  setFieldDraft(prev => ({ ...prev, name: event.target.value }))
+                }
+                placeholder={t('admin.formBuilder.field.fields.namePlaceholder')}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="field-field-label">{t('admin.formBuilder.field.fields.label')}</label>
+              <Input
+                id="field-field-label"
+                value={fieldDraft.label}
+                onChange={event =>
+                  setFieldDraft(prev => ({ ...prev, label: event.target.value }))
+                }
+                placeholder={t('admin.formBuilder.field.fields.labelPlaceholder')}
+              />
+            </div>
+
+            <div>
+              <Select
+                id="field-field-type"
+                label={t('admin.formBuilder.field.fields.type')}
+                options={fieldTypeOptions}
+                value={fieldDraft.type}
+                onChange={value => handleFieldTypeChange(String(value))}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="field-field-unit">{t('admin.formBuilder.field.fields.unit')}</label>
+              <Input
+                id="field-field-unit"
+                value={fieldDraft.unit}
+                onChange={event =>
+                  setFieldDraft(prev => ({ ...prev, unit: event.target.value }))
+                }
+                placeholder={t('admin.formBuilder.field.fields.unitPlaceholder')}
+              />
+            </div>
+            <div>
+              <label htmlFor="field-field-ui-role">{t('admin.formBuilder.field.fields.uiRole')}</label>
+              <Input
+                id="field-field-ui-role"
+                value={fieldDraft.uiRole}
+                onChange={event =>
+                  setFieldDraft(prev => ({ ...prev, uiRole: event.target.value }))
+                }
+                placeholder={t('admin.formBuilder.field.fields.uiRolePlaceholder')}
+                list="field-ui-role-suggestions"
+              />
+              <datalist id="field-ui-role-suggestions">
+                {fieldUiRoleOptions.filter(option => option.value).map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </datalist>
+              <p style={styles.fieldModalHint}>
+                {t('admin.formBuilder.field.fields.uiRoleHint')}
+              </p>
+            </div>
           </div>
+
+          <div style={styles.fieldToggleRow}>
+            <label
+              htmlFor="field-field-active"
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}
+            >
+              <input
+                id="field-field-active"
+                type="checkbox"
+                checked={!fieldDraft.disabled}
+                onChange={event =>
+                  setFieldDraft(prev => ({ ...prev, disabled: !event.target.checked }))
+                }
+              />
+              <span>{t('admin.formBuilder.field.fields.active')}</span>
+            </label>
+            <span style={styles.fieldToggleHelp}>
+              {t('admin.formBuilder.field.fields.activeHint')}
+            </span>
+          </div>
+
+          <div>
+            <label htmlFor="field-field-info">{t('admin.formBuilder.field.fields.info')}</label>
+            <textarea
+              id="field-field-info"
+              className="input"
+              value={fieldDraft.info}
+              onChange={event =>
+                setFieldDraft(prev => ({ ...prev, info: event.target.value }))
+              }
+              rows={4}
+              placeholder={t('admin.formBuilder.field.fields.infoPlaceholder')}
+              style={{ resize: 'vertical' }}
+            />
+            <p style={styles.fieldModalHint}>
+              {t('admin.formBuilder.field.fields.infoHint')}
+            </p>
+          </div>
+
+          <div>
+            <label htmlFor="field-field-rules">{t('admin.formBuilder.field.fields.rules')}</label>
+            <textarea
+              id="field-field-rules"
+              className="input"
+              value={fieldDraft.rules}
+              onChange={event =>
+                setFieldDraft(prev => ({ ...prev, rules: event.target.value }))
+              }
+              rows={6}
+              placeholder={t('admin.formBuilder.field.fields.rulesPlaceholder')}
+              style={{ resize: 'vertical' }}
+            />
+            <p style={styles.fieldModalHint}>
+              {t('admin.formBuilder.field.fields.rulesHint')}
+            </p>
+          </div>
+
+          {isChoiceType(fieldDraft.type) ? (
+            <div style={styles.optionSection}>
+              <strong>{t('admin.formBuilder.field.options.title')}</strong>
+              <div style={styles.optionList}>
+                {fieldDraft.options.map(option => (
+                  <div key={option.key} style={styles.optionRow}>
+                    <div style={styles.optionInputs}>
+                      <Input
+                        value={option.value}
+                        onChange={event =>
+                          handleOptionChange(option.key, 'value', event.target.value)
+                        }
+                        placeholder={t('admin.formBuilder.field.options.valuePlaceholder')}
+                      />
+                      <Input
+                        value={option.label}
+                        onChange={event =>
+                          handleOptionChange(option.key, 'label', event.target.value)
+                        }
+                        placeholder={t('admin.formBuilder.field.options.labelPlaceholder')}
+                      />
+                      <Input
+                        value={option.description ?? ''}
+                        onChange={event =>
+                          handleOptionChange(option.key, 'description', event.target.value)
+                        }
+                        placeholder={t('admin.formBuilder.field.options.descriptionPlaceholder')}
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      style={styles.optionRemoveButton}
+                      onClick={() => handleRemoveOption(option.key)}
+                      disabled={fieldDraft.options.length <= 1}
+                    >
+                      {t('admin.formBuilder.field.options.remove')}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              <Button type="button" variant="outline" onClick={handleAddOption}>
+                {t('admin.formBuilder.field.options.add')}
+              </Button>
+            </div>
+          ) : null}
         </div>
-      </div>
+      </Modal>
     )
   }
 
   return (
-    <DashboardLayout>
+    <AdminLayout>
       <div style={styles.page}>
         <header className="dashboard-header">
           <div>
@@ -1693,6 +1705,6 @@ export default function CategoryFormBuilder() {
       </div>
       {renderStepModal()}
       {renderFieldModal()}
-    </DashboardLayout>
+    </AdminLayout>
   )
 }

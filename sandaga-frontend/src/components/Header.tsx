@@ -7,7 +7,9 @@ import { useMessageNotifications } from '../hooks/useMessageNotifications'
 import { useFeatureFlagsContext } from '../contexts/FeatureFlagContext'
 import { useCategories } from '../hooks/useCategories'
 import { useI18n } from '../contexts/I18nContext'
-import lemaketIcon from '../assets/icons/lemaket-icon.svg'
+import { apiGet } from '../utils/api'
+import { Logo, Icon } from './ds'
+import * as HS from './Header.styles'
 
 type RecentSearchItem = {
   label: string
@@ -15,16 +17,45 @@ type RecentSearchItem = {
   to: string
 }
 
+type QuerySuggestionItem = {
+  id: string
+  label: string
+  query: string
+  resultCount: number
+  hits: number
+}
+
+type QuerySuggestionSource = 'recent' | 'trending' | 'history'
+
+type HeaderQuerySuggestion = {
+  id: string
+  label: string
+  query: string
+  resultCount: number
+  hits: number
+  source: QuerySuggestionSource
+}
+
+const normalizeSuggestionKey = (value: string) =>
+  value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '')
+    .trim()
+
+const isValidSuggestionQuery = (value: string) =>
+  value.trim().length >= 2 && /[a-z]/i.test(value)
+
 export default function Header(){
   const location = useLocation()
   const navigate = useNavigate()
-  const { user, isPro, isAdmin } = useAuth()
+  const { user, isAdmin } = useAuth()
   const unreadTotal = useMessageNotifications()
   const { isEnabled } = useFeatureFlagsContext()
   const messagingEnabled = isEnabled('proMessaging')
-  const proPortalEnabled = isEnabled('proPortal')
   const { categories, isLoading: categoriesLoading, error: categoriesError } = useCategories({ activeOnly: false })
-  const { t } = useI18n()
+  const { t, locale, setLocale } = useI18n()
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchValue, setSearchValue] = useState('')
   const [searchTitleOnly, setSearchTitleOnly] = useState(false)
@@ -104,6 +135,11 @@ const navLinks = useMemo(() => {
   const RECENT_SEARCHES_KEY = 'lemaket.recentSearches.v2'
   const MAX_RECENT_SEARCHES = 6
   const [recentSearches, setRecentSearches] = useState<RecentSearchItem[]>([])
+  const [trendingSearches, setTrendingSearches] = useState<QuerySuggestionItem[]>([])
+  const [historySuggestions, setHistorySuggestions] = useState<QuerySuggestionItem[]>([])
+  const [historySuggestionsLoading, setHistorySuggestionsLoading] = useState(false)
+  const historyDebounceRef = useRef<number | null>(null)
+  const historyAbortRef = useRef<AbortController | null>(null)
 
   const categoryLabelBySlug = useMemo(() => {
     const map = new Map<string, string>()
@@ -340,6 +376,33 @@ const navLinks = useMemo(() => {
   }, [searchOpen])
 
   useEffect(() => {
+    if (!searchOpen || trendingSearches.length > 0) {
+      return
+    }
+
+    const controller = new AbortController()
+    apiGet<QuerySuggestionItem[]>('/home/trending-searches', {
+      signal: controller.signal,
+      silent: true
+    })
+      .then(items => {
+        if (controller.signal.aborted) {
+          return
+        }
+        setTrendingSearches(Array.isArray(items) ? items : [])
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setTrendingSearches([])
+        }
+      })
+
+    return () => {
+      controller.abort()
+    }
+  }, [searchOpen, trendingSearches.length])
+
+  useEffect(() => {
     if (!searchOpen) {
       return
     }
@@ -408,8 +471,158 @@ const navLinks = useMemo(() => {
   }
 
   const normalizedQuery = searchValue.trim().toLowerCase()
+  useEffect(() => {
+    if (!searchOpen || normalizedQuery.length < 2) {
+      if (historyDebounceRef.current) {
+        window.clearTimeout(historyDebounceRef.current)
+        historyDebounceRef.current = null
+      }
+      if (historyAbortRef.current) {
+        historyAbortRef.current.abort()
+        historyAbortRef.current = null
+      }
+      setHistorySuggestions([])
+      setHistorySuggestionsLoading(false)
+      return
+    }
+
+    if (historyDebounceRef.current) {
+      window.clearTimeout(historyDebounceRef.current)
+    }
+    if (historyAbortRef.current) {
+      historyAbortRef.current.abort()
+    }
+
+    setHistorySuggestionsLoading(true)
+    historyDebounceRef.current = window.setTimeout(async () => {
+      const controller = new AbortController()
+      historyAbortRef.current = controller
+      try {
+        const items = await apiGet<QuerySuggestionItem[]>(
+          `/search/suggestions?q=${encodeURIComponent(normalizedQuery)}&limit=8`,
+          {
+            signal: controller.signal,
+            silent: true
+          }
+        )
+        if (controller.signal.aborted) {
+          return
+        }
+        setHistorySuggestions(Array.isArray(items) ? items : [])
+      } catch {
+        if (!controller.signal.aborted) {
+          setHistorySuggestions([])
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setHistorySuggestionsLoading(false)
+        }
+      }
+    }, 220)
+
+    return () => {
+      if (historyDebounceRef.current) {
+        window.clearTimeout(historyDebounceRef.current)
+        historyDebounceRef.current = null
+      }
+      if (historyAbortRef.current) {
+        historyAbortRef.current.abort()
+        historyAbortRef.current = null
+      }
+    }
+  }, [normalizedQuery, searchOpen])
+
+  const querySuggestions = useMemo<HeaderQuerySuggestion[]>(() => {
+    const normalizedInput = normalizedQuery
+    const recentSuggestions = recentSearches
+      .map<HeaderQuerySuggestion | null>(item => {
+        const queryString = item.to.includes('?') ? item.to.split('?')[1] ?? '' : ''
+        const params = new URLSearchParams(queryString)
+        const query = params.get('q')?.trim() ?? ''
+        if (!query) {
+          return null
+        }
+        return {
+          id: `recent-${query.toLowerCase()}`,
+          label: query,
+          query,
+          resultCount: 0,
+          hits: 0,
+          source: 'recent'
+        }
+      })
+      .filter((item): item is HeaderQuerySuggestion => Boolean(item?.query))
+
+    const trendingSuggestions: HeaderQuerySuggestion[] = trendingSearches.map(item => ({
+      id: `trending-${item.id}`,
+      label: item.label,
+      query: item.query,
+      resultCount: item.resultCount ?? 0,
+      hits: item.hits ?? 0,
+      source: 'trending'
+    }))
+
+    const serverSuggestions: HeaderQuerySuggestion[] = historySuggestions.map(item => ({
+      id: `history-${item.id}`,
+      label: item.label,
+      query: item.query,
+      resultCount: item.resultCount ?? 0,
+      hits: item.hits ?? 0,
+      source: 'history'
+    }))
+
+    const candidates = normalizedInput
+      ? [...serverSuggestions, ...recentSuggestions, ...trendingSuggestions].filter(item => {
+          const normalizedCandidate = item.query.trim().toLowerCase()
+          const normalizedLabel = item.label.trim().toLowerCase()
+          return (
+            normalizedCandidate.includes(normalizedInput) ||
+            normalizedLabel.includes(normalizedInput)
+          )
+        })
+      : [...recentSuggestions, ...trendingSuggestions]
+
+    const seen = new Set<string>()
+    const scored = candidates
+      .map(item => {
+        const normalizedCandidate = item.query.trim().toLowerCase()
+        let score = 0
+        if (normalizedInput) {
+          if (normalizedCandidate === normalizedInput) {
+            score += 600
+          } else if (normalizedCandidate.startsWith(normalizedInput)) {
+            score += 340
+          } else if (normalizedCandidate.includes(normalizedInput)) {
+            score += 180
+          }
+        }
+        if (item.source === 'history') score += 140
+        if (item.source === 'recent') score += 120
+        if (item.source === 'trending') score += 90
+        score += Math.min(item.resultCount, 500) / 10
+        score += Math.min(item.hits, 500) / 10
+
+        return { item, score }
+      })
+      .sort((a, b) => b.score - a.score)
+      .map(entry => entry.item)
+      .filter(item => {
+        if (!isValidSuggestionQuery(item.query)) {
+          return false
+        }
+        const key = normalizeSuggestionKey(item.query)
+        if (!key || seen.has(key)) {
+          return false
+        }
+        seen.add(key)
+        return true
+      })
+
+    return scored.slice(0, MAX_SUGGESTIONS)
+  }, [historySuggestions, normalizedQuery, recentSearches, trendingSearches])
+
   const categorySuggestions = useMemo<
-    Array<{ id: string; slug: string; label: string; parentLabel: string | null }>
+    { id: string; slug: string; label: string; parentLabel: string | null }[]
   >(() => {
     if (categoriesLoading || categoriesError || !categories.length) {
       return []
@@ -449,6 +662,13 @@ const navLinks = useMemo(() => {
 
   const showPanel = searchOpen
 
+  const handleQuerySuggestionClick = (query: string) => {
+    const target = buildSearchUrl(query)
+    addRecentSearch(target, query)
+    navigate(target)
+    setSearchOpen(false)
+  }
+
   const handleCategorySuggestionClick = (
     categorySlug: string,
     categoryLabel: string
@@ -460,254 +680,221 @@ const navLinks = useMemo(() => {
   }
 
   return (
-    <header className="lbc-header" ref={headerRef}>
-      <div className="container lbc-header__inner">
-        <div className="lbc-header__brand">
-          <Link to="/" className="lbc-logo">
-            <img src={lemaketIcon} alt="" aria-hidden className="lbc-logo__icon" />
-            <span className="lbc-logo__text">LEMAKET</span>
-          </Link>
-          <span className="lbc-header__tag">{t('header.tagline')}</span>
-        </div>
-        <div className="lbc-header__center">
+    <HS.HeaderEl ref={headerRef}>
+      <HS.Bar>
+        <HS.Brand to="/" aria-label="Lemaket">
+          <Logo size={30} />
+        </HS.Brand>
+
+        <HS.SearchBox ref={searchBarRef}>
           <button
             type="button"
-            className="lbc-header__search-trigger"
             ref={searchToggleRef}
-            onClick={() => setSearchOpen(prev => !prev)}
-            aria-expanded={searchOpen}
-            aria-controls="header-search-input"
+            aria-label={t('header.searchPlaceholder')}
+            onClick={() => {
+              setSearchOpen(true)
+              searchInputRef.current?.focus()
+            }}
+            style={{ background: 'none', border: 'none', display: 'flex', cursor: 'pointer', padding: 0 }}
           >
-            <span aria-hidden className="lbc-header__search-trigger-icon">🔎</span>
-            <span className="lbc-header__search-trigger-label">{t('header.searchPlaceholder')}</span>
+            <Icon name="search" size={18} color="#97A199" />
           </button>
-        </div>
+          <form onSubmit={handleSearchSubmit} style={{ display: 'contents' }}>
+            <input
+              ref={searchInputRef}
+              id="header-search-input"
+              type="search"
+              value={searchValue}
+              onChange={event => setSearchValue(event.target.value)}
+              onFocus={() => setSearchOpen(true)}
+              placeholder={t('header.searchPlaceholder')}
+              aria-label={t('header.search')}
+            />
+          </form>
+          {searchValue ? (
+            <HS.ClearBtn type="button" aria-label={t('header.search.clear')} onClick={handleClearSearch}>
+              ×
+            </HS.ClearBtn>
+          ) : null}
+          <HS.CamBtn
+            type="button"
+            aria-label={t('header.search')}
+            title={t('header.search')}
+            onClick={() => navigate('/search/visual')}
+          >
+            <Icon name="cam" size={17} />
+          </HS.CamBtn>
 
-        <div className="lbc-header__actions">
-          <div className="lbc-header__actions-main">
-            <Link to="/listings/new" className="btn btn--primary">{t('header.postListing')}</Link>
-            <Link to="/dashboard/favorites" className="lbc-header__pill">
-              <span aria-hidden>⭐</span>
-              <span>{t('header.favorites')}</span>
-            </Link>
-            {messagingEnabled && isPro ? (
-              <Link to="/dashboard/messages" className="lbc-header__pill">
-                <span aria-hidden>💬</span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  {t('header.messages')}
-                  {unreadTotal ? (
-                    <span
-                      className="lbc-header__badge lbc-header__badge--alert"
-                      aria-label={unreadLabel}
-                    >
-                      {unreadTotal > 99 ? '99+' : unreadTotal}
-                    </span>
+          {showPanel ? (
+            <HS.SuggestPanel>
+              {normalizedQuery ? (
+                <>
+                  <HS.SuggestSection>
+                    <HS.SuggestTitle>{t('header.search.suggestions')}</HS.SuggestTitle>
+                    {historySuggestionsLoading ? (
+                      <HS.SuggestEmpty>{t('search.header.loading')}</HS.SuggestEmpty>
+                    ) : querySuggestions.length ? (
+                      querySuggestions.map(item => (
+                        <HS.SuggestItem
+                          key={item.id}
+                          type="button"
+                          onClick={() => handleQuerySuggestionClick(item.query)}
+                        >
+                          <Icon
+                            name={item.source === 'recent' ? 'clock' : item.source === 'trending' ? 'spark' : 'search'}
+                            size={16}
+                            color="#97A199"
+                          />
+                          <span>
+                            <strong>{item.label}</strong>
+                          </span>
+                        </HS.SuggestItem>
+                      ))
+                    ) : (
+                      <HS.SuggestEmpty>{t('header.search.empty')}</HS.SuggestEmpty>
+                    )}
+                  </HS.SuggestSection>
+                  {categorySuggestions.length ? (
+                    <HS.SuggestSection>
+                      <HS.SuggestTitle>{t('header.search.in')}</HS.SuggestTitle>
+                      {categorySuggestions.map(item => (
+                        <HS.SuggestItem
+                          key={item.id}
+                          type="button"
+                          onClick={() => handleCategorySuggestionClick(item.slug, item.label)}
+                        >
+                          <Icon name="tag" size={16} color="#97A199" />
+                          <span>
+                            <strong>{item.label}</strong>
+                          </span>
+                        </HS.SuggestItem>
+                      ))}
+                    </HS.SuggestSection>
                   ) : null}
-                </span>
-              </Link>
-            ) : null}
-            {user ? (
-              <Link to="/dashboard" className="lbc-header__pill lbc-header__pill--user">
-                <span aria-hidden>👤</span>
-                <span>
-                  {user.firstName}
-                  {isAdmin ? (
-                    <span className="lbc-header__badge">{t('header.badge.admin')}</span>
-                  ) : isPro ? (
-                    <span className="lbc-header__badge">{t('header.badge.pro')}</span>
-                  ) : null}
-                </span>
-              </Link>
-            ) : (
-              <Link to="/login" className="lbc-header__pill">
-                <span aria-hidden>👤</span>
-                <span>{t('header.login')}</span>
-              </Link>
-            )}
-          </div>
-          <div className="lbc-header__actions-preferences">
-            <LocaleSwitcher />
-            <SwitchTheme />
-          </div>
-        </div>
+                </>
+              ) : (
+                <HS.SuggestSection>
+                  <HS.SuggestTitle>{t('header.search.recent')}</HS.SuggestTitle>
+                  {recentSearches.length ? (
+                    recentSearches.map(item => (
+                      <HS.SuggestItem
+                        key={item.to}
+                        type="button"
+                        onClick={() => {
+                          navigate(item.to)
+                          setSearchOpen(false)
+                        }}
+                      >
+                        <Icon name="clock" size={16} color="#97A199" />
+                        <span>
+                          <strong>{item.label}</strong>
+                          <small>{item.subtitle}</small>
+                        </span>
+                      </HS.SuggestItem>
+                    ))
+                  ) : (
+                    <HS.SuggestEmpty>{t('header.search.noRecent')}</HS.SuggestEmpty>
+                  )}
+                </HS.SuggestSection>
+              )}
+            </HS.SuggestPanel>
+          ) : null}
+        </HS.SearchBox>
 
-        <button
+        <HS.Spacer />
+
+        <HS.LangToggle>
+          {(['fr', 'en'] as const).map(l => (
+            <button key={l} type="button" data-active={locale === l} onClick={() => setLocale(l)}>
+              {l.toUpperCase()}
+            </button>
+          ))}
+        </HS.LangToggle>
+
+        <SwitchTheme />
+
+        <HS.IconBtn
           type="button"
-          className="lbc-header__search-mobile-toggle"
-          onClick={() => setSearchOpen(prev => !prev)}
-          aria-expanded={searchOpen}
-          aria-controls="header-search-input"
-          aria-label={t('header.search')}
+          aria-label={t('header.notifications')}
+          onClick={() => navigate('/dashboard/alerts')}
         >
-          <span aria-hidden="true">🔎</span>
-        </button>
-        <button
+          <Icon name="bell" size={20} />
+          <HS.Dot />
+        </HS.IconBtn>
+
+        <HS.ActionLink to="/dashboard">
+          <Icon name="grid" size={18} /> {t('header.space')}
+        </HS.ActionLink>
+        <HS.ActionLink to="/dashboard/favorites">
+          <Icon name="heart" size={19} /> {t('header.favorites')}
+        </HS.ActionLink>
+        {messagingEnabled && Boolean(user) ? (
+          <HS.ActionLink to="/dashboard/messages">
+            <Icon name="chat" size={19} /> {t('header.messages')}
+            {unreadTotal ? (
+              <HS.Badge aria-label={unreadLabel}>{unreadTotal > 99 ? '99+' : unreadTotal}</HS.Badge>
+            ) : null}
+          </HS.ActionLink>
+        ) : null}
+        {user ? (
+          <HS.ActionLink to="/dashboard">
+            <Icon name="user" size={19} /> {user.firstName}
+            {isAdmin ? <HS.Badge>{t('header.badge.admin')}</HS.Badge> : null}
+          </HS.ActionLink>
+        ) : (
+          <HS.ActionLink to="/login">
+            <Icon name="user" size={19} /> {t('header.login')}
+          </HS.ActionLink>
+        )}
+
+        <HS.PostBtn to="/listings/new">
+          <Icon name="plus" size={17} color="#fff" /> {t('header.postListing')}
+        </HS.PostBtn>
+
+        <HS.IconToggle
           type="button"
-          className={`lbc-header__menu-toggle${mobileMenuOpen ? ' is-open' : ''}`}
+          aria-label={t('header.search')}
+          onClick={() => {
+            setSearchOpen(true)
+            searchInputRef.current?.focus()
+          }}
+        >
+          <Icon name="search" size={20} />
+        </HS.IconToggle>
+        <HS.IconToggle
+          ref={mobileMenuToggleRef}
+          type="button"
+          data-testid="header-menu-toggle"
           aria-expanded={mobileMenuOpen}
           aria-controls="header-mobile-menu"
           aria-label={mobileMenuOpen ? t('header.mobile.close') : t('header.mobile.open')}
           onClick={toggleMobileMenu}
-          ref={mobileMenuToggleRef}
         >
-          <span className="lbc-header__menu-line" aria-hidden="true" />
-          <span className="lbc-header__menu-line" aria-hidden="true" />
-          <span className="lbc-header__menu-line" aria-hidden="true" />
-        </button>
-      </div>
+          <Icon name="menu" size={22} />
+        </HS.IconToggle>
+      </HS.Bar>
 
-      <div className={`lbc-header__search-bar${searchOpen ? ' is-open' : ''}`} ref={searchBarRef}>
-        <div className="container lbc-header__search-inner">
-          <form onSubmit={handleSearchSubmit} className="lbc-header__search-form">
-            <div className="lbc-header__search-control">
-              <input
-                ref={searchInputRef}
-                id="header-search-input"
-                className="input lbc-header__search-input"
-                type="search"
-                value={searchValue}
-                onChange={event => setSearchValue(event.target.value)}
-                placeholder={t('header.searchPlaceholder')}
-                aria-label={t('header.search')}
-              />
-              {searchValue ? (
-                <button
-                  type="button"
-                  className="lbc-header__search-clear"
-                  aria-label={t('header.search.clear')}
-                  onClick={handleClearSearch}
-                >
-                  ×
-                </button>
-              ) : null}
-              <button
-                type="submit"
-                className="lbc-header__search-submit"
-                aria-label={t('header.search')}
-              >
-                <span aria-hidden="true">⌕</span>
-              </button>
-            </div>
-          </form>
-          {showPanel ? (
-            <div className="lbc-header__search-panel lbc-header__search-panel--modern">
-              {normalizedQuery ? (
-                <>
-                  <label className="lbc-search-panel__toggle">
-                    <input
-                      type="checkbox"
-                      checked={searchTitleOnly}
-                      onChange={event => setSearchTitleOnly(event.target.checked)}
-                    />
-                    <span>{t('header.search.titleOnly')}</span>
-                  </label>
+      <HS.NavBar>
+        <HS.NavInner>
+          {navLinks.map(link => (
+            <HS.NavLink key={link.label} to={link.to}>
+              {link.label}
+            </HS.NavLink>
+          ))}
+          <HS.NavCta to="/search">
+            {t('header.allCategories')} <Icon name="chevR" size={14} />
+          </HS.NavCta>
+        </HS.NavInner>
+      </HS.NavBar>
 
-                  <div className="lbc-search-panel__divider" />
+      <HS.MobilePills>
+        {navLinks.map(link => (
+          <HS.NavLink key={link.label} to={link.to} style={{ borderBottom: 'none', whiteSpace: 'nowrap' }}>
+            {link.label}
+          </HS.NavLink>
+        ))}
+      </HS.MobilePills>
 
-                  <div className="lbc-search-panel__section">
-                    <span className="lbc-search-panel__title">{t('header.search.suggestions')}</span>
-
-                    {categorySuggestions.length ? (
-                      categorySuggestions.map(item => (
-                        <button
-                          key={item.id}
-                          type="button"
-                          className="lbc-search-panel__item lbc-search-panel__item--query"
-                          onClick={() => handleCategorySuggestionClick(item.slug, item.label)}
-                        >
-                          <span className="lbc-search-panel__icon" aria-hidden>⌕</span>
-                          <span className="lbc-search-panel__label">
-                            <strong>{searchValue.trim()}</strong>
-                            <span className="lbc-search-panel__in">{t('header.search.in')}</span>
-                            <em>{item.label}</em>
-                          </span>
-                        </button>
-                      ))
-                    ) : (
-                      <p className="lbc-search-panel__empty">{t('header.search.empty')}</p>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <div className="lbc-search-panel__section">
-                  <span className="lbc-search-panel__title">{t('header.search.recent')}</span>
-                  {recentSearches.length ? (
-                    recentSearches.map(item => (
-                      <div key={item.to} className="lbc-search-panel__item-wrap">
-                        <button
-                          type="button"
-                          className="lbc-search-panel__item lbc-search-panel__item--recent"
-                          onClick={() => {
-                            navigate(item.to)
-                            setSearchOpen(false)
-                          }}
-                        >
-                          <span className="lbc-search-panel__icon" aria-hidden>◷</span>
-                          <span className="lbc-search-panel__label lbc-search-panel__label--stacked">
-                            <strong>{item.label}</strong>
-                            <small>{item.subtitle}</small>
-                          </span>
-                        </button>
-                        <button
-                          type="button"
-                          className="lbc-search-panel__remove"
-                          aria-label={t('header.search.removeRecent')}
-                          onClick={() => removeRecentSearch(item.to)}
-                        >
-                          ×
-                        </button>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="lbc-search-panel__empty">{t('header.search.noRecent')}</p>
-                  )}
-                </div>
-              )}
-            </div>
-          ) : null}
-        </div>
-      </div>
-
-      <div className="lbc-header__nav-bar">
-        <div className="container lbc-header__nav-container">
-          <nav className="lbc-header__nav">
-            {primaryNavLinks.map(link => (
-              <div key={link.label} className="lbc-header__nav-item">
-                <Link to={link.to} className="lbc-header__nav-link">{link.label}</Link>
-                {link.children.length ? (
-                  <div className="lbc-header__nav-dropdown">
-                    {link.children.map(child => (
-                      <Link key={child.label} to={child.to} className="lbc-header__nav-sublink">
-                        {child.label}
-                      </Link>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            ))}
-            {overflowNavLinks.length ? (
-              <div className="lbc-header__nav-item">
-                <button type="button" className="lbc-header__nav-link lbc-header__nav-link--more">
-                  {t('header.more')}
-                </button>
-                <div className="lbc-header__nav-dropdown">
-                  {overflowNavLinks.map(link => (
-                    <Link key={link.label} to={link.to} className="lbc-header__nav-sublink">
-                      {link.label}
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-            <Link to="/search" className="lbc-header__nav-link lbc-header__nav-link--cta">
-              {t('header.allCategories')}
-            </Link>
-          </nav>
-          {proPortalEnabled && isPro ? (
-            <Link to="/dashboard/pro" className="lbc-header__cta">{t('header.proSpace')}</Link>
-          ) : null}
-        </div>
-      </div>
       {mobileMenuOpen ? (
         <div className="lbc-header__mobile-drawer" role="presentation">
           <button
@@ -738,7 +925,7 @@ const navLinks = useMemo(() => {
             <div className="lbc-header__mobile-body">
               <section className="lbc-header__mobile-section">
                 <span className="lbc-header__mobile-section-title">{t('header.mobile.actions')}</span>
-                {messagingEnabled && isPro ? (
+                {messagingEnabled && Boolean(user) ? (
                   <Link
                     to="/dashboard/messages"
                     className={`lbc-header__mobile-link${isMobileLinkActive('/dashboard/messages') ? ' is-active' : ''}`}
@@ -780,8 +967,6 @@ const navLinks = useMemo(() => {
                       {user.firstName}
                       {isAdmin ? (
                         <span className="lbc-header__badge">{t('header.badge.admin')}</span>
-                      ) : isPro ? (
-                        <span className="lbc-header__badge">{t('header.badge.pro')}</span>
                       ) : null}
                     </span>
                   </Link>
@@ -804,17 +989,6 @@ const navLinks = useMemo(() => {
                 >
                   {t('header.postListing')}
                 </Link>
-                {proPortalEnabled && isPro ? (
-                  <Link
-                    to="/dashboard/pro"
-                    className={`lbc-header__mobile-link${isMobileLinkActive('/dashboard/pro') ? ' is-active' : ''}`}
-                    aria-current={isMobileLinkActive('/dashboard/pro') ? 'page' : undefined}
-                    onClick={closeMobileMenu}
-                  >
-                    <span aria-hidden>📈</span>
-                    <span>{t('header.proSpace')}</span>
-                  </Link>
-                ) : null}
                 <div className="lbc-header__mobile-preferences">
                   <LocaleSwitcher />
                   <SwitchTheme />
@@ -898,6 +1072,6 @@ const navLinks = useMemo(() => {
           </div>
         </div>
       ) : null}
-    </header>
+    </HS.HeaderEl>
   )
 }

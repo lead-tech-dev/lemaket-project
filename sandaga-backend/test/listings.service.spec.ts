@@ -14,7 +14,11 @@ import { UserRole } from '../src/common/enums/user-role.enum';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { FormStep } from '../src/forms/entities/form-step.entity';
 import { SearchLogsService } from '../src/search-logs/search-logs.service';
+import { SearchRelevanceSettingsService } from '../src/search-logs/search-relevance-settings.service';
 import { NotificationsService } from '../src/notifications/notifications.service';
+import { GeoService } from '../src/geo/geo.service';
+import { PromotionsService } from '../src/promotions/promotions.service';
+import { MonitoringMetricsService } from '../src/monitoring/monitoring.metrics.service';
 
 describe('ListingsService', () => {
   let service: ListingsService;
@@ -24,9 +28,12 @@ describe('ListingsService', () => {
   };
   const queryBuilderMock = {
     leftJoinAndSelect: jest.fn().mockReturnThis(),
+    leftJoin: jest.fn().mockReturnThis(),
     where: jest.fn().mockReturnThis(),
     orderBy: jest.fn().mockReturnThis(),
     addOrderBy: jest.fn().mockReturnThis(),
+    addSelect: jest.fn().mockReturnThis(),
+    setParameters: jest.fn().mockReturnThis(),
     andWhere: jest.fn().mockReturnThis(),
     skip: jest.fn().mockReturnThis(),
     take: jest.fn().mockReturnThis(),
@@ -79,10 +86,26 @@ describe('ListingsService', () => {
 
   const mockSearchLogsService = {
     record: jest.fn(),
+    recordSearch: jest.fn(),
+    getSearchSynonymsMap: jest.fn(),
+  };
+  const mockSearchRelevanceSettingsService = {
+    getSettings: jest.fn(),
   };
 
   const mockNotificationsService = {
     createNotification: jest.fn(),
+  };
+
+  const mockGeoService = {
+    resolveSelection: jest.fn(),
+  };
+
+  const mockPromotionsService = {
+    runAutomationsIfDue: jest.fn(),
+  };
+  const mockMonitoringMetricsService = {
+    observeSearchListingsQuery: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -91,6 +114,23 @@ describe('ListingsService', () => {
     categoryQueryBuilderMock.getOne.mockResolvedValue(null);
     treeRepositoryMock.findDescendants.mockResolvedValue([]);
     mockCategoryRepository.find.mockResolvedValue([]);
+    mockGeoService.resolveSelection.mockResolvedValue({
+      cityId: null,
+      neighborhoodId: null,
+    });
+    mockSearchLogsService.getSearchSynonymsMap.mockResolvedValue({});
+    mockSearchRelevanceSettingsService.getSettings.mockResolvedValue({
+      enableBusinessBoost: true,
+      enableDynamicSynonyms: true,
+      popularCityBoost: 28,
+      proSellerBoost: 8,
+      categoryPriorityWeights: {
+        immobilier: 26,
+      },
+      categoryWeightsText: 'immobilier:26'
+    });
+    mockPromotionsService.runAutomationsIfDue.mockResolvedValue(undefined);
+    mockMonitoringMetricsService.observeSearchListingsQuery.mockReset();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -124,8 +164,24 @@ describe('ListingsService', () => {
           useValue: mockSearchLogsService,
         },
         {
+          provide: SearchRelevanceSettingsService,
+          useValue: mockSearchRelevanceSettingsService,
+        },
+        {
           provide: NotificationsService,
           useValue: mockNotificationsService,
+        },
+        {
+          provide: GeoService,
+          useValue: mockGeoService,
+        },
+        {
+          provide: PromotionsService,
+          useValue: mockPromotionsService,
+        },
+        {
+          provide: MonitoringMetricsService,
+          useValue: mockMonitoringMetricsService,
         },
       ],
     }).compile();
@@ -176,6 +232,10 @@ describe('ListingsService', () => {
       mockListingRepository.create.mockReturnValue(listing);
       mockListingRepository.save.mockResolvedValue(listing);
       mockListingImageRepository.save.mockResolvedValue([]);
+      mockGeoService.resolveSelection.mockResolvedValue({
+        cityId: 'city-1',
+        neighborhoodId: null,
+      });
 
       const result = await service.create(createListingDto, { id: '1', email: 'test@example.com', role: UserRole.USER });
 
@@ -188,6 +248,7 @@ describe('ListingsService', () => {
       expect(result).toHaveProperty('category.id', '1');
       expect(mockUsersService.findOne).toHaveBeenCalledWith('1');
       expect(mockCategoriesService.findOne).toHaveBeenCalledWith('1');
+      expect(mockGeoService.resolveSelection).toHaveBeenCalledWith(undefined, undefined);
       expect(mockListingRepository.create).toHaveBeenCalledWith(expect.any(Object));
       expect(mockListingRepository.save).toHaveBeenCalledWith(listing);
     });
@@ -264,6 +325,72 @@ describe('ListingsService', () => {
       );
     });
 
+    it('normalizes search query before recording search logs', async () => {
+      await service.findAll({ search: '   ndog   passi   ', page: 1 } as any);
+
+      expect(mockSearchLogsService.recordSearch).toHaveBeenCalledWith('ndog passi', 0);
+      expect(mockMonitoringMetricsService.observeSearchListingsQuery).toHaveBeenCalledWith(
+        true,
+        expect.any(Number),
+        0
+      );
+    });
+
+    it('uses search ranking order when a search term is provided', async () => {
+      await service.findAll({ search: 'voiture', page: 1 } as any);
+
+      expect(mockSearchLogsService.getSearchSynonymsMap).toHaveBeenCalled();
+      expect(mockSearchRelevanceSettingsService.getSettings).toHaveBeenCalled();
+      expect(queryBuilderMock.leftJoin).toHaveBeenCalledWith(
+        'geo_cities',
+        'geoCity',
+        'geoCity.id = listing.city_id'
+      );
+      expect(queryBuilderMock.orderBy).toHaveBeenCalledWith('search_rank', 'DESC');
+      expect(queryBuilderMock.addSelect).toHaveBeenCalledWith(
+        expect.stringContaining('CASE WHEN LOWER(lemaket_unaccent(COALESCE(listing.title, \'\'))) = :searchNormalizedExact'),
+        'search_rank'
+      );
+      expect(queryBuilderMock.addSelect).toHaveBeenCalledWith(
+        expect.stringContaining('searchPopularCityBoost'),
+        'search_rank'
+      );
+      expect(queryBuilderMock.addSelect).toHaveBeenCalledWith(
+        expect.stringContaining('searchProSellerBoost'),
+        'search_rank'
+      );
+      expect(queryBuilderMock.setParameters).toHaveBeenCalledWith(
+        expect.objectContaining({
+          searchPopularCityBoost: expect.any(Number),
+          searchProSellerBoost: expect.any(Number)
+        })
+      );
+    });
+
+    it('caps page size to 100', async () => {
+      await service.findAll({ limit: 250 } as any);
+
+      expect(queryBuilderMock.take).toHaveBeenCalledWith(100);
+    });
+
+    it('throws when minPrice is greater than maxPrice', async () => {
+      await expect(
+        service.findAll({ minPrice: 1000, maxPrice: 100 } as any)
+      ).rejects.toThrow('minPrice must be less than or equal to maxPrice.');
+    });
+
+    it('throws when only lat is provided', async () => {
+      await expect(
+        service.findAll({ lat: 4.05 } as any)
+      ).rejects.toThrow('lat and lng must be provided together.');
+    });
+
+    it('throws when radiusKm is provided without coordinates', async () => {
+      await expect(
+        service.findAll({ radiusKm: 25 } as any)
+      ).rejects.toThrow('lat and lng are required when radiusKm is provided.');
+    });
+
     it('keeps city matches without coordinates when radius filter is enabled', async () => {
       await service.findAll({ city: 'Douala', lat: 4.0511, lng: 9.7679, radiusKm: 25 } as any);
 
@@ -275,6 +402,44 @@ describe('ListingsService', () => {
           radiusKm: 25
         })
       );
+    });
+
+    it('adds deterministic id sort key for stable pagination', async () => {
+      await service.findAll({ sort: 'recent' as any } as any);
+
+      expect(queryBuilderMock.addOrderBy).toHaveBeenCalledWith('listing.id', 'DESC');
+    });
+
+    it('keeps only meaningful search tokens for filtering', () => {
+      const tokens = (service as any).tokenizeSearchTerms('de la coloc a douala');
+      expect(tokens).toEqual(['coloc', 'douala']);
+    });
+
+    it('falls back to the full query when only stop words are provided', () => {
+      const tokens = (service as any).tokenizeSearchTerms('de la et');
+      expect(tokens).toEqual(['de la et']);
+    });
+
+    it('supports advanced query parsing with include/exclude phrases and tokens', () => {
+      const parsed = (service as any).parseSearchQuery('"studio meuble" coloc -maison -"sans balcon"');
+      expect(parsed.includePhrases).toEqual(['studio meuble']);
+      expect(parsed.includeTerms).toEqual(['coloc']);
+      expect(parsed.excludeTerms).toEqual(['maison']);
+      expect(parsed.excludePhrases).toEqual(['sans balcon']);
+    });
+
+    it('adds exclusion clauses when query contains negative tokens', async () => {
+      await service.findAll({ search: 'coloc -maison', page: 1 } as any);
+      const clauses = queryBuilderMock.andWhere.mock.calls.map(call => String(call[0]));
+      expect(clauses.some(clause => clause.includes('NOT ('))).toBe(true);
+    });
+
+    it('merges runtime synonyms with static token expansion', () => {
+      const expanded = (service as any).expandSearchToken('telephone', {
+        telephone: ['gsm'],
+      });
+
+      expect(expanded).toEqual(expect.arrayContaining(['telephone', 'téléphone', 'smartphone', 'gsm']));
     });
   });
 

@@ -38,7 +38,16 @@ export type Listing = {
   city?: string | null
   location:
     | string
-    | { address?: string; city?: string; zipcode?: string; lat?: number; lng?: number; hideExact?: boolean }
+    | {
+        cityId?: string
+        neighborhoodId?: string
+        address?: string
+        city?: string
+        zipcode?: string
+        lat?: number
+        lng?: number
+        hideExact?: boolean
+      }
     | null
   tag?: string | null
   surface?: string | null
@@ -50,6 +59,7 @@ export type Listing = {
   attributes?: Record<string, unknown>
   isFeatured: boolean
   isBoosted: boolean
+  isPremium?: boolean
   views: number
   messagesCount: number
   publishedAt?: string | null

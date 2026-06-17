@@ -11,7 +11,9 @@ export type LocationSuggestion = {
   id: string
   label: string
   context: string | null
-  coordinates: [number, number]
-  city?: string
-  zipcode?: string
+  coordinates: [number, number] | null
+  cityId?: string
+  neighborhoodId?: string
+  city?: string | null
+  zipcode?: string | null
 }

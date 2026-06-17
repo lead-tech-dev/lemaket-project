@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "LEMAKET",
+    "slug": "lemaket-mobile",
+    "scheme": "lemaket",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "plugins": [
+      "expo-router",
+      "expo-secure-store"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "android": {
+      "package": "com.lemaket.mobile",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "CAMERA"
+      ]
+    },
+    "ios": {
+      "bundleIdentifier": "com.lemaket.mobile",
+      "infoPlist": {
+        "NSCameraUsageDescription": "LEMAKET a besoin d'accéder à la caméra pour scanner vos documents.",
+        "NSLocationWhenInUseUsageDescription": "LEMAKET utilise votre position pour trouver des annonces près de vous."
+      }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "replace-with-eas-project-id"
+      }
+    }
+  }
+}

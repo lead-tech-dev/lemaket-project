@@ -24,4 +24,9 @@ export class WalletTopupDto {
   @IsString()
   @MaxLength(20)
   paymentPhone?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['zikopay', 'campay', 'tranzak'])
+  provider?: 'zikopay' | 'campay' | 'tranzak';
 }

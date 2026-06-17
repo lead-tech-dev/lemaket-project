@@ -13,7 +13,7 @@ PAY_USER_ID="$(jq_get '.user.id')"
 PAY_TOKEN="$(jq_get '.accessToken')"
 
 step "Payments - payment methods CRUD"
-api_call "POST" "/payments/methods" "$PAY_TOKEN" '{"type":"wallet","label":"Wallet principal"}'
+api_call "POST" "/payments/methods" "$PAY_TOKEN" '{"type":"wallet","provider":"mtn","externalId":"+237670000000","holderName":"Pay User","label":"MTN principal"}'
 assert_status_in "200 201"
 METHOD_ID="$(jq_get '.id')"
 

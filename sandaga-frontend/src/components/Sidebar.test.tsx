@@ -51,7 +51,7 @@ describe('Sidebar', () => {
     renderWithProviders(<Sidebar />, { useRouter: true });
 
     expect(screen.queryByText('Vue PRO vs Particulier')).not.toBeInTheDocument();
-    expect(screen.queryByText('Paiements')).not.toBeInTheDocument();
+    expect(screen.getByText('Paiements')).toBeInTheDocument();
     expect(screen.queryByText('Compte PRO')).not.toBeInTheDocument();
   });
 
@@ -60,8 +60,8 @@ describe('Sidebar', () => {
 
     renderWithProviders(<Sidebar />, { useRouter: true });
 
-    expect(screen.getByText('Vue PRO vs Particulier')).toBeInTheDocument();
+    expect(screen.queryByText('Vue PRO vs Particulier')).not.toBeInTheDocument();
     expect(screen.getByText('Paiements')).toBeInTheDocument();
-    expect(screen.getByText('Compte PRO')).toBeInTheDocument();
+    expect(screen.queryByText('Compte PRO')).not.toBeInTheDocument();
   });
 });

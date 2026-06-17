@@ -66,17 +66,17 @@ const styles = {
     width: '34px',
     height: '34px',
     borderRadius: '10px',
-    border: '1px solid #e2e8f0',
+    border: '1px solid var(--color-border)',
     background: '#ffffff',
-    color: '#475569',
+    color: 'var(--color-text-muted)',
     boxShadow: '0 1px 2px rgba(15, 23, 42, 0.08)',
     cursor: 'pointer',
     transition: 'all 0.15s ease'
   },
   iconButtonDanger: {
-    color: '#dc2626',
-    borderColor: '#fecaca',
-    background: '#fff7f7'
+    color: 'var(--color-danger)',
+    borderColor: 'var(--color-danger-soft)',
+    background: 'var(--color-danger-soft)'
   }
 } as const
 
@@ -269,7 +269,7 @@ export default function Categories() {
               {t('admin.categories.export.excel')}
             </Button>
             {isExportRunning ? (
-              <span style={{ color: '#6c757d', fontSize: '0.85rem' }}>
+              <span style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>
                 {t('admin.categories.export.progress', { progress: exportProgress })}
               </span>
             ) : null}
@@ -326,7 +326,7 @@ export default function Categories() {
 
         <section className="admin-grid">
           {isLoading && !categories.length ? (
-            <p style={{ padding: '1rem', color: '#6c757d' }}>
+            <p style={{ padding: '1rem', color: 'var(--color-text-muted)' }}>
               {t('admin.categories.loading')}
             </p>
           ) : filteredCategories.length ? (
@@ -340,9 +340,9 @@ export default function Categories() {
                       fontWeight: 600,
                       padding: '2px 8px',
                       borderRadius: '999px',
-                      background: category.isActive ? '#ecfdf3' : '#f3f4f6',
-                      color: category.isActive ? '#15803d' : '#6b7280',
-                      border: `1px solid ${category.isActive ? '#bbf7d0' : '#e5e7eb'}`
+                      background: category.isActive ? 'var(--color-success-soft)' : '#f3f4f6',
+                      color: category.isActive ? '#15803d' : 'var(--color-text-muted)',
+                      border: `1px solid ${category.isActive ? '#bbf7d0' : 'var(--color-border)'}`
                     }}
                   >
                     {category.isActive
@@ -390,11 +390,11 @@ export default function Categories() {
               </div>
             ))
           ) : categories.length ? (
-            <p style={{ padding: '1rem', color: '#6c757d' }}>
+            <p style={{ padding: '1rem', color: 'var(--color-text-muted)' }}>
               {t('admin.categories.searchEmpty')}
             </p>
           ) : (
-            <p style={{ padding: '1rem', color: '#6c757d' }}>
+            <p style={{ padding: '1rem', color: 'var(--color-text-muted)' }}>
               {t('admin.categories.empty')}
             </p>
           )}
@@ -415,7 +415,7 @@ export default function Categories() {
             </Button>
           </div>
           {isAuditLoading ? (
-            <p style={{ color: '#6c757d' }}>{t('admin.categories.audit.loading')}</p>
+            <p style={{ color: 'var(--color-text-muted)' }}>{t('admin.categories.audit.loading')}</p>
           ) : auditEvents.length ? (
             <ul
               style={{
@@ -433,7 +433,7 @@ export default function Categories() {
                   style={{
                     padding: '12px',
                     borderRadius: '8px',
-                    border: '1px solid #e5e7eb',
+                    border: '1px solid var(--color-border)',
                     background: '#fff'
                   }}
                 >
@@ -446,14 +446,14 @@ export default function Categories() {
                     }}
                   >
                     <strong>{event.action}</strong>
-                    <span style={{ color: '#6c757d', fontSize: '0.8rem' }}>
+                    <span style={{ color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>
                       {auditDateFormatter.format(new Date(event.created_at))}
                     </span>
                   </div>
                   {event.details ? (
-                    <p style={{ marginTop: '6px', color: '#4b5563' }}>{event.details}</p>
+                    <p style={{ marginTop: '6px', color: 'var(--color-text-muted)' }}>{event.details}</p>
                   ) : null}
-                  <p style={{ marginTop: '6px', color: '#6c757d', fontSize: '0.85rem' }}>
+                  <p style={{ marginTop: '6px', color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>
                     {event.actorName ?? t('admin.categories.audit.system')}
                     {event.ipAddress ? ` · ${event.ipAddress}` : ''}
                   </p>
@@ -461,7 +461,7 @@ export default function Categories() {
               ))}
             </ul>
           ) : (
-            <p style={{ color: '#6c757d' }}>{t('admin.categories.audit.empty')}</p>
+            <p style={{ color: 'var(--color-text-muted)' }}>{t('admin.categories.audit.empty')}</p>
           )}
         </section>
       </div>

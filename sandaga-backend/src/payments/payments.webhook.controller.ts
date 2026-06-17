@@ -27,4 +27,14 @@ export class PaymentsWebhookController {
   handleZikopayWebhook(@Body() payload: Record<string, any>) {
     return this.paymentsService.handleZikopayWebhook(payload);
   }
+
+  @Post('campay/webhook')
+  handleCampayWebhook(@Body() payload: Record<string, any>) {
+    return this.paymentsService.handleCampayWebhook(payload);
+  }
+
+  @Post('tranzak/webhook')
+  handleTranzakWebhook(@Body() payload: Record<string, any>) {
+    return this.paymentsService.handleTranzakWebhook(payload);
+  }
 }

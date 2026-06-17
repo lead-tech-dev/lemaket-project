@@ -50,6 +50,7 @@ export default function StorefrontPage() {
   const [storefront, setStorefront] = useState<Storefront | null>(null)
   const [storefrontLoading, setStorefrontLoading] = useState(true)
   const [storefrontError, setStorefrontError] = useState<string | null>(null)
+  const [retryKey, setRetryKey] = useState(0)
 
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [listingSort, setListingSort] = useState<'recent' | 'priceAsc' | 'popular'>('recent')
@@ -88,7 +89,7 @@ export default function StorefrontPage() {
       })
 
     return () => controller.abort()
-  }, [slug, t])
+  }, [slug, t, retryKey])
 
   useEffect(() => {
     if (!storefront?.slug) return
@@ -241,7 +242,7 @@ export default function StorefrontPage() {
           title={t('storefront.errorTitle')}
           message={t('storefront.missing')}
           accessory="⚠️"
-          onRetry={() => window.location.assign('/')}
+          onRetry={() => navigate('/')}
         />
       </MainLayout>
     )
@@ -280,14 +281,14 @@ export default function StorefrontPage() {
           title={t('storefront.errorTitle')}
           message={storefrontError}
           accessory="⚠️"
-          onRetry={() => window.location.reload()}
+          onRetry={() => setRetryKey(key => key + 1)}
         />
       ) : !storefront ? (
         <RetryBanner
           title={t('storefront.notFoundTitle')}
           message={t('storefront.notFoundMessage')}
           accessory="🔎"
-          onRetry={() => window.location.assign('/')}
+          onRetry={() => navigate('/')}
         />
       ) : (
         <div className={`storefront-page storefront-theme--${storefront.theme ?? 'classic'}`}>
@@ -305,9 +306,6 @@ export default function StorefrontPage() {
               <div className="storefront-title">
                 <div className="storefront-title__row">
                   <h1>{storefront.name}</h1>
-                  {storefront.isPro ? (
-                    <span className="storefront-badge">{t('storefront.badge.pro')}</span>
-                  ) : null}
                   {storefront.isCompanyVerified ? (
                     <span className="storefront-badge storefront-badge--verified">
                       {t('storefront.badge.companyVerified')}
@@ -531,6 +529,11 @@ export default function StorefrontPage() {
 	                            style={hasCover ? { backgroundImage: `url(${coverUrl})` } : undefined}
 	                          >
                             <div className="lbc-listing-card__badges">
+                              {listing.isPremium ? (
+                                <span className="lbc-listing-card__badge lbc-listing-card__badge--popular">
+                                  ✦ Premium
+                                </span>
+                              ) : null}
                               {isPopularListing(listing) ? (
                                 <span className="lbc-listing-card__badge lbc-listing-card__badge--popular">
                                   🔥 {t('listings.detail.badges.popular')}

@@ -7,6 +7,7 @@ import type { SortOption } from '../../components/ui/SortSelect'
 import type { Category } from '../../types/category'
 import { useUserPreferences } from '../../hooks/useUserPreferences'
 import { apiGet, apiPost } from '../../utils/api'
+import { geoAutocomplete } from '../../utils/geo'
 import type { Listing } from '../../types/listing'
 import type { Paginated } from '../../types/pagination'
 import {
@@ -27,11 +28,22 @@ import type { LocationSuggestion, SearchDrawerView, SearchViewMode } from './typ
 import { SearchResultsHeader } from './components/SearchResultsHeader'
 import { SearchFiltersDrawer } from './components/SearchFiltersDrawer'
 import { SearchResultsList } from './components/SearchResultsList'
+import {
+  ATTRIBUTE_PARAM_PREFIX,
+  buildListingsApiQueryString,
+  normalizeAttributeFilters,
+  parseAttributeFiltersFromParams,
+  parseSearchUrlState
+} from './search-contract'
 
 const DEFAULT_PAGE_SIZE = 20
-const ATTRIBUTE_PARAM_PREFIX = 'attr_'
+const DID_YOU_MEAN_MIN_LENGTH = 3
 
-const MAPBOX_LOCATION_TYPES = 'neighborhood,locality,place,district,address,postcode'
+const normalizeFreeText = (value: string, maxLength = 255) =>
+  value
+    .trim()
+    .replace(/\s+/g, ' ')
+    .slice(0, maxLength)
 
 const extractCityFromSuggestion = (suggestion: LocationSuggestion) => {
   const fromCity = suggestion.city?.trim()
@@ -42,79 +54,75 @@ const extractCityFromSuggestion = (suggestion: LocationSuggestion) => {
   return fromLabel || suggestion.label.trim()
 }
 
-const parseAttributeFiltersFromParams = (params: URLSearchParams) => {
-  const filters: Record<string, unknown> = {}
-  const keys = Array.from(new Set(params.keys()))
-  const attributeKeys = keys.filter(key => key.startsWith(ATTRIBUTE_PARAM_PREFIX))
-  if (attributeKeys.length > 0) {
-    attributeKeys.forEach(key => {
-      const name = key.slice(ATTRIBUTE_PARAM_PREFIX.length)
-      if (!name) {
-        return
-      }
-      const values = params.getAll(key).filter(value => value !== '')
-      if (values.length === 1) {
-        filters[name] = values[0]
-      } else if (values.length > 1) {
-        filters[name] = values
-      }
-    })
-    return filters
-  }
-  const legacyAttributes = params.get('attributes')
-  if (!legacyAttributes) {
-    return filters
-  }
-  try {
-    const parsed = JSON.parse(legacyAttributes)
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      return parsed as Record<string, unknown>
-    }
-  } catch {
-    return filters
-  }
-  return filters
+type SearchQuerySuggestion = {
+  id: string
+  label: string
+  query: string
+  resultCount: number
+  hits: number
 }
 
-const normalizeAttributeFilters = (filters: Record<string, unknown>) => {
-  const entries = Object.entries(filters).filter(([, value]) => {
-    if (value === null || value === undefined) {
-      return false
+const normalizeDidYouMeanValue = (value: string) =>
+  value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9 ]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+const levenshteinDistance = (a: string, b: string) => {
+  if (a === b) return 0
+  if (!a.length) return b.length
+  if (!b.length) return a.length
+
+  const rows = a.length + 1
+  const cols = b.length + 1
+  const matrix = Array.from({ length: rows }, () => Array(cols).fill(0))
+
+  for (let i = 0; i < rows; i += 1) matrix[i][0] = i
+  for (let j = 0; j < cols; j += 1) matrix[0][j] = j
+
+  for (let i = 1; i < rows; i += 1) {
+    for (let j = 1; j < cols; j += 1) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1,
+        matrix[i][j - 1] + 1,
+        matrix[i - 1][j - 1] + cost
+      )
     }
-    if (typeof value === 'string' && value.trim() === '') {
-      return false
+  }
+
+  return matrix[rows - 1][cols - 1]
+}
+
+const resolveDidYouMeanCandidate = (
+  term: string,
+  suggestions: SearchQuerySuggestion[]
+): { label: string; query: string } | null => {
+  const normalizedTerm = normalizeDidYouMeanValue(term).replace(/\s+/g, '')
+  if (normalizedTerm.length < DID_YOU_MEAN_MIN_LENGTH) {
+    return null
+  }
+
+  const maxDistance = normalizedTerm.length <= 6 ? 2 : 3
+
+  for (const item of suggestions) {
+    const normalizedCandidate = normalizeDidYouMeanValue(item.query).replace(/\s+/g, '')
+    if (!normalizedCandidate || normalizedCandidate === normalizedTerm) {
+      continue
     }
-    if (Array.isArray(value)) {
-      return value.some(entry => {
-        if (entry === null || entry === undefined) {
-          return false
-        }
-        if (typeof entry === 'string' && entry.trim() === '') {
-          return false
-        }
-        return true
-      })
+    const distance = levenshteinDistance(normalizedTerm, normalizedCandidate)
+    if (distance > 0 && distance <= maxDistance) {
+      return {
+        label: item.label || item.query,
+        query: item.query
+      }
     }
-    return true
-  })
-  const normalizedEntries = entries.map(([key, value]) => {
-    if (Array.isArray(value)) {
-      const cleaned = value.filter(entry => {
-        if (entry === null || entry === undefined) {
-          return false
-        }
-        if (typeof entry === 'string' && entry.trim() === '') {
-          return false
-        }
-        return true
-      })
-      cleaned.sort((a, b) => String(a).localeCompare(String(b)))
-      return [key, cleaned]
-    }
-    return [key, value]
-  }) as [string, unknown][]
-  normalizedEntries.sort(([a], [b]) => a.localeCompare(b))
-  return Object.fromEntries(normalizedEntries)
+  }
+
+  return null
 }
 
 export default function SearchResults(){
@@ -128,7 +136,6 @@ export default function SearchResults(){
   const numberFormatter = useMemo(() => new Intl.NumberFormat(numberLocale), [numberLocale])
   const sortLocale = locale === 'fr' ? 'fr' : 'en'
   const searchParamsString = searchParams.toString()
-  const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN
   const VIEW_MODE_KEY = 'lemaket.searchView'
   const [viewMode, setViewMode] = useState<SearchViewMode>(() => {
     if (typeof window === 'undefined') {
@@ -145,23 +152,24 @@ export default function SearchResults(){
     limit: DEFAULT_PAGE_SIZE,
     page: 1
   })
-  const query = useMemo(
-    () => Object.fromEntries(new URLSearchParams(searchParamsString)),
+  const parsedSearchState = useMemo(
+    () => parseSearchUrlState(searchParamsString),
     [searchParamsString]
   )
-  const term = query.q || ''
-  const city = query.l || ''
-  const sortParam = query.sort
+  const term = parsedSearchState.term
+  const city = parsedSearchState.city
+  const locationLabel = parsedSearchState.locationLabel
+  const sortParam = parsedSearchState.sortParam
   const sort: SortOption =
     sortParam === 'priceAsc' || sortParam === 'priceDesc'
       ? sortParam
       : preferences.sort
-  const adTypeParam = typeof query.adType === 'string' ? query.adType : ''
-  const sellerType = query.sellerType || preferences.sellerType
-  const minPriceQuery = query.minPrice
-  const maxPriceQuery = query.maxPrice
-  const radiusQuery = query.radius
-  const hasLocationSelection = Boolean(searchParams.get('lat')) && Boolean(searchParams.get('lng'))
+  const adTypeParam = parsedSearchState.adTypeParam
+  const sellerType = parsedSearchState.sellerTypeParam || preferences.sellerType
+  const minPriceQuery = parsedSearchState.minPriceQuery
+  const maxPriceQuery = parsedSearchState.maxPriceQuery
+  const radiusQuery = parsedSearchState.radiusQuery
+  const hasLocationSelection = parsedSearchState.hasLocationSelection
   const attributeFiltersFromUrl = useMemo(
     () => parseAttributeFiltersFromParams(searchParams),
     [searchParamsString]
@@ -170,6 +178,8 @@ export default function SearchResults(){
   const [results, setResults] = useState<Paginated<Listing> | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [didYouMean, setDidYouMean] = useState<{ label: string; query: string } | null>(null)
+  const [querySuggestions, setQuerySuggestions] = useState<SearchQuerySuggestion[]>([])
   const [isCreatingAlert, setIsCreatingAlert] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [drawerView, setDrawerView] = useState<SearchDrawerView>('main')
@@ -180,7 +190,7 @@ export default function SearchResults(){
   const [selectedRootCategory, setSelectedRootCategory] = useState('')
   const [selectedSubCategory, setSelectedSubCategory] = useState('')
   const [attributeFilters, setAttributeFilters] = useState<Record<string, unknown>>({})
-  const [locationQuery, setLocationQuery] = useState(city)
+  const [locationQuery, setLocationQuery] = useState(locationLabel)
   const [locationOpen, setLocationOpen] = useState(false)
   const [locationSuggestions, setLocationSuggestions] = useState<LocationSuggestion[]>([])
   const [locationLoading, setLocationLoading] = useState(false)
@@ -189,7 +199,6 @@ export default function SearchResults(){
   const locationInputRef = useRef<HTMLInputElement>(null)
   const locationAbortRef = useRef<AbortController | null>(null)
   const locationDebounceRef = useRef<number | null>(null)
-  const mapboxTokenLoggedRef = useRef(false)
 
   const handleViewModeChange = (next: SearchViewMode) => {
     setViewMode(next)
@@ -246,20 +255,8 @@ export default function SearchResults(){
   }, [radiusQuery, preferences.radius, setPreference])
 
   useEffect(() => {
-    setLocationQuery(city)
-  }, [city])
-
-  useEffect(() => {
-    if (!import.meta.env.DEV || !mapboxToken || mapboxTokenLoggedRef.current) {
-      return
-    }
-    const masked =
-      mapboxToken.length > 12
-        ? `${mapboxToken.slice(0, 6)}...${mapboxToken.slice(-4)}`
-        : 'set'
-    mapboxTokenLoggedRef.current = true
-    console.info('Mapbox token loaded', masked)
-  }, [mapboxToken])
+    setLocationQuery(locationLabel)
+  }, [locationLabel])
 
   useEffect(() => {
     if (!locationOpen) {
@@ -313,13 +310,6 @@ export default function SearchResults(){
       return
     }
 
-    if (!mapboxToken) {
-      setLocationSuggestions([])
-      setLocationLoading(false)
-      setLocationError(t('search.location.missingToken'))
-      return
-    }
-
     setLocationLoading(true)
     setLocationError(null)
 
@@ -327,51 +317,10 @@ export default function SearchResults(){
       try {
         const controller = new AbortController()
         locationAbortRef.current = controller
-        const response = await fetch(
-          `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
-            queryValue
-          )}.json?access_token=${mapboxToken}&autocomplete=true&limit=6&country=cm&types=${MAPBOX_LOCATION_TYPES}&language=${locale}`,
-          { signal: controller.signal }
-        )
-        if (!response.ok) {
-          throw new Error(t('search.location.error', { status: response.status }))
+        const items: LocationSuggestion[] = await geoAutocomplete(queryValue, 6)
+        if (controller.signal.aborted) {
+          return
         }
-        const data = await response.json()
-        const items: LocationSuggestion[] = (data.features ?? []).map((feature: any) => ({
-          id: feature.id,
-          label: feature.place_name,
-          context:
-            feature.context
-              ?.map((ctx: any) => ctx.text)
-              .filter(Boolean)
-              .join(' · ') ?? null,
-          coordinates: feature.center,
-          city: (() => {
-            const placeFromContext =
-              feature.context?.find(
-                (ctx: any) =>
-                  typeof ctx.id === 'string' &&
-                  (ctx.id.startsWith('place') || ctx.id.startsWith('locality'))
-              )?.text ?? undefined
-            if (placeFromContext) {
-              return placeFromContext
-            }
-            const featureText =
-              typeof feature.text === 'string' && feature.text.trim()
-                ? feature.text.trim()
-                : undefined
-            const placeTypes = Array.isArray(feature.place_type)
-              ? feature.place_type.map((entry: unknown) => String(entry))
-              : []
-            if (featureText && (placeTypes.includes('place') || placeTypes.includes('locality'))) {
-              return featureText
-            }
-            return undefined
-          })(),
-          zipcode:
-            feature.context?.find((ctx: any) => typeof ctx.id === 'string' && ctx.id.startsWith('postcode'))
-              ?.text ?? undefined
-        }))
         setLocationSuggestions(items)
       } catch (error) {
         if ((error as Error).name !== 'AbortError') {
@@ -390,76 +339,31 @@ export default function SearchResults(){
         locationAbortRef.current.abort()
       }
     }
-  }, [locationOpen, locationQuery, locale, t])
+  }, [locationOpen, locationQuery, t])
 
-  const apiQueryString = useMemo(() => {
-    const rawParams = new URLSearchParams(searchParamsString)
-    const params = new URLSearchParams()
-
-    const mapping: Record<string, string> = {
-      q: 'search',
-      l: 'city',
-      category: 'categorySlug',
-      tag: 'tag',
-      featured: 'isFeatured',
-      minPrice: 'minPrice',
-      maxPrice: 'maxPrice',
-      page: 'page',
-      limit: 'limit',
-      owner: 'ownerId',
-      sort: 'sort',
-      sellerType: 'sellerType',
-      adType: 'adType',
-      radius: 'radiusKm'
-    }
-
-    rawParams.forEach((value, key) => {
-      if (!value) {
-        return
-      }
-      if (key.startsWith(ATTRIBUTE_PARAM_PREFIX) || key === 'attributes') {
-        return
-      }
-      const mappedKey = mapping[key] ?? key
-      params.set(mappedKey, value)
-    })
-
-    const hasLatLng = rawParams.has('lat') && rawParams.has('lng')
-
-    if (!params.has('page') && preferences.page > 1) {
-      params.set('page', String(preferences.page))
-    }
-
-    if (!params.has('limit')) {
-      params.set('limit', String(preferences.limit ?? DEFAULT_PAGE_SIZE))
-    }
-
-    if (hasLatLng && !params.has('radiusKm')) {
-      params.set('radiusKm', preferences.radius || '25')
-    }
-
-    const priceBand = resolvePriceBand(preferences.priceBand)
-    if (priceBand?.min !== undefined) {
-      params.set('minPrice', String(priceBand.min))
-    }
-    if (priceBand?.max !== undefined) {
-      params.set('maxPrice', String(priceBand.max))
-    }
-    if (
-      preferences.radius &&
-      preferences.radius !== '25' &&
-      !params.has('radiusKm')
-    ) {
-      params.set('radiusKm', preferences.radius)
-    }
-
-    const normalizedAttributes = normalizeAttributeFilters(attributeFilters)
-    if (Object.keys(normalizedAttributes).length) {
-      params.set('attributes', JSON.stringify(normalizedAttributes))
-    }
-
-    return params.toString()
-  }, [searchParamsString, preferences.page, preferences.limit, preferences.priceBand, preferences.radius, attributeFilters])
+  const apiQueryString = useMemo(
+    () =>
+      buildListingsApiQueryString({
+        rawSearchParamsString: searchParamsString,
+        preferences: {
+          page: preferences.page,
+          limit: preferences.limit,
+          priceBand: preferences.priceBand,
+          radius: preferences.radius
+        },
+        defaultPageSize: DEFAULT_PAGE_SIZE,
+        resolvePriceBand,
+        attributeFilters
+      }),
+    [
+      searchParamsString,
+      preferences.page,
+      preferences.limit,
+      preferences.priceBand,
+      preferences.radius,
+      attributeFilters
+    ]
+  )
 
   useEffect(() => {
     const controller = new AbortController()
@@ -481,6 +385,41 @@ export default function SearchResults(){
 
     return () => controller.abort()
   }, [apiQueryString, t])
+
+  useEffect(() => {
+    const normalizedTerm = normalizeFreeText(term, 255)
+    if (normalizedTerm.length < DID_YOU_MEAN_MIN_LENGTH) {
+      setDidYouMean(null)
+      setQuerySuggestions([])
+      return
+    }
+
+    const controller = new AbortController()
+    apiGet<SearchQuerySuggestion[]>(
+      `/search/suggestions?q=${encodeURIComponent(normalizedTerm)}&limit=6`,
+      {
+        signal: controller.signal,
+        silent: true
+      }
+    )
+      .then(items => {
+        if (controller.signal.aborted) {
+          return
+        }
+        const normalizedItems = Array.isArray(items) ? items : []
+        setQuerySuggestions(normalizedItems)
+        const candidate = resolveDidYouMeanCandidate(normalizedTerm, normalizedItems)
+        setDidYouMean(candidate)
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setQuerySuggestions([])
+          setDidYouMean(null)
+        }
+      })
+
+    return () => controller.abort()
+  }, [term])
 
   useEffect(() => {
     setPreference('sort', sort)
@@ -539,6 +478,26 @@ export default function SearchResults(){
   const applyFiltersLabel = isLoading
     ? t('search.filters.applyLoading')
     : t('search.filters.apply', { count: formattedTotal })
+  const searchSyntaxExamples = useMemo(
+    () => [
+      {
+        id: 'phrase',
+        label: t('search.syntax.examplePhraseLabel'),
+        query: t('search.syntax.examplePhraseQuery')
+      },
+      {
+        id: 'exclude',
+        label: t('search.syntax.exampleExcludeLabel'),
+        query: t('search.syntax.exampleExcludeQuery')
+      },
+      {
+        id: 'exactExclude',
+        label: t('search.syntax.exampleExactExcludeLabel'),
+        query: t('search.syntax.exampleExactExcludeQuery')
+      }
+    ],
+    [t]
+  )
 
   const handlePageChange = (nextPage: number) => {
     const boundedPage = Math.min(Math.max(nextPage, 1), totalPages)
@@ -554,6 +513,63 @@ export default function SearchResults(){
     setPreference('page', boundedPage)
     setSearchParams(params)
   }
+
+  const handleApplySearchSyntaxExample = (queryValue: string) => {
+    const params = new URLSearchParams(searchParamsString)
+    const normalizedQuery = normalizeFreeText(queryValue, 255)
+    if (normalizedQuery) {
+      params.set('q', normalizedQuery)
+    } else {
+      params.delete('q')
+    }
+    params.delete('page')
+    setPreference('page', 1)
+    setSearchParams(params)
+  }
+
+  const handleApplyDidYouMean = (queryValue: string) => {
+    const params = new URLSearchParams(searchParamsString)
+    const normalizedQuery = normalizeFreeText(queryValue, 255)
+    if (normalizedQuery) {
+      params.set('q', normalizedQuery)
+    } else {
+      params.delete('q')
+    }
+    params.delete('page')
+    setPreference('page', 1)
+    setSearchParams(params)
+  }
+
+  const quickSuggestionQueries = useMemo<SearchQuerySuggestion[]>(() => {
+    if (!term.trim()) {
+      return []
+    }
+    const normalizedCurrent = normalizeDidYouMeanValue(term).replace(/\s+/g, '')
+    return querySuggestions.filter(item => {
+      const normalizedCandidate = normalizeDidYouMeanValue(item.query).replace(/\s+/g, '')
+      return normalizedCandidate.length >= DID_YOU_MEAN_MIN_LENGTH && normalizedCandidate !== normalizedCurrent
+    })
+  }, [querySuggestions, term])
+
+  const hasActiveFilters = useMemo(() => {
+    const hasSellerType = Boolean(sellerType && sellerType !== 'all')
+    const hasAdType = Boolean(adTypeParam)
+    const hasPrice = Boolean(minPriceQuery || maxPriceQuery)
+    const hasCategory = Boolean(parsedSearchState.categorySlug)
+    const hasAttributes = Object.keys(parsedAttributeFilters).length > 0
+    const hasRadius = Boolean(radiusQuery && radiusQuery !== '25')
+    const hasSort = Boolean(sortParam && sortParam !== 'recent')
+    return hasSellerType || hasAdType || hasPrice || hasCategory || hasAttributes || hasRadius || hasSort
+  }, [
+    adTypeParam,
+    maxPriceQuery,
+    minPriceQuery,
+    parsedAttributeFilters,
+    parsedSearchState.categorySlug,
+    radiusQuery,
+    sellerType,
+    sortParam
+  ])
 
   const rootCategories = useMemo(() => {
     if (!categories.length) {
@@ -834,7 +850,7 @@ export default function SearchResults(){
   const shouldShowAdType = selectedCategoryAdTypes.length > 0
 
   useEffect(() => {
-    const slug = typeof query.category === 'string' ? query.category : ''
+    const slug = parsedSearchState.categorySlug
     if (!slug) {
       if (selectedRootCategory) {
         setSelectedRootCategory('')
@@ -856,7 +872,7 @@ export default function SearchResults(){
     if (selectedSubCategory !== nextSub) {
       setSelectedSubCategory(nextSub)
     }
-  }, [query.category, categoryBySlug, selectedRootCategory, selectedSubCategory])
+  }, [parsedSearchState.categorySlug, categoryBySlug, selectedRootCategory, selectedSubCategory])
 
   useEffect(() => {
     if (!adTypeParam || !activeCategory || selectedCategoryAdTypes.length === 0) {
@@ -946,13 +962,6 @@ export default function SearchResults(){
     return [listing.price, listing.currency]
       .filter(Boolean)
       .join(' ')
-  }
-
-  const getSellerType = (listing: Listing) => {
-    if (listing.owner?.isPro) {
-      return t('filters.sellerType.pro')
-    }
-    return t('filters.sellerType.individual')
   }
 
   const getSortLabel = (value: SortOption) => {
@@ -1075,8 +1084,11 @@ export default function SearchResults(){
   const handleLocationClear = () => {
     const params = new URLSearchParams(searchParamsString)
     params.delete('l')
+    params.delete('llabel')
     params.delete('lat')
     params.delete('lng')
+    params.delete('cityId')
+    params.delete('neighborhoodId')
     params.delete('page')
     setPreference('page', 1)
     setSearchParams(params)
@@ -1089,7 +1101,7 @@ export default function SearchResults(){
   const commitManualLocation = () => {
     const nextValue = locationQuery.trim()
     const params = new URLSearchParams(searchParamsString)
-    const currentLocation = (params.get('l') ?? '').trim()
+    const currentLocation = (params.get('llabel') ?? params.get('l') ?? '').trim()
     const normalizedNext = nextValue.toLocaleLowerCase()
     const normalizedCurrent = currentLocation.toLocaleLowerCase()
 
@@ -1100,11 +1112,15 @@ export default function SearchResults(){
 
     if (nextValue) {
       params.set('l', nextValue)
+      params.delete('llabel')
     } else {
       params.delete('l')
+      params.delete('llabel')
     }
     params.delete('lat')
     params.delete('lng')
+    params.delete('cityId')
+    params.delete('neighborhoodId')
     params.delete('page')
     setPreference('page', 1)
     setSearchParams(params)
@@ -1115,17 +1131,39 @@ export default function SearchResults(){
   const handleLocationSelect = (suggestion: LocationSuggestion) => {
     const params = new URLSearchParams(searchParamsString)
     const cityValue = extractCityFromSuggestion(suggestion)
+    const displayLabel = suggestion.label?.trim() || cityValue
     if (cityValue) {
       params.set('l', cityValue)
+      if (displayLabel && displayLabel !== cityValue) {
+        params.set('llabel', displayLabel)
+      } else {
+        params.delete('llabel')
+      }
     } else {
       params.delete('l')
+      params.delete('llabel')
     }
-    params.set('lat', String(suggestion.coordinates[1]))
-    params.set('lng', String(suggestion.coordinates[0]))
+    if (suggestion.coordinates && suggestion.coordinates.length === 2) {
+      params.set('lat', String(suggestion.coordinates[1]))
+      params.set('lng', String(suggestion.coordinates[0]))
+    } else {
+      params.delete('lat')
+      params.delete('lng')
+    }
+    if (suggestion.cityId) {
+      params.set('cityId', suggestion.cityId)
+    } else {
+      params.delete('cityId')
+    }
+    if (suggestion.neighborhoodId) {
+      params.set('neighborhoodId', suggestion.neighborhoodId)
+    } else {
+      params.delete('neighborhoodId')
+    }
     params.delete('page')
     setPreference('page', 1)
     setSearchParams(params)
-    setLocationQuery(cityValue || '')
+    setLocationQuery(displayLabel || '')
     setLocationSuggestions([])
     setLocationOpen(false)
     setLocationError(null)
@@ -1196,7 +1234,7 @@ export default function SearchResults(){
       return
     }
 
-    const categorySlug = typeof query.category === 'string' ? query.category.trim() : ''
+    const categorySlug = parsedSearchState.categorySlug
     const hasCriteria =
       term.trim() ||
       city.trim() ||
@@ -1298,11 +1336,31 @@ export default function SearchResults(){
 
   const handleResetFilters = () => {
     const params = new URLSearchParams()
-    if (query.q) {
-      params.set('q', String(query.q))
+    if (term) {
+      params.set('q', term)
     }
-    if (query.l) {
-      params.set('l', String(query.l))
+    const locationKeysToPreserve = [
+      'l',
+      'city',
+      'llabel',
+      'lat',
+      'lng',
+      'radius',
+      'radiusKm',
+      'cityId',
+      'neighborhoodId',
+      'cityIds',
+      'neighborhoodIds'
+    ]
+    locationKeysToPreserve.forEach(key => {
+      searchParams.getAll(key).forEach(value => {
+        if (value.trim()) {
+          params.append(key, value)
+        }
+      })
+    })
+    if (!params.has('l') && city) {
+      params.set('l', city)
     }
     resetPreferences()
     setSelectedRootCategory('')
@@ -1310,6 +1368,19 @@ export default function SearchResults(){
     setAttributeFilters({})
     setActiveCriteriaField(null)
     setCriteriaSearch('')
+    setSearchParams(params)
+  }
+
+  const handleApplyQuickSuggestion = (queryValue: string) => {
+    const params = new URLSearchParams(searchParamsString)
+    const normalizedQuery = normalizeFreeText(queryValue, 255)
+    if (normalizedQuery) {
+      params.set('q', normalizedQuery)
+    } else {
+      params.delete('q')
+    }
+    params.delete('page')
+    setPreference('page', 1)
     setSearchParams(params)
   }
 
@@ -1490,9 +1561,10 @@ export default function SearchResults(){
           {(['recent', 'priceAsc', 'priceDesc'] as const).map(option => (
             <label key={option} className="search-drawer__choice">
               <input
-                type="checkbox"
+                type="radio"
+                name="search-sort"
                 checked={sort === option}
-                onChange={event => handleSortChange(event.target.checked ? option : 'recent')}
+                onChange={() => handleSortChange(option)}
               />
               <span>{getSortLabel(option)}</span>
             </label>
@@ -1871,6 +1943,10 @@ export default function SearchResults(){
             setFiltersOpen(true)
           }}
           onCreateAlert={handleCreateAlert}
+          searchSyntaxExamples={searchSyntaxExamples}
+          onApplySearchSyntaxExample={handleApplySearchSyntaxExample}
+          didYouMean={didYouMean}
+          onApplyDidYouMean={handleApplyDidYouMean}
         />
 
         <SearchFiltersDrawer
@@ -1896,13 +1972,22 @@ export default function SearchResults(){
           page={page}
           totalPages={totalPages}
           formatPrice={formatPrice}
-          getSellerType={getSellerType}
           getListingLocation={getListingLocation}
           getOwnerProfileUrl={getOwnerProfileUrl}
           getOwnerName={getOwnerName}
           formatListingDate={formatListingDate}
           onOwnerNavigate={url => navigate(url)}
           onPageChange={handlePageChange}
+          hasActiveFilters={hasActiveFilters}
+          hasLocationSelection={hasLocationSelection}
+          didYouMean={didYouMean}
+          quickSuggestionQueries={quickSuggestionQueries}
+          onApplyDidYouMean={handleApplyDidYouMean}
+          onApplyQuickSuggestion={handleApplyQuickSuggestion}
+          onResetFilters={handleResetFilters}
+          onClearLocation={handleLocationClear}
+          onCreateAlert={handleCreateAlert}
+          isCreatingAlert={isCreatingAlert}
         />
       </div>
     </MainLayout>

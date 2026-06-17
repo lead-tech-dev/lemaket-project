@@ -14,7 +14,7 @@ type FeatureFlagContextValue = {
 }
 
 const FeatureFlagContext = createContext<FeatureFlagContextValue | undefined>(undefined)
-const STORAGE_KEY = 'sandaga:featureFlags'
+const STORAGE_KEY = 'sandaga:featureFlags:v2'
 
 function readStoredFlags(): Partial<FeatureFlags> {
   if (typeof window === 'undefined') {

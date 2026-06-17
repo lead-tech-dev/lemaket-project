@@ -16,16 +16,21 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '../common/enums/user-role.enum';
 import { AuditScope } from './dto/audit-query.dto';
-import { UpdateSettingDto, UpdateSettingsBatchDto, UpdateSettingValueDto } from './dto/update-setting.dto';
+import { UpdateSettingsBatchDto, UpdateSettingValueDto } from './dto/update-setting.dto';
 import { MessageNotificationLogQueryDto } from './dto/message-notification-log-query.dto';
 import { CompanyVerificationQueryDto } from './dto/company-verification-query.dto';
 import { CourierVerificationQueryDto } from './dto/courier-verification-query.dto';
+import { SearchRelevanceSettingsService } from '../search-logs/search-relevance-settings.service'
+import { UpdateSearchRelevanceSettingsDto } from './dto/update-search-relevance-settings.dto'
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.ADMIN, UserRole.MODERATOR)
 export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(
+    private readonly adminService: AdminService,
+    private readonly searchRelevanceSettingsService: SearchRelevanceSettingsService
+  ) {}
 
   @Get('metrics')
   getMetrics() {
@@ -45,6 +50,16 @@ export class AdminController {
   @Get('settings')
   getSettings() {
     return this.adminService.getSettings();
+  }
+
+  @Get('search/relevance')
+  getSearchRelevanceSettings() {
+    return this.searchRelevanceSettingsService.getSettings()
+  }
+
+  @Post('search/relevance')
+  updateSearchRelevanceSettings(@Body() payload: UpdateSearchRelevanceSettingsDto) {
+    return this.searchRelevanceSettingsService.updateSettings(payload)
   }
 
   @Get('message-notification-logs')

@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { API_BASE_URL } from '../utils/constants'
 import { getAuthToken, clearAuthToken, type UserAccount } from '../utils/auth'
+import { setUnauthorizedHandler } from '../utils/api'
 import { useI18n } from '../contexts/I18nContext'
 
 type AuthUser = UserAccount & {
-  role: 'user' | 'pro' | 'admin'
+  role: 'user' | 'pro' | 'admin' | 'moderator'
 }
 
 type AuthState = {
@@ -43,6 +44,25 @@ async function fetchCurrentUser(signal?: AbortSignal): Promise<AuthUser | null> 
   }
 
   return response.json() as Promise<AuthUser>
+}
+
+async function pingPresence(signal?: AbortSignal) {
+  const token = getAuthToken()
+  if (!token) return
+  const base = API_BASE_URL.replace(/\/$/, '')
+  try {
+    await fetch(`${base}/presence/ping`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      signal
+    })
+  } catch {
+    // ignore network errors
+  }
 }
 
 export function useAuth() {
@@ -105,6 +125,65 @@ export function useAuth() {
     }
   }, [])
 
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      clearAuthToken()
+      cachedUser = null
+      setState({
+        user: null,
+        loading: false,
+        error: null,
+        justPromotedPro: false
+      })
+      if (window.location.pathname !== '/login') {
+        window.location.assign('/login')
+      }
+    })
+
+    return () => {
+      setUnauthorizedHandler(null)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!state.user) return
+
+    const controller = new AbortController()
+    let intervalId: ReturnType<typeof setInterval> | null = null
+
+    const start = () => {
+      if (intervalId) return
+      intervalId = setInterval(() => {
+        void pingPresence(controller.signal)
+      }, 60000)
+    }
+
+    const stop = () => {
+      if (!intervalId) return
+      clearInterval(intervalId)
+      intervalId = null
+    }
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        void pingPresence(controller.signal)
+        start()
+      } else {
+        stop()
+      }
+    }
+
+    void pingPresence(controller.signal)
+    start()
+    document.addEventListener('visibilitychange', handleVisibility)
+
+    return () => {
+      controller.abort()
+      stop()
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
+  }, [state.user])
+
   return useMemo(
     () => ({
       user: state.user,
@@ -114,6 +193,9 @@ export function useAuth() {
       isAuthenticated: Boolean(state.user),
       isPro: Boolean(state.user?.role === 'pro' || state.user?.role === 'admin' || state.user?.isPro),
       isAdmin: Boolean(state.user?.role === 'admin'),
+      isModerator: Boolean(state.user?.role === 'moderator'),
+      // Accès à la console d'administration : admin OU modérateur.
+      isStaff: Boolean(state.user?.role === 'admin' || state.user?.role === 'moderator'),
       acknowledgePromotion: () =>
         setState(prev => ({ ...prev, justPromotedPro: false }))
     }),

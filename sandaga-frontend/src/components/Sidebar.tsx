@@ -19,11 +19,10 @@ export default function Sidebar(){
 
   const primaryLinks: SidebarLink[] = [
     { to: '/dashboard', label: t('sidebar.links.dashboard'), icon: '📊' },
-    { to: '/dashboard/overview', label: t('sidebar.links.overview'), icon: '⚖️', feature: 'proOverview', requirePro: true },
     { to: '/dashboard/listings', label: t('sidebar.links.listings'), icon: '📦' },
-    { to: '/dashboard/orders', label: t('sidebar.links.orders'), icon: '🧾' },
-    { to: '/dashboard/deliveries', label: t('sidebar.links.deliveries'), icon: '🛵' },
-    { to: '/dashboard/messages', label: t('sidebar.links.messages'), icon: '💬', feature: 'proMessaging', requirePro: true },
+    { to: '/dashboard/orders', label: t('sidebar.links.orders'), icon: '🧾', feature: 'dashboardOrders' },
+    { to: '/dashboard/deliveries', label: t('sidebar.links.deliveries'), icon: '🛵', feature: 'dashboardDeliveries' },
+    { to: '/dashboard/messages', label: t('sidebar.links.messages'), icon: '💬' },
     { to: '/dashboard/favorites', label: t('sidebar.links.favorites'), icon: '⭐' },
     { to: '/dashboard/follows', label: t('sidebar.links.follows'), icon: '👥' },
     { to: '/dashboard/alerts', label: t('sidebar.links.alerts'), icon: '🔔' },
@@ -32,9 +31,8 @@ export default function Sidebar(){
   const accountLinks: SidebarLink[] = [
     { to: '/dashboard/profile', label: t('sidebar.links.profile'), icon: '👤' },
     { to: '/dashboard/settings', label: t('sidebar.links.settings'), icon: '⚙️' },
-    { to: '/dashboard/wallet', label: t('sidebar.links.wallet'), icon: '👛' },
-    { to: '/dashboard/payments', label: t('sidebar.links.payments'), icon: '💳', feature: 'proPayments', requirePro: true },
-    { to: '/dashboard/pro', label: t('sidebar.links.proAccount'), icon: '🏢', feature: 'proPortal', requirePro: true },
+    { to: '/dashboard/wallet', label: t('sidebar.links.wallet'), icon: '👛', feature: 'dashboardWallet' },
+    { to: '/dashboard/payments', label: t('sidebar.links.payments'), icon: '💳', feature: 'proPayments' },
   ]
 
   const supportLinks = [
@@ -72,7 +70,6 @@ export default function Sidebar(){
         <div className="sidebar__meta">
           <strong>
             {user ? `${user.firstName} ${user.lastName}` : t('sidebar.account.title')}
-            {isPro ? <span className="sidebar__badge">PRO</span> : null}
           </strong>
           <span>{user ? t('sidebar.welcome') : t('sidebar.loginPrompt')}</span>
         </div>

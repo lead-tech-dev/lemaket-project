@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import AdminLayout from '../../layouts/AdminLayout'
 import { Button } from '../../components/ui/Button'
+import { Select } from '../../components/ui/Select'
 import { useToast } from '../../components/ui/Toast'
 import { useI18n } from '../../contexts/I18nContext'
 import { apiPatch } from '../../utils/api'
@@ -30,6 +31,17 @@ export default function CompanyVerifications() {
   const [error, setError] = useState<string | null>(null)
   const [notes, setNotes] = useState<Record<string, string>>({})
   const [updatingId, setUpdatingId] = useState<string | null>(null)
+
+  const statusFilterOptions = useMemo(
+    () => [
+      { value: 'pending', label: t('admin.companyVerification.filters.pending') },
+      { value: 'approved', label: t('admin.companyVerification.filters.approved') },
+      { value: 'rejected', label: t('admin.companyVerification.filters.rejected') },
+      { value: 'unverified', label: t('admin.companyVerification.filters.unverified') },
+      { value: 'all', label: t('admin.companyVerification.filters.all') }
+    ],
+    [t]
+  )
 
   const { startExport, isRunning: isExportRunning, progress: exportProgress } = useExportJob(
     'company-verifications',
@@ -134,7 +146,7 @@ export default function CompanyVerifications() {
               {t('admin.companyVerification.export.xlsx')}
             </Button>
             {isExportRunning ? (
-              <span style={{ color: '#6c757d', fontSize: '0.85rem' }}>
+              <span style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>
                 {t('admin.companyVerification.export.progress', { progress: exportProgress })}
               </span>
             ) : null}
@@ -145,19 +157,13 @@ export default function CompanyVerifications() {
           <div className="admin-card__meta" style={{ alignItems: 'center' }}>
             <strong>{t('admin.companyVerification.filters.title')}</strong>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-              <select
-                className="input"
+              <Select
                 value={statusFilter}
-                onChange={event =>
-                  setStatusFilter(event.target.value as typeof statusFilter)
+                onChange={value =>
+                  setStatusFilter(String(value) as typeof statusFilter)
                 }
-              >
-                <option value="pending">{t('admin.companyVerification.filters.pending')}</option>
-                <option value="approved">{t('admin.companyVerification.filters.approved')}</option>
-                <option value="rejected">{t('admin.companyVerification.filters.rejected')}</option>
-                <option value="unverified">{t('admin.companyVerification.filters.unverified')}</option>
-                <option value="all">{t('admin.companyVerification.filters.all')}</option>
-              </select>
+                options={statusFilterOptions}
+              />
               <input
                 className="input"
                 placeholder={t('admin.companyVerification.searchPlaceholder')}
@@ -190,7 +196,7 @@ export default function CompanyVerifications() {
             <tbody>
               {loading && !items.length ? (
                 <tr>
-                  <td colSpan={6} style={{ padding: '1rem', color: '#6c757d' }}>
+                  <td colSpan={6} style={{ padding: '1rem', color: 'var(--color-text-muted)' }}>
                     {t('admin.companyVerification.loading')}
                   </td>
                 </tr>
@@ -199,13 +205,13 @@ export default function CompanyVerifications() {
                   <tr key={user.id}>
                     <td>
                       <strong>{user.companyName || t('admin.companyVerification.unknownCompany')}</strong>
-                      <div style={{ fontSize: '0.85rem', color: '#6c757d' }}>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
                         {user.companyCity || t('admin.companyVerification.unknownCity')}
                       </div>
                     </td>
                     <td>
                       <div>{`${user.firstName} ${user.lastName}`.trim() || user.email}</div>
-                      <div style={{ fontSize: '0.85rem', color: '#6c757d' }}>{user.email}</div>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>{user.email}</div>
                     </td>
                     <td style={{ fontSize: '0.85rem' }}>
                       <div>RCCM: {user.companyRccm || '-'}</div>
@@ -227,7 +233,7 @@ export default function CompanyVerifications() {
                         )}
                       </span>
                       {user.companyVerificationSubmittedAt ? (
-                        <div style={{ fontSize: '0.75rem', color: '#6c757d', marginTop: '4px' }}>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '4px' }}>
                           {dateFormatter.format(new Date(user.companyVerificationSubmittedAt))}
                         </div>
                       ) : null}
@@ -243,7 +249,7 @@ export default function CompanyVerifications() {
                           {t('admin.companyVerification.openDocument')}
                         </Button>
                       ) : (
-                        <span style={{ color: '#6c757d' }}>{t('admin.companyVerification.noDocument')}</span>
+                        <span style={{ color: 'var(--color-text-muted)' }}>{t('admin.companyVerification.noDocument')}</span>
                       )}
                     </td>
                     <td>
@@ -282,7 +288,7 @@ export default function CompanyVerifications() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} style={{ padding: '1rem', color: '#6c757d' }}>
+                  <td colSpan={6} style={{ padding: '1rem', color: 'var(--color-text-muted)' }}>
                     {t('admin.companyVerification.empty')}
                   </td>
                 </tr>

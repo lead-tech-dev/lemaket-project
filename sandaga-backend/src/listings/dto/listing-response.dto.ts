@@ -6,6 +6,8 @@ export type ListingContactDTO = {
 };
 
 export type ListingLocationDTO = {
+  cityId?: string | null;
+  neighborhoodId?: string | null;
   address?: string | null;
   city?: string | null;
   zipcode?: string | null;
@@ -65,6 +67,9 @@ export type ListingResponseDTO = {
   images: ListingImageDTO[];
   attributes: Record<string, unknown>;
   meta?: Record<string, unknown>;
+  isFeatured: boolean;
+  isBoosted: boolean;
+  isPremium: boolean;
   publishedAt?: Date | null;
   expiresAt?: Date | null;
   created_at: Date;

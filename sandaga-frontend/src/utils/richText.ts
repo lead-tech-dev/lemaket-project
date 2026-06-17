@@ -177,12 +177,16 @@ export const richTextToPlainText = (value: string): string => {
     return ''
   }
 
+  const withBlockSpacing = html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|li|blockquote|ul|ol)>/gi, '</$1>\n')
+
   if (typeof window === 'undefined' || typeof DOMParser === 'undefined') {
-    return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+    return withBlockSpacing.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
   }
 
   const parser = new DOMParser()
-  const doc = parser.parseFromString(`<div>${html}</div>`, 'text/html')
+  const doc = parser.parseFromString(`<div>${withBlockSpacing}</div>`, 'text/html')
   const text = doc.body.textContent ?? ''
   return text.replace(/\s+/g, ' ').trim()
 }

@@ -12,7 +12,7 @@ import { ReportStatus } from '../common/enums/report-status.enum';
 import { Category } from '../categories/category.entity';
 import { ModerationFiltersDto } from './dto/moderation-filters.dto';
 import { BulkUpdateListingStatusDto } from './dto/bulk-update-listing-status.dto';
-import { AuditQueryDto, AuditScope } from './dto/audit-query.dto';
+import { AuditQueryDto } from './dto/audit-query.dto';
 import { MessageNotificationLog } from '../messages/message-notification-log.entity';
 import { MessageNotificationLogQueryDto } from './dto/message-notification-log-query.dto';
 import { CompanyVerificationQueryDto } from './dto/company-verification-query.dto';
@@ -22,6 +22,14 @@ import { CourierVerificationStatus } from '../users/enums/courier-verification-s
 import { WalletTransaction } from '../payments/wallet-transaction.entity';
 import { Payment } from '../payments/payment.entity';
 import { PaymentStatus } from '../common/enums/payment-status.enum';
+import {
+  DEFAULT_SEARCH_RELEVANCE_SETTINGS,
+  SEARCH_RELEVANCE_SETTING_KEYS
+} from '../search-logs/search-relevance-settings'
+import {
+  DEFAULT_SEARCH_OPERATIONAL_ALERT_SETTINGS,
+  SEARCH_OPERATIONAL_ALERT_SETTING_KEYS
+} from '../monitoring/search-operational-alert-settings'
 
 type SettingDefinition = {
   key: string;
@@ -92,6 +100,176 @@ const ADMIN_SETTING_DEFINITIONS: SettingDefinition[] = [
     type: 'text',
     defaultValue: '2024-01-01',
     placeholder: '2024-09-01'
+  },
+  {
+    key: SEARCH_RELEVANCE_SETTING_KEYS.enableBusinessBoost,
+    label: 'Activer le boost métier du ranking',
+    group: 'Recherche',
+    description: 'Active le boost des villes populaires, vendeurs pro et catégories prioritaires.',
+    type: 'boolean',
+    defaultValue: DEFAULT_SEARCH_RELEVANCE_SETTINGS.enableBusinessBoost
+  },
+  {
+    key: SEARCH_RELEVANCE_SETTING_KEYS.enableDynamicSynonyms,
+    label: 'Activer les synonymes dynamiques',
+    group: 'Recherche',
+    description: 'Utilise les synonymes configurés via /search/synonyms dans le moteur de recherche.',
+    type: 'boolean',
+    defaultValue: DEFAULT_SEARCH_RELEVANCE_SETTINGS.enableDynamicSynonyms
+  },
+  {
+    key: SEARCH_RELEVANCE_SETTING_KEYS.popularCityBoost,
+    label: 'Boost ville populaire',
+    group: 'Recherche',
+    description: 'Poids ajouté aux annonces situées dans une ville marquée populaire.',
+    type: 'number',
+    defaultValue: DEFAULT_SEARCH_RELEVANCE_SETTINGS.popularCityBoost,
+    min: 0,
+    max: 200,
+    step: 1
+  },
+  {
+    key: SEARCH_RELEVANCE_SETTING_KEYS.proSellerBoost,
+    label: 'Boost vendeur pro',
+    group: 'Recherche',
+    description: 'Poids ajouté aux annonces publiées par un vendeur professionnel.',
+    type: 'number',
+    defaultValue: DEFAULT_SEARCH_RELEVANCE_SETTINGS.proSellerBoost,
+    min: 0,
+    max: 200,
+    step: 1
+  },
+  {
+    key: SEARCH_RELEVANCE_SETTING_KEYS.categoryWeights,
+    label: 'Poids catégories prioritaires',
+    group: 'Recherche',
+    description: 'Format: slug:poids, séparés par des virgules. Ex: immobilier:26, vehicules:22',
+    type: 'text',
+    defaultValue: DEFAULT_SEARCH_RELEVANCE_SETTINGS.categoryWeightsText,
+    placeholder: 'immobilier:26, vehicules:22, emploi:20'
+  },
+  {
+    key: SEARCH_OPERATIONAL_ALERT_SETTING_KEYS.alertWindowSeconds,
+    label: 'Monitoring recherche - fenêtre d\'analyse (secondes)',
+    group: 'Recherche monitoring',
+    description: 'Durée de la fenêtre utilisée pour calculer p95 et taux d\'erreur.',
+    type: 'number',
+    defaultValue: DEFAULT_SEARCH_OPERATIONAL_ALERT_SETTINGS.alertWindowSeconds,
+    min: 60,
+    max: 3600,
+    step: 30
+  },
+  {
+    key: SEARCH_OPERATIONAL_ALERT_SETTING_KEYS.minListingsRequests,
+    label: 'Monitoring recherche - minimum requêtes listings',
+    group: 'Recherche monitoring',
+    description: 'Nombre minimal de requêtes listings nécessaires avant de déclencher des alertes.',
+    type: 'number',
+    defaultValue: DEFAULT_SEARCH_OPERATIONAL_ALERT_SETTINGS.minListingsRequests,
+    min: 1,
+    max: 10000,
+    step: 1
+  },
+  {
+    key: SEARCH_OPERATIONAL_ALERT_SETTING_KEYS.minSuggestionsRequests,
+    label: 'Monitoring recherche - minimum requêtes suggestions',
+    group: 'Recherche monitoring',
+    description: 'Nombre minimal de requêtes suggestions nécessaires avant de déclencher des alertes.',
+    type: 'number',
+    defaultValue: DEFAULT_SEARCH_OPERATIONAL_ALERT_SETTINGS.minSuggestionsRequests,
+    min: 1,
+    max: 10000,
+    step: 1
+  },
+  {
+    key: SEARCH_OPERATIONAL_ALERT_SETTING_KEYS.listingsP95Ms,
+    label: 'Monitoring recherche - seuil p95 listings (ms)',
+    group: 'Recherche monitoring',
+    description: 'Seuil de latence p95 pour considérer le composant listings dégradé.',
+    type: 'number',
+    defaultValue: DEFAULT_SEARCH_OPERATIONAL_ALERT_SETTINGS.listingsP95Ms,
+    min: 10,
+    max: 60000,
+    step: 10
+  },
+  {
+    key: SEARCH_OPERATIONAL_ALERT_SETTING_KEYS.listingsErrorRate,
+    label: 'Monitoring recherche - seuil erreur listings',
+    group: 'Recherche monitoring',
+    description: 'Taux d\'erreur (0 à 1) déclenchant une alerte listings.',
+    type: 'number',
+    defaultValue: DEFAULT_SEARCH_OPERATIONAL_ALERT_SETTINGS.listingsErrorRate,
+    min: 0.001,
+    max: 1,
+    step: 0.001
+  },
+  {
+    key: SEARCH_OPERATIONAL_ALERT_SETTING_KEYS.suggestionsP95Ms,
+    label: 'Monitoring recherche - seuil p95 suggestions (ms)',
+    group: 'Recherche monitoring',
+    description: 'Seuil de latence p95 pour considérer le composant suggestions dégradé.',
+    type: 'number',
+    defaultValue: DEFAULT_SEARCH_OPERATIONAL_ALERT_SETTINGS.suggestionsP95Ms,
+    min: 10,
+    max: 60000,
+    step: 10
+  },
+  {
+    key: SEARCH_OPERATIONAL_ALERT_SETTING_KEYS.suggestionsErrorRate,
+    label: 'Monitoring recherche - seuil erreur suggestions',
+    group: 'Recherche monitoring',
+    description: 'Taux d\'erreur (0 à 1) déclenchant une alerte suggestions.',
+    type: 'number',
+    defaultValue: DEFAULT_SEARCH_OPERATIONAL_ALERT_SETTINGS.suggestionsErrorRate,
+    min: 0.001,
+    max: 1,
+    step: 0.001
+  },
+  {
+    key: SEARCH_OPERATIONAL_ALERT_SETTING_KEYS.dispatchEnabled,
+    label: 'Monitoring recherche - autoriser dispatch externe',
+    group: 'Recherche monitoring',
+    description: 'Active l\'envoi webhook/email pour les alertes de monitoring recherche.',
+    type: 'boolean',
+    defaultValue: DEFAULT_SEARCH_OPERATIONAL_ALERT_SETTINGS.dispatchEnabled
+  },
+  {
+    key: SEARCH_OPERATIONAL_ALERT_SETTING_KEYS.dispatchCooldownSeconds,
+    label: 'Monitoring recherche - cooldown dispatch (secondes)',
+    group: 'Recherche monitoring',
+    description: 'Durée minimum entre deux dispatch identiques.',
+    type: 'number',
+    defaultValue: DEFAULT_SEARCH_OPERATIONAL_ALERT_SETTINGS.dispatchCooldownSeconds,
+    min: 0,
+    max: 86400,
+    step: 30
+  },
+  {
+    key: SEARCH_OPERATIONAL_ALERT_SETTING_KEYS.dispatchAutoEnabled,
+    label: 'Monitoring recherche - scheduler auto',
+    group: 'Recherche monitoring',
+    description: 'Active le dispatch périodique automatique.',
+    type: 'boolean',
+    defaultValue: DEFAULT_SEARCH_OPERATIONAL_ALERT_SETTINGS.dispatchAutoEnabled
+  },
+  {
+    key: SEARCH_OPERATIONAL_ALERT_SETTING_KEYS.dispatchIntervalSeconds,
+    label: 'Monitoring recherche - intervalle scheduler (secondes)',
+    group: 'Recherche monitoring',
+    description: 'Intervalle entre deux vérifications automatiques.',
+    type: 'number',
+    defaultValue: DEFAULT_SEARCH_OPERATIONAL_ALERT_SETTINGS.dispatchIntervalSeconds,
+    min: 30,
+    max: 86400,
+    step: 30
+  },
+  {
+    key: SEARCH_OPERATIONAL_ALERT_SETTING_KEYS.dispatchOnBoot,
+    label: 'Monitoring recherche - dispatch au démarrage',
+    group: 'Recherche monitoring',
+    description: 'Déclenche un dispatch dès le démarrage du backend.',
+    type: 'boolean',
+    defaultValue: DEFAULT_SEARCH_OPERATIONAL_ALERT_SETTINGS.dispatchOnBoot
   }
 ];
 

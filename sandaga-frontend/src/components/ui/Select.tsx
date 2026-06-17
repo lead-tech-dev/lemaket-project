@@ -46,7 +46,10 @@ export function Select({
   const shouldScrollToActiveRef = useRef(false)
 
   const renderGroups = optionGroups.length > 0
-  const groups = renderGroups ? optionGroups : [{ label: '', values: options }]
+  const groups = useMemo(
+    () => (renderGroups ? optionGroups : [{ label: '', values: options }]),
+    [renderGroups, optionGroups, options]
+  )
   const flatOptions = useMemo(
     () => groups.flatMap(group => group.values),
     [groups]
@@ -101,7 +104,7 @@ export function Select({
       activeElement.scrollIntoView({ block: 'nearest' })
     }
     shouldScrollToActiveRef.current = false
-  }, [isOpen, activeIndex, listboxId, flatOptions.length])
+  }, [isOpen, activeIndex, listboxId, flatOptions.length, isKeyboardNav])
 
   useEffect(() => {
     if (isOpen) {

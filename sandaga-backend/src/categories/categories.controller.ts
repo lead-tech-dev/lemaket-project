@@ -24,6 +24,9 @@ type CategoryChildResponse = {
   id: string;
   name: string;
   slug: string;
+  description?: string | null;
+  icon?: string | null;
+  color?: string | null;
 };
 
 type CategoryResponse = Omit<Category, 'parent' | 'children'> & {
@@ -127,7 +130,10 @@ export class CategoriesController {
       children: (children ?? []).map(child => ({
         id: child.id,
         name: child.name,
-        slug: child.slug
+        slug: child.slug,
+        description: child.description ?? null,
+        icon: child.icon ?? null,
+        color: child.color ?? null
       }))
     };
   }

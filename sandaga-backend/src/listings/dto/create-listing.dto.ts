@@ -13,9 +13,31 @@ import {
   IsArray,
   ArrayMaxSize
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 
 class LocationDto {
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value !== 'string') {
+      return value;
+    }
+    const trimmed = value.trim();
+    return trimmed.length ? trimmed : undefined;
+  })
+  @IsUUID()
+  cityId?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value !== 'string') {
+      return value;
+    }
+    const trimmed = value.trim();
+    return trimmed.length ? trimmed : undefined;
+  })
+  @IsUUID()
+  neighborhoodId?: string;
+
   @IsOptional()
   @IsString()
   @MaxLength(120)

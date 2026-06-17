@@ -90,6 +90,14 @@ function shouldDisplayField(
   basePath: string,
   field: CompatibleFormField
 ): boolean {
+  if (
+    (field as { disabled?: boolean }).disabled === true ||
+    (field as { active?: boolean }).active === false ||
+    (field as { isActive?: boolean }).isActive === false
+  ) {
+    return false
+  }
+
   if (!('visibility' in field) || !field.visibility || field.visibility.length === 0) {
     return true
   }
@@ -225,9 +233,9 @@ export function DynamicFormStep({
   const hasPhoneHiddenField = fields.some(field => field.name === 'phone_hidden_information_text')
 
 
-  const coordinateStep =
-    typeof isMapStep === 'boolean' ? isMapStep : isCoordinateStep(step)
-  const showHiddenPhoneToggle = coordinateStep && !isMapStep && !hasPhoneHiddenField
+  const stepHasCoordinateFields = isCoordinateStep(step)
+  const mapShouldRender = Boolean(isMapStep)
+  const showHiddenPhoneToggle = stepHasCoordinateFields && !mapShouldRender && !hasPhoneHiddenField
   const hiddenPhoneToggleId = `${basePath.replace(/\./g, '-')}-phone-hidden-toggle`
 
   let locationField: { field: CompatibleFormField; path: string } | undefined
@@ -236,7 +244,7 @@ export function DynamicFormStep({
   let addressField: { field: CompatibleFormField; path: string } | undefined
 
   const captureCoordinateField = (field: CompatibleFormField): boolean => {
-    if (!coordinateStep) {
+    if (!stepHasCoordinateFields) {
       return false
     }
 
@@ -366,7 +374,7 @@ export function DynamicFormStep({
       return []
     }
 
-    if (coordinateStep && captureCoordinateField(field)) {
+    if (stepHasCoordinateFields && captureCoordinateField(field)) {
       return []
     }
 
@@ -380,8 +388,6 @@ export function DynamicFormStep({
     ...fieldsToRender.filter(entry => !entry.isTextarea),
     ...fieldsToRender.filter(entry => entry.isTextarea)
   ]
-
-  const mapShouldRender = Boolean(isMapStep)
 
   const hasRenderableContent = mapShouldRender || fieldsToRender.length > 0 || showHiddenPhoneToggle
   if (!hasRenderableContent) {

@@ -52,14 +52,16 @@ describe('PromotionsService', () => {
 
   describe('create', () => {
     it('should create a new promotion', async () => {
+      const startDate = new Date('2026-01-01T00:00:00.000Z');
+      const endDate = new Date('2026-01-02T00:00:00.000Z');
       const createPromotionDto: CreatePromotionDto = {
         name: 'Test Promotion',
-        listingId: '1',
+        listingId: undefined,
         type: PromotionType.BOOST,
-        status: PromotionStatus.ACTIVE,
+        status: PromotionStatus.DRAFT,
         budget: 100,
-        startDate: new Date().toISOString(),
-        endDate: new Date().toISOString(),
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
       };
       const promotion = new Promotion();
       mockRepository.create.mockReturnValue(promotion);

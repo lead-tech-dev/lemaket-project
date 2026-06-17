@@ -8,9 +8,8 @@ RUN npm ci
 COPY . .
 
 ARG VITE_API_URL=http://localhost:3000
-ARG MAPBOX_PUBLIC_KEY=
 
-RUN VITE_API_URL="${VITE_API_URL}" VITE_MAPBOX_TOKEN="${MAPBOX_PUBLIC_KEY}" npm run build
+RUN VITE_API_URL="${VITE_API_URL}" npm run build
 
 FROM nginx:1.27-alpine
 

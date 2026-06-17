@@ -51,6 +51,9 @@ export function I18nProvider({ children }: PropsWithChildren) {
     if (typeof window === 'undefined') {
       return
     }
+    if (typeof document !== 'undefined') {
+      document.documentElement.lang = locale
+    }
     try {
       window.localStorage.setItem(STORAGE_KEY, locale)
     } catch (err) {

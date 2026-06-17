@@ -19,4 +19,18 @@ describe('richText utils', () => {
     const text = richTextToPlainText('<p>Bonjour <strong>toi</strong></p>')
     expect(text).toBe('Bonjour toi')
   })
+
+  it('keeps emoji and multi-paragraph content readable', () => {
+    const html = toRenderableRichTextHtml('🔥 Offre spéciale\n\nAppartement très propre 😍\n- Terrasse\n- Wi-Fi 🚀')
+    expect(html).toContain('<p>🔥 Offre spéciale</p>')
+    expect(html).toContain('<p><br></p>')
+    expect(html).toContain('<p>Appartement très propre 😍</p>')
+    expect(html).toContain('<li>Terrasse</li>')
+    expect(html).toContain('<li>Wi-Fi 🚀</li>')
+  })
+
+  it('extracts plain text correctly from html paragraphs with emoji', () => {
+    const text = richTextToPlainText('<p>Bonjour 👋</p><p>Deuxième paragraphe ✅</p>')
+    expect(text).toBe('Bonjour 👋 Deuxième paragraphe ✅')
+  })
 })

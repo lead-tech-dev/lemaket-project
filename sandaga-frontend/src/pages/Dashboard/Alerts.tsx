@@ -330,14 +330,14 @@ export default function Alerts() {
                       <Button
                         variant="ghost"
                         onClick={() => openEditModal(alert)}
-                        disabled={isSaving || updatingId === alert.id}
+                        disabled={isSaving || updatingId === alert.id || deletingId === alert.id}
                       >
                         {t('alerts.actions.edit')}
                       </Button>
                       <Button
                         variant="ghost"
                         onClick={() => handleToggle(alert)}
-                        disabled={updatingId === alert.id}
+                        disabled={updatingId === alert.id || deletingId === alert.id}
                       >
                         {updatingId === alert.id
                           ? t('alerts.actions.updating')

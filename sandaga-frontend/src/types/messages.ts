@@ -6,6 +6,8 @@ export type ConversationParticipant = {
   lastName: string
   avatarUrl?: string | null
   isPro?: boolean
+  isOnline?: boolean
+  lastLoginAt?: string | null
 }
 
 export type ConversationSummary = {

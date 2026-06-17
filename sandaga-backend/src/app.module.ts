@@ -31,6 +31,8 @@ import { StorefrontsModule } from './storefronts/storefronts.module';
 import { DeliveriesModule } from './deliveries/deliveries.module';
 import { OrdersModule } from './orders/orders.module';
 import { MonitoringModule } from './monitoring/monitoring.module';
+import { GeoModule } from './geo/geo.module';
+import { PresenceModule } from './presence/presence.module';
 
 @Module({
   imports: [
@@ -73,7 +75,9 @@ import { MonitoringModule } from './monitoring/monitoring.module';
     StorefrontsModule,
     DeliveriesModule,
     OrdersModule,
-    MonitoringModule
+    MonitoringModule,
+    GeoModule,
+    PresenceModule
   ],
   controllers: [AppController],
   providers: [AppService]

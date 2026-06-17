@@ -14,7 +14,6 @@ import {
 import type { Response } from 'express';
 import { PaymentsService } from './payments.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { ProGuard } from '../common/guards/pro.guard';
 import { CurrentUser, AuthUser } from '../common/decorators/current-user.decorator';
 import { CreatePaymentMethodDto } from './dto/create-payment-method.dto';
 import { UpdatePaymentMethodDto } from './dto/update-payment-method.dto';
@@ -32,7 +31,6 @@ export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
   @Get('options')
-  @UseGuards(ProGuard)
   getPromotionOptions(@Query('category') category?: string) {
     return this.paymentsService.getPromotionOptions(category);
   }
@@ -89,7 +87,6 @@ export class PaymentsController {
   }
 
   @Post('checkout')
-  @UseGuards(ProGuard)
   createPayment(
     @CurrentUser() user: AuthUser,
     @Body() dto: CreatePaymentDto
@@ -211,9 +208,19 @@ export class PaymentsController {
     return this.paymentsService.withdrawFromWallet(user, dto);
   }
 
+  @Get('verify')
+  verifyPayment(@CurrentUser() user: AuthUser, @Query('reference') reference?: string) {
+    return this.paymentsService.verifyPaymentReference(user, reference ?? '');
+  }
+
   @Get('zikopay/verify')
   verifyZikopay(@CurrentUser() user: AuthUser, @Query('reference') reference?: string) {
     return this.paymentsService.verifyZikopayReference(user, reference ?? '');
+  }
+
+  @Get('campay/verify')
+  verifyCampay(@CurrentUser() user: AuthUser, @Query('reference') reference?: string) {
+    return this.paymentsService.verifyCampayReference(user, reference ?? '');
   }
 
   @Get('flutterwave/verify')

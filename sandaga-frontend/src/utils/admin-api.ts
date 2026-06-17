@@ -6,8 +6,13 @@ import type {
   ExportJob,
   ModerationListingsResponse,
   MessageNotificationLogsResponse,
+  PromotionPaymentStatus,
   PromotionStatus,
-  PromotionType
+  PromotionType,
+  SearchAlertDispatchResult,
+  SearchOperationalStatus,
+  SearchRelevanceSettings,
+  SearchSynonymEntry
 } from '../types/admin'
 import type { ListingStatus } from '../types/listing-status'
 import type { AdminUser } from '../types/user'
@@ -94,6 +99,13 @@ export function updateAdminPromotion(id: string, payload: Partial<PromotionPaylo
 
 export function transitionAdminPromotionStatus(id: string, status: PromotionStatus) {
   return apiPatch<AdminPromotion>(`/admin/promotions/${id}/status`, { status })
+}
+
+export function updateAdminPromotionPaymentStatus(
+  id: string,
+  payload: { paymentStatus: PromotionPaymentStatus; paymentId?: string | null }
+) {
+  return apiPatch<AdminPromotion>(`/admin/promotions/${id}/payment-status`, payload)
 }
 
 export function deleteAdminPromotion(id: string) {
@@ -216,4 +228,41 @@ export function updateAdminSettingValue(key: string, value: unknown) {
 
 export function updateAdminSettingsBatch(updates: Array<{ key: string; value: unknown }>) {
   return apiPost<Array<{ key: string; value: unknown }>>('/admin/settings', { updates })
+}
+
+export function fetchSearchOperationalStatus(force = false) {
+  return apiGet<SearchOperationalStatus>(
+    `/monitoring/search/status${force ? '?force=true' : ''}`
+  )
+}
+
+export function dispatchSearchOperationalAlerts(force = false) {
+  return apiPost<SearchAlertDispatchResult>(
+    `/monitoring/search/alerts/dispatch${force ? '?force=true' : ''}`,
+    {}
+  )
+}
+
+export function fetchSearchRelevanceSettings() {
+  return apiGet<SearchRelevanceSettings>('/admin/search/relevance')
+}
+
+export function updateSearchRelevanceSettings(payload: Partial<SearchRelevanceSettings>) {
+  return apiPost<SearchRelevanceSettings>('/admin/search/relevance', payload)
+}
+
+export function fetchSearchSynonyms() {
+  return apiGet<SearchSynonymEntry[]>('/search/synonyms')
+}
+
+export function upsertSearchSynonym(payload: {
+  term: string
+  synonym: string
+  isActive?: boolean
+}) {
+  return apiPost<SearchSynonymEntry>('/search/synonyms', payload)
+}
+
+export function deleteSearchSynonym(id: string) {
+  return apiDelete<{ success: boolean }>(`/search/synonyms/${id}`)
 }

@@ -8,6 +8,7 @@ export type AdminUser = {
   isPro: boolean
   created_at: string
   lastLoginAt?: string | null
+  isOnline?: boolean
   companyName?: string | null
   companyId?: string | null
   companyNiu?: string | null

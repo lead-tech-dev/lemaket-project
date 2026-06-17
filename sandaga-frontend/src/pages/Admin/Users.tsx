@@ -10,6 +10,8 @@ import { fetchAuditTrail } from '../../utils/admin-api'
 import { useExportJob } from '../../hooks/useExportJob'
 import type { Paginated } from '../../types/pagination'
 
+const PAGE_SIZE = 20
+
 export default function Users() {
   const { t, locale } = useI18n()
   const localeTag = locale === 'fr' ? 'fr-FR' : 'en-US'
@@ -23,6 +25,9 @@ export default function Users() {
   )
   const [users, setUsers] = useState<AdminUser[]>([])
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
@@ -51,61 +56,53 @@ export default function Users() {
       })
   })
 
+  // Recherche serveur debouncée : retour à la page 1 à chaque nouvelle requête.
   useEffect(() => {
-    let active = true
+    const timeout = setTimeout(() => {
+      setDebouncedSearch(search.trim())
+      setPage(1)
+    }, 350)
+    return () => clearTimeout(timeout)
+  }, [search])
+
+  // Chargement d'UNE page côté serveur (recherche + pagination), sans plus
+  // agréger toutes les pages côté client.
+  useEffect(() => {
+    const controller = new AbortController()
     setIsLoading(true)
     setError(null)
 
-    const fetchAllUsers = async () => {
-      try {
-        const aggregated: AdminUser[] = []
-        const limit = 100
-        let page = 1
-        let total = 0
+    const params = new URLSearchParams({
+      page: String(page),
+      limit: String(PAGE_SIZE)
+    })
+    if (debouncedSearch) {
+      params.set('search', debouncedSearch)
+    }
 
-        while (active) {
-          const response = await apiGet<Paginated<AdminUser>>(
-            `/users?page=${page}&limit=${limit}`
-          )
-          if (!active) {
-            return
-          }
-
-          aggregated.push(...response.data)
-          total = response.total
-
-          if (aggregated.length >= total || response.data.length < limit) {
-            break
-          }
-
-          page += 1
-        }
-
-        if (active) {
-          setUsers(aggregated)
-        }
-      } catch (err) {
+    apiGet<Paginated<AdminUser>>(`/users?${params.toString()}`, {
+      signal: controller.signal
+    })
+      .then(response => {
+        setUsers(response.data)
+        setTotal(response.total)
+      })
+      .catch(err => {
+        if (controller.signal.aborted) return
         console.error('Unable to load users', err)
-        if (!active) {
-          return
-        }
         const message =
           err instanceof Error ? err.message : t('admin.users.toast.loadErrorMessage')
         setError(message)
         addToast({ variant: 'error', title: t('admin.users.toast.loadErrorTitle'), message })
-      } finally {
-        if (active) {
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
           setIsLoading(false)
         }
-      }
-    }
+      })
 
-    void fetchAllUsers()
-
-    return () => {
-      active = false
-    }
-  }, [addToast, t])
+    return () => controller.abort()
+  }, [page, debouncedSearch, addToast, t])
 
   const loadAudit = useCallback(async () => {
     setIsAuditLoading(true)
@@ -124,17 +121,7 @@ export default function Users() {
   }, [loadAudit])
 
 
-  const filteredUsers = useMemo(() => {
-    if (!search.trim()) {
-      return users
-    }
-    const value = search.toLowerCase()
-    return users.filter(user =>
-      [user.firstName, user.lastName, user.email]
-        .filter(Boolean)
-        .some(field => field!.toLowerCase().includes(value))
-    )
-  }, [search, users])
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   const handlePromote = async (id: string) => {
     setUpdatingId(id)
@@ -199,6 +186,7 @@ export default function Users() {
     try {
       await apiDelete(`/users/${id}`)
       setUsers(prev => prev.filter(user => user.id !== id))
+      setTotal(current => Math.max(0, current - 1))
       addToast({
         variant: 'info',
         title: t('admin.users.toast.deletedTitle'),
@@ -243,7 +231,7 @@ export default function Users() {
               {t('admin.users.export.xlsx')}
             </Button>
             {isExportRunning ? (
-              <span style={{ color: '#6c757d', fontSize: '0.85rem' }}>
+              <span style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>
                 {t('admin.users.export.progress', { progress: exportProgress })}
               </span>
             ) : null}
@@ -253,9 +241,9 @@ export default function Users() {
         <div className="admin-card">
           <div className="admin-card__meta">
             <strong>
-              {users.length === 1
-                ? t('admin.users.count.single', { count: users.length })
-                : t('admin.users.count.multiple', { count: users.length })}
+              {total === 1
+                ? t('admin.users.count.single', { count: total })
+                : t('admin.users.count.multiple', { count: total })}
             </strong>
             <input
               className="input"
@@ -269,11 +257,11 @@ export default function Users() {
               {error}
             </p>
           ) : null}
-          <table className="admin-table">
+          <table className="admin-table admin-table--users">
             <thead>
               <tr>
                 <th>{t('admin.users.table.name')}</th>
-                <th>{t('admin.users.table.email')}</th>
+                <th className="admin-users__col-email">{t('admin.users.table.email')}</th>
                 <th>{t('admin.users.table.role')}</th>
                 <th>{t('admin.users.table.signup')}</th>
                 <th>{t('admin.users.table.status')}</th>
@@ -281,17 +269,21 @@ export default function Users() {
               </tr>
             </thead>
             <tbody>
-              {isLoading && !filteredUsers.length ? (
+              {isLoading && !users.length ? (
                 <tr>
-                  <td colSpan={6} style={{ padding: '1rem', color: '#6c757d' }}>
+                  <td colSpan={6} style={{ padding: '1rem', color: 'var(--color-text-muted)' }}>
                     {t('admin.users.loading')}
                   </td>
                 </tr>
-              ) : filteredUsers.length ? (
-                filteredUsers.map(user => (
+              ) : users.length ? (
+                users.map(user => (
                   <tr key={user.id}>
                     <td>{`${user.firstName} ${user.lastName}`.trim() || user.email}</td>
-                    <td>{user.email}</td>
+                    <td className="admin-users__col-email">
+                      <span className="admin-users__email" title={user.email}>
+                        {user.email}
+                      </span>
+                    </td>
                     <td>{user.role.toUpperCase()}</td>
                     <td>{auditDateFormatter.format(new Date(user.created_at))}</td>
                     <td>
@@ -304,29 +296,64 @@ export default function Users() {
                       </span>
                     </td>
                     <td>
-                      <div className="auth-form__actions" style={{ gap: '12px' }}>
+                      <div className="admin-users__actions" role="group" aria-label={t('admin.users.table.action')}>
                         <Button
                           variant="outline"
                           onClick={() => handleToggleActive(user)}
                           disabled={updatingId === user.id}
+                          className="admin-users__icon-btn"
+                          title={user.isActive ? t('admin.users.actions.suspend') : t('admin.users.actions.reactivate')}
+                          aria-label={user.isActive ? t('admin.users.actions.suspend') : t('admin.users.actions.reactivate')}
+                          data-tooltip={user.isActive ? t('admin.users.actions.suspend') : t('admin.users.actions.reactivate')}
                         >
-                          {user.isActive ? t('admin.users.actions.suspend') : t('admin.users.actions.reactivate')}
+                          {user.isActive ? (
+                            <svg viewBox="0 0 24 24" aria-hidden="true" className="admin-users__icon">
+                              <path d="M8 6v12M16 6v12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                            </svg>
+                          ) : (
+                            <svg viewBox="0 0 24 24" aria-hidden="true" className="admin-users__icon">
+                              <path d="M9 7l8 5-8 5z" fill="currentColor" />
+                            </svg>
+                          )}
+                          <span className="sr-only">
+                            {user.isActive ? t('admin.users.actions.suspend') : t('admin.users.actions.reactivate')}
+                          </span>
                         </Button>
                         {!user.isPro ? (
                           <Button
                             variant="ghost"
                             onClick={() => handlePromote(user.id)}
                             disabled={updatingId === user.id}
+                            className="admin-users__icon-btn"
+                            title={t('admin.users.actions.promote')}
+                            aria-label={t('admin.users.actions.promote')}
+                            data-tooltip={t('admin.users.actions.promote')}
                           >
-                            {t('admin.users.actions.promote')}
+                            <svg viewBox="0 0 24 24" aria-hidden="true" className="admin-users__icon">
+                              <path
+                                d="M12 3l2.65 5.36 5.92.86-4.29 4.18 1.01 5.9L12 16.8l-5.29 2.78 1.01-5.9-4.29-4.18 5.92-.86L12 3z"
+                                fill="currentColor"
+                              />
+                            </svg>
+                            <span className="sr-only">{t('admin.users.actions.promote')}</span>
                           </Button>
                         ) : null}
                         <Button
                           variant="danger"
                           onClick={() => handleDelete(user.id)}
                           disabled={updatingId === user.id}
+                          className="admin-users__icon-btn"
+                          title={t('admin.users.actions.delete')}
+                          aria-label={t('admin.users.actions.delete')}
+                          data-tooltip={t('admin.users.actions.delete')}
                         >
-                          {t('admin.users.actions.delete')}
+                          <svg viewBox="0 0 24 24" aria-hidden="true" className="admin-users__icon">
+                            <path
+                              d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z"
+                              fill="currentColor"
+                            />
+                          </svg>
+                          <span className="sr-only">{t('admin.users.actions.delete')}</span>
                         </Button>
                       </div>
                     </td>
@@ -334,13 +361,32 @@ export default function Users() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} style={{ padding: '1rem', color: '#6c757d' }}>
+                  <td colSpan={6} style={{ padding: '1rem', color: 'var(--color-text-muted)' }}>
                     {t('admin.users.empty')}
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
+          {totalPages > 1 ? (
+            <div className="listings-pagination" style={{ marginTop: '12px' }}>
+              <Button
+                variant="ghost"
+                onClick={() => setPage(current => Math.max(1, current - 1))}
+                disabled={page <= 1 || isLoading}
+              >
+                {t('pagination.previous')}
+              </Button>
+              <span>{t('pagination.pageIndicator', { page, total: totalPages })}</span>
+              <Button
+                variant="ghost"
+                onClick={() => setPage(current => Math.min(totalPages, current + 1))}
+                disabled={page >= totalPages || isLoading}
+              >
+                {t('pagination.next')}
+              </Button>
+            </div>
+          ) : null}
         </div>
 
         <section className="dashboard-section" style={{ marginTop: '24px' }}>
@@ -358,7 +404,7 @@ export default function Users() {
             </Button>
           </div>
           {isAuditLoading ? (
-            <p style={{ color: '#6c757d' }}>{t('admin.users.audit.loading')}</p>
+            <p style={{ color: 'var(--color-text-muted)' }}>{t('admin.users.audit.loading')}</p>
           ) : auditEvents.length ? (
             <ul
               style={{
@@ -376,8 +422,8 @@ export default function Users() {
                   style={{
                     padding: '12px',
                     borderRadius: '8px',
-                    border: '1px solid #e5e7eb',
-                    background: '#fff'
+                    border: '1px solid var(--color-border)',
+                    background: 'var(--color-surface)'
                   }}
                 >
                   <div
@@ -389,14 +435,14 @@ export default function Users() {
                     }}
                   >
                     <strong>{event.action}</strong>
-                    <span style={{ color: '#6c757d', fontSize: '0.8rem' }}>
+                    <span style={{ color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>
                       {auditDateFormatter.format(new Date(event.created_at))}
                     </span>
                   </div>
                   {event.details ? (
-                    <p style={{ marginTop: '6px', color: '#4b5563' }}>{event.details}</p>
+                    <p style={{ marginTop: '6px', color: 'var(--color-text-muted)' }}>{event.details}</p>
                   ) : null}
-                  <p style={{ marginTop: '6px', color: '#6c757d', fontSize: '0.85rem' }}>
+                  <p style={{ marginTop: '6px', color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>
                     {event.actorName ?? t('admin.users.audit.system')}
                     {event.ipAddress ? ` · ${event.ipAddress}` : ''}
                   </p>
@@ -404,7 +450,7 @@ export default function Users() {
               ))}
             </ul>
           ) : (
-            <p style={{ color: '#6c757d' }}>{t('admin.users.audit.empty')}</p>
+            <p style={{ color: 'var(--color-text-muted)' }}>{t('admin.users.audit.empty')}</p>
           )}
         </section>
       </div>
