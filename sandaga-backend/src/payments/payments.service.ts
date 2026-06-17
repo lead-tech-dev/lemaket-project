@@ -117,8 +117,17 @@ export class PaymentsService {
   private readonly campayPermanentToken: string;
   private readonly campayBaseUrl: string;
   private readonly campayWebhookKey: string;
+  private readonly tranzakAppId: string;
+  private readonly tranzakAppKey: string;
+  private readonly tranzakBaseUrl: string;
+  private readonly tranzakReturnUrl: string;
+  private readonly tranzakCallbackUrl: string;
+  // Cache du token d'accès Tranzak (valable ~2h) : on le réutilise jusqu'à
+  // expiration pour éviter un POST /auth/token à chaque appel.
+  private tranzakToken: string | null = null;
+  private tranzakTokenExpiresAt = 0;
   // Provider Mobile Money actif (collecte + payout). Carte: toujours Zikopay.
-  private readonly momoProvider: 'campay' | 'zikopay';
+  private readonly momoProvider: 'campay' | 'zikopay' | 'tranzak';
   private readonly zeroDecimalCurrencies = new Set([
     'BIF',
     'CLP',
@@ -199,10 +208,21 @@ export class PaymentsService {
     this.campayPermanentToken = campayConfig.permanentToken ?? '';
     this.campayBaseUrl = campayConfig.baseUrl ?? 'https://www.campay.net/api';
     this.campayWebhookKey = campayConfig.webhookKey ?? '';
+
+    const tranzakConfig =
+      this.configService.get<Record<string, any>>('payments.tranzak') ?? {};
+    this.tranzakAppId = tranzakConfig.appId ?? '';
+    this.tranzakAppKey = tranzakConfig.appKey ?? '';
+    this.tranzakBaseUrl = tranzakConfig.baseUrl ?? 'https://sandbox.dsapi.tranzak.me';
+    this.tranzakReturnUrl = tranzakConfig.returnUrl ?? '';
+    this.tranzakCallbackUrl = tranzakConfig.callbackUrl ?? '';
+
+    const configuredMomoProvider = String(
+      this.configService.get<string>('payments.momoProvider') ?? 'campay'
+    ).toLowerCase();
     this.momoProvider =
-      String(this.configService.get<string>('payments.momoProvider') ?? 'campay').toLowerCase() ===
-      'zikopay'
-        ? 'zikopay'
+      configuredMomoProvider === 'zikopay' || configuredMomoProvider === 'tranzak'
+        ? (configuredMomoProvider as 'zikopay' | 'tranzak')
         : 'campay';
 
     const promotionPriceMap =
@@ -1926,8 +1946,21 @@ export class PaymentsService {
     paymentUrl?: string;
     ussdCode?: string;
     operator?: string;
-    provider: 'campay' | 'zikopay';
+    provider: 'campay' | 'zikopay' | 'tranzak';
   }> {
+    if (params.paymentMethod === 'mobile_money' && this.momoProvider === 'tranzak') {
+      const result = await this.initTranzakCollect({
+        user: params.user,
+        amount: params.amount,
+        currency: params.currency,
+        description: params.description,
+        deliveryId: params.deliveryId ?? null,
+        listingId: params.listingId,
+        paymentPhone: params.paymentPhone,
+        extraMeta: params.extraMeta
+      });
+      return { ...result, provider: 'tranzak' };
+    }
     if (params.paymentMethod === 'mobile_money' && this.momoProvider === 'campay') {
       const result = await this.initCampayCollect({
         user: params.user,
@@ -1972,7 +2005,11 @@ export class PaymentsService {
     if (actual + 1 < expected) {
       return false;
     }
-    const rawCurrency = data?.currency ?? (response as Record<string, any>)?.currency;
+    const rawCurrency =
+      data?.currency ??
+      data?.currencyCode ??
+      (response as Record<string, any>)?.currency ??
+      (response as Record<string, any>)?.currencyCode;
     if (
       rawCurrency &&
       String(rawCurrency).toUpperCase() !== String(payment.currency).toUpperCase()
@@ -2474,6 +2511,9 @@ export class PaymentsService {
     }
     if (payment.userId !== user.id) {
       throw new ForbiddenException('Paiement non autorisé.');
+    }
+    if (payment.provider === 'tranzak') {
+      return this.verifyTranzakReference(user, reference);
     }
     if (payment.provider === 'campay') {
       return this.verifyCampayReference(user, reference);
@@ -3002,6 +3042,20 @@ export class PaymentsService {
     // Carte → Zikopay ; sinon provider configuré (défaut CamPay), surchargeable par dto.provider.
     const topupProvider =
       paymentMethod === 'card' ? 'zikopay' : (dto.provider ?? this.momoProvider);
+    if (topupProvider === 'tranzak') {
+      return this.initTranzakCollect({
+        user,
+        amount: dto.amount,
+        currency,
+        description: 'Recharge wallet',
+        listingId: 'wallet',
+        deliveryId: null,
+        paymentPhone,
+        extraMeta: {
+          type: 'wallet_topup'
+        }
+      });
+    }
     if (topupProvider === 'campay') {
       return this.initCampayCollect({
         user,
@@ -3072,7 +3126,9 @@ export class PaymentsService {
       network: payoutNetwork
     };
     try {
-      if (this.momoProvider === 'campay') {
+      if (this.momoProvider === 'tranzak') {
+        await this.createTranzakMobileMoneyPayout(payoutParams);
+      } else if (this.momoProvider === 'campay') {
         await this.createCampayMobileMoneyPayout(payoutParams);
       } else {
         await this.createZikopayMobileMoneyPayout(payoutParams);
@@ -3728,6 +3784,447 @@ export class PaymentsService {
     });
   }
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // Tranzak (Mobile Money MTN/Orange Cameroun) — collecte, vérif, payout.
+  // Auth par token temporaire (~2h) obtenu via /auth/token et mis en cache.
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Retourne un token d'accès Tranzak valide, depuis le cache si possible.
+   * Le token est rafraîchi à ~75% de sa durée de validité pour éviter qu'il
+   * expire en plein appel.
+   */
+  private async getTranzakToken(): Promise<string> {
+    if (!this.tranzakAppId || !this.tranzakAppKey) {
+      throw new ServiceUnavailableException('Configuration Tranzak manquante.');
+    }
+    const now = Date.now();
+    if (this.tranzakToken && now < this.tranzakTokenExpiresAt) {
+      return this.tranzakToken;
+    }
+    const response = await this.requestTranzak(
+      'POST',
+      '/auth/token',
+      { appId: this.tranzakAppId, appKey: this.tranzakAppKey },
+      null
+    );
+    const data = response?.data ?? response;
+    const token = data?.token ?? null;
+    if (!token) {
+      throw new ServiceUnavailableException('Authentification Tranzak échouée.');
+    }
+    const expiresIn = Number(data?.expiresIn);
+    const ttlSeconds = Number.isFinite(expiresIn) && expiresIn > 0 ? expiresIn : 7200;
+    this.tranzakToken = token;
+    this.tranzakTokenExpiresAt = now + Math.floor(ttlSeconds * 0.75) * 1000;
+    return token;
+  }
+
+  private async postTranzak(path: string, body: unknown): Promise<any> {
+    const token = await this.getTranzakToken();
+    return this.requestTranzak('POST', path, body, token);
+  }
+
+  private async getTranzak(path: string): Promise<any> {
+    const token = await this.getTranzakToken();
+    return this.requestTranzak('GET', path, null, token);
+  }
+
+  /**
+   * Transport bas niveau Tranzak. `token = null` uniquement pour /auth/token.
+   * Toutes les réponses Tranzak ont une enveloppe { success, data, errorMsg,
+   * errorCode } : un HTTP 200 avec success=false reste une erreur.
+   */
+  private requestTranzak(
+    method: 'GET' | 'POST',
+    path: string,
+    body: unknown,
+    token: string | null
+  ): Promise<any> {
+    const base = this.tranzakBaseUrl.replace(/\/+$/, '');
+    const normalizedPath = path.replace(/^\/+/, '');
+    const url = new URL(`${base}/${normalizedPath}`);
+    const transport = url.protocol === 'http:' ? httpRequest : httpsRequest;
+    const payload = method === 'POST' ? JSON.stringify(body ?? {}) : null;
+    const headers: Record<string, string | number> = {
+      Accept: 'application/json'
+    };
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+      if (this.tranzakAppId) {
+        headers['X-App-ID'] = this.tranzakAppId;
+      }
+    }
+    if (payload !== null) {
+      headers['Content-Type'] = 'application/json';
+      headers['Content-Length'] = Buffer.byteLength(payload);
+    }
+    return new Promise((resolve, reject) => {
+      const req = transport(url, { method, headers }, res => {
+        const chunks: Buffer[] = [];
+        res.on('data', chunk => chunks.push(chunk));
+        res.on('end', () => {
+          const raw = Buffer.concat(chunks).toString('utf8');
+          const statusCode = res.statusCode ?? 0;
+          const contentType = res.headers['content-type'] ?? '';
+          const looksLikeHtml = raw.trim().startsWith('<');
+          const isJson =
+            typeof contentType === 'string' &&
+            contentType.toLowerCase().includes('application/json');
+
+          if (!raw) {
+            return reject(
+              new Error(`Tranzak réponse vide (HTTP ${statusCode}) pour ${url.toString()}`)
+            );
+          }
+          if (!isJson || looksLikeHtml) {
+            const snippet = raw.replace(/\s+/g, ' ').slice(0, 200);
+            return reject(new Error(`Tranzak réponse non-JSON (HTTP ${statusCode}) : ${snippet}`));
+          }
+
+          try {
+            const parsed = JSON.parse(raw);
+            if (statusCode >= 400) {
+              return reject(
+                new Error(
+                  `Tranzak erreur HTTP ${statusCode}: ${parsed?.errorMsg ?? parsed?.message ?? raw}`
+                )
+              );
+            }
+            if (parsed && parsed.success === false) {
+              return reject(
+                new Error(
+                  `Tranzak erreur ${parsed?.errorCode ?? ''}: ${parsed?.errorMsg ?? 'échec'}`.trim()
+                )
+              );
+            }
+            resolve(parsed);
+          } catch (error) {
+            reject(error);
+          }
+        });
+      });
+      req.on('error', reject);
+      if (payload !== null) {
+        req.write(payload);
+      }
+      req.end();
+    });
+  }
+
+  async initTranzakCollect(params: {
+    user: AuthUser;
+    amount: number;
+    currency: string;
+    description: string;
+    deliveryId?: string | null;
+    listingId: string;
+    paymentPhone?: string;
+    extraMeta?: Record<string, unknown>;
+  }): Promise<{ paymentId: string; reference: string; ussdCode?: string; operator?: string }> {
+    if (!this.tranzakAppId || !this.tranzakAppKey) {
+      throw new ServiceUnavailableException('Configuration Tranzak manquante.');
+    }
+
+    const requestedCurrency = (params.currency || 'XAF').toUpperCase();
+
+    const account = await this.usersService.findOne(params.user.id);
+    const phone = this.normalizeCampayPhone(params.paymentPhone ?? account.phoneNumber ?? '');
+    if (!phone) {
+      throw new BadRequestException('Numéro Mobile Money requis.');
+    }
+
+    const payment = await this.paymentsRepository.save(
+      this.paymentsRepository.create({
+        amount: params.amount.toFixed(2),
+        currency: 'XAF',
+        description: params.description,
+        status: PaymentStatus.PENDING,
+        userId: params.user.id,
+        provider: 'tranzak',
+        metadata: {
+          deliveryId: params.deliveryId ?? null,
+          listingId: params.listingId,
+          type: params.extraMeta?.type ?? 'escrow',
+          paymentMethod: 'mobile_money',
+          originalCurrency: requestedCurrency,
+          ...params.extraMeta
+        }
+      })
+    );
+
+    let response: Record<string, any> | null = null;
+    try {
+      response = await this.postTranzak('/xp021/v1/request/create-mobile-wallet-charge', {
+        amount: Math.round(params.amount),
+        currencyCode: 'XAF',
+        description: params.description,
+        mobileWalletNumber: phone,
+        mchTransactionRef: payment.id,
+        returnUrl: this.tranzakReturnUrl
+      });
+    } catch (error) {
+      await this.logPaymentEvent({
+        paymentId: payment.id,
+        provider: 'tranzak',
+        type: 'escrow_init_failed',
+        status: 'failed',
+        payload: {
+          reason: error instanceof Error ? error.message : 'transport_error'
+        }
+      });
+      throw error;
+    }
+
+    const data = response?.data ?? response;
+    const reference = data?.requestId ?? response?.requestId;
+
+    if (!reference) {
+      await this.logPaymentEvent({
+        paymentId: payment.id,
+        provider: 'tranzak',
+        type: 'escrow_init_failed',
+        status: 'failed',
+        payload: { reason: 'missing_request_id', response }
+      });
+      throw new ServiceUnavailableException(
+        `Impossible de lancer le paiement Tranzak. Réponse: ${JSON.stringify(response)}`
+      );
+    }
+
+    payment.externalReference = reference;
+    payment.metadata = {
+      ...(payment.metadata ?? {}),
+      tranzakRequestId: reference
+    };
+    await this.paymentsRepository.save(payment);
+    await this.logPaymentEvent({
+      paymentId: payment.id,
+      provider: 'tranzak',
+      type: 'escrow_init',
+      status: data?.status ?? response?.status ?? null,
+      payload: response ?? null
+    });
+
+    return { paymentId: payment.id, reference };
+  }
+
+  /**
+   * Applique à un paiement le statut RÉEL renvoyé par Tranzak (réponse
+   * authentifiée par Bearer token). Unique source de vérité : ni le webhook
+   * entrant, ni aucun payload client n'est traité comme fiable.
+   */
+  private async applyTranzakAuthoritativeStatus(
+    payment: Payment,
+    response: Record<string, any> | null,
+    source: 'webhook' | 'verify'
+  ): Promise<{ ok: true; status: PaymentStatus | string }> {
+    const data = ((response as Record<string, any>)?.data ?? response ?? {}) as Record<
+      string,
+      any
+    >;
+    const statusRaw =
+      data?.status ?? data?.paymentStatus ?? (response as Record<string, any>)?.status ?? 'pending';
+    const status = String(statusRaw).toLowerCase();
+
+    if (this.isProviderSuccessStatus(status)) {
+      const transactionId = this.extractProviderTransactionId(
+        response as Record<string, any>,
+        'tranzak'
+      );
+      const debitConfirmed = this.hasOperatorDebitConfirmation({
+        provider: 'tranzak',
+        payment,
+        payload: response as Record<string, any>,
+        transactionId
+      });
+
+      if (!debitConfirmed) {
+        await this.logPaymentEvent({
+          paymentId: payment.id,
+          provider: 'tranzak',
+          type: `${source}_success_without_debit_proof`,
+          status,
+          payload: response ?? null
+        });
+        return { ok: true, status: payment.status ?? PaymentStatus.PENDING };
+      }
+
+      if (!this.isAuthoritativeAmountValid(payment, response)) {
+        await this.logPaymentEvent({
+          paymentId: payment.id,
+          provider: 'tranzak',
+          type: `${source}_amount_mismatch`,
+          status,
+          payload: response ?? null
+        });
+        return { ok: true, status: payment.status ?? PaymentStatus.PENDING };
+      }
+
+      const wasCompleted = payment.status === PaymentStatus.COMPLETED;
+      payment.status = PaymentStatus.COMPLETED;
+      payment.metadata = {
+        ...(payment.metadata ?? {}),
+        tranzakTransactionId: transactionId,
+        operatorDebitConfirmed: true,
+        operatorDebitConfirmedAt: new Date().toISOString()
+      };
+      await this.paymentsRepository.save(payment);
+      await this.logPaymentEvent({
+        paymentId: payment.id,
+        provider: 'tranzak',
+        type: `${source}_completed`,
+        status,
+        payload: response ?? null
+      });
+
+      if (!wasCompleted) {
+        const meta = {
+          ...(typeof payment.metadata === 'object' && payment.metadata ? payment.metadata : {})
+        };
+        await this.handlePaymentMeta(payment, meta);
+      }
+      return { ok: true, status: payment.status };
+    }
+
+    if (this.isProviderFailureStatus(status)) {
+      payment.status = PaymentStatus.FAILED;
+      await this.paymentsRepository.save(payment);
+      await this.logPaymentEvent({
+        paymentId: payment.id,
+        provider: 'tranzak',
+        type: `${source}_failed`,
+        status,
+        payload: response ?? null
+      });
+      const meta = {
+        ...(typeof payment.metadata === 'object' && payment.metadata ? payment.metadata : {})
+      };
+      await this.notifyEscrowPaymentFailed(payment, meta);
+      return { ok: true, status: payment.status };
+    }
+
+    return { ok: true, status: payment.status ?? PaymentStatus.PENDING };
+  }
+
+  async handleTranzakWebhook(payload: Record<string, any>) {
+    const requestId =
+      payload?.resource?.requestId ??
+      payload?.resourceId ??
+      payload?.requestId ??
+      payload?.data?.requestId ??
+      null;
+
+    const payment = requestId
+      ? await this.paymentsRepository.findOne({
+          where: { externalReference: requestId }
+        })
+      : null;
+
+    if (!payment) {
+      await this.logPaymentEvent({
+        provider: 'tranzak',
+        type: 'webhook_unmatched',
+        status: payload?.resource?.status ?? payload?.eventType ?? null,
+        payload
+      });
+      return { ok: true, status: 'unknown' };
+    }
+
+    const authoritativeReference = payment.externalReference ?? requestId;
+
+    // L'endpoint webhook est public : le payload entrant n'est JAMAIS digne de
+    // confiance. On revérifie le statut réel auprès de Tranzak via un appel
+    // serveur-à-serveur authentifié avant toute libération d'escrow.
+    if (!this.tranzakAppId || !this.tranzakAppKey) {
+      throw new ServiceUnavailableException('Configuration Tranzak manquante.');
+    }
+    let authoritative: Record<string, any> | null = null;
+    try {
+      authoritative = await this.getTranzak(
+        `/xp021/v1/request/details?requestId=${encodeURIComponent(authoritativeReference)}`
+      );
+    } catch (error) {
+      await this.logPaymentEvent({
+        paymentId: payment.id,
+        provider: 'tranzak',
+        type: 'webhook_verify_error',
+        status: payload?.resource?.status ?? null,
+        payload: {
+          requestId: authoritativeReference,
+          reason: error instanceof Error ? error.message : 'transport_error'
+        }
+      });
+      throw error;
+    }
+
+    return this.applyTranzakAuthoritativeStatus(payment, authoritative, 'webhook');
+  }
+
+  async verifyTranzakReference(user: AuthUser, reference: string) {
+    if (!this.tranzakAppId || !this.tranzakAppKey) {
+      throw new ServiceUnavailableException('Configuration Tranzak manquante.');
+    }
+    if (!reference) {
+      throw new BadRequestException('reference manquant');
+    }
+    const payment = await this.paymentsRepository.findOne({
+      where: { externalReference: reference }
+    });
+    if (!payment) {
+      throw new NotFoundException('Payment not found');
+    }
+    if (payment.userId !== user.id) {
+      throw new ForbiddenException('Paiement non autorisé.');
+    }
+
+    const response = await this.getTranzak(
+      `/xp021/v1/request/details?requestId=${encodeURIComponent(reference)}`
+    );
+    return this.applyTranzakAuthoritativeStatus(payment, response, 'verify');
+  }
+
+  async createTranzakMobileMoneyPayout(params: {
+    amount: number;
+    currency: string;
+    beneficiaryName: string;
+    accountNumber: string;
+    network: 'mtn' | 'orange';
+  }): Promise<{ payoutReference: string }> {
+    if (!this.tranzakAppId || !this.tranzakAppKey) {
+      throw new ServiceUnavailableException('Configuration Tranzak manquante.');
+    }
+
+    const phone = this.normalizeCampayPhone(params.accountNumber);
+    if (!phone) {
+      throw new BadRequestException('Numéro Mobile Money requis.');
+    }
+
+    const response = await this.postTranzak('/xp021/v1/transfer/to-mobile-wallet', {
+      amount: Math.round(params.amount),
+      currencyCode: (params.currency || 'XAF').toUpperCase(),
+      description: 'Retrait wallet',
+      customTransactionRef: randomUUID(),
+      payeeAccountId: phone,
+      payeeAccountName: params.beneficiaryName
+    });
+
+    const data = response?.data ?? response;
+    const reference = data?.transferId ?? data?.transactionId ?? data?.id;
+    if (!reference) {
+      throw new ServiceUnavailableException('Impossible de lancer le retrait Tranzak.');
+    }
+
+    await this.logPaymentEvent({
+      provider: 'tranzak',
+      type: 'payout_transfer',
+      status: data?.status ?? response?.status ?? null,
+      payload: response?.data ?? response
+    });
+
+    return { payoutReference: reference };
+  }
+
   private computeNextRenewalDate(days: number): Date {
     return new Date(Date.now() + days * 24 * 60 * 60 * 1000);
   }
@@ -3743,7 +4240,7 @@ export class PaymentsService {
   }
 
   private hasOperatorDebitConfirmation(input: {
-    provider: 'zikopay' | 'campay' | 'mtn' | 'orange';
+    provider: 'zikopay' | 'campay' | 'tranzak' | 'mtn' | 'orange';
     payment: Payment;
     payload: Record<string, any> | null | undefined;
     transactionId: string | null;
@@ -3810,9 +4307,9 @@ export class PaymentsService {
 
   private extractProviderTransactionId(
     payload: Record<string, any> | null | undefined,
-    provider: 'zikopay' | 'campay' | 'mtn' | 'orange'
+    provider: 'zikopay' | 'campay' | 'tranzak' | 'mtn' | 'orange'
   ): string | null {
-    const providerKeys: Record<'zikopay' | 'campay' | 'mtn' | 'orange', string[]> = {
+    const providerKeys: Record<'zikopay' | 'campay' | 'tranzak' | 'mtn' | 'orange', string[]> = {
       zikopay: [
         'external_transaction_id',
         'externalTransactionId',
@@ -3831,6 +4328,14 @@ export class PaymentsService {
         'reference',
         'external_reference',
         'code'
+      ],
+      tranzak: [
+        'transactionId',
+        'transaction_id',
+        'transferId',
+        'transfer_id',
+        'requestId',
+        'request_id'
       ],
       mtn: [
         'financialTransactionId',

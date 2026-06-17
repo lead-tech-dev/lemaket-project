@@ -27,6 +27,6 @@ export class WalletTopupDto {
 
   @IsOptional()
   @IsString()
-  @IsIn(['zikopay', 'campay'])
-  provider?: 'zikopay' | 'campay';
+  @IsIn(['zikopay', 'campay', 'tranzak'])
+  provider?: 'zikopay' | 'campay' | 'tranzak';
 }

@@ -32,4 +32,9 @@ export class PaymentsWebhookController {
   handleCampayWebhook(@Body() payload: Record<string, any>) {
     return this.paymentsService.handleCampayWebhook(payload);
   }
+
+  @Post('tranzak/webhook')
+  handleTranzakWebhook(@Body() payload: Record<string, any>) {
+    return this.paymentsService.handleTranzakWebhook(payload);
+  }
 }

@@ -62,7 +62,28 @@ export default () => ({
         process.env.BACKEND_URL ??
         'http://localhost:3000'
     },
-    // Provider Mobile Money par défaut (collecte + payout) : 'campay' | 'zikopay'.
+    tranzak: {
+      appId: process.env.TRANZAK_APP_ID ?? '',
+      appKey: process.env.TRANZAK_APP_KEY ?? '',
+      // 'sandbox' | 'live'. Détermine la base URL par défaut si TRANZAK_BASE_URL absent.
+      mode: (process.env.TRANZAK_MODE ?? 'sandbox').toLowerCase(),
+      baseUrl:
+        process.env.TRANZAK_BASE_URL ??
+        ((process.env.TRANZAK_MODE ?? 'sandbox').toLowerCase() === 'live'
+          ? 'https://dsapi.tranzak.me'
+          : 'https://sandbox.dsapi.tranzak.me'),
+      returnUrl:
+        process.env.TRANZAK_RETURN_URL ??
+        process.env.APP_PUBLIC_URL ??
+        process.env.FRONTEND_URL ??
+        'http://localhost:5173',
+      callbackUrl:
+        process.env.TRANZAK_CALLBACK_URL ??
+        process.env.API_PUBLIC_URL ??
+        process.env.BACKEND_URL ??
+        'http://localhost:3000'
+    },
+    // Provider Mobile Money par défaut (collecte + payout) : 'campay' | 'zikopay' | 'tranzak'.
     momoProvider: (process.env.MOMO_PROVIDER ?? 'campay').toLowerCase(),
     deliveryCommissionRate: Number(process.env.DELIVERY_COMMISSION_RATE ?? 0.05),
     platformWalletUserId: process.env.PLATFORM_WALLET_USER_ID ?? ''
