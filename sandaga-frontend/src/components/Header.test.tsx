@@ -169,12 +169,14 @@ describe('Header', () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText('Immobilier')).toBeInTheDocument();
-    expect(screen.getByText('Véhicules')).toBeInTheDocument();
-    expect(screen.getByText('Emploi')).toBeInTheDocument();
-    expect(screen.getByText('Mode')).toBeInTheDocument();
-    expect(screen.getByText('Maison')).toBeInTheDocument();
-    expect(screen.getByText('Services')).toBeInTheDocument();
+    // Les liens de catégories apparaissent dans la barre desktop ET les pills
+    // mobiles (responsive) → on accepte plusieurs occurrences.
+    expect(screen.getAllByText('Immobilier').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Véhicules').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Emploi').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Mode').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Maison').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Services').length).toBeGreaterThan(0);
     expect(screen.getByText('Toutes les catégories')).toBeInTheDocument();
   });
 
@@ -209,7 +211,9 @@ describe('Header', () => {
       </MemoryRouter>
     )
 
-    await user.click(screen.getByRole('button', { name: /ouvrir le menu|open menu/i }))
+    // Le bouton menu est masqué (display:none) en desktop ; testing-library
+    // calcule un nom accessible vide pour les éléments cachés → on cible le testid.
+    await user.click(screen.getByTestId('header-menu-toggle'))
 
     const dialog = screen.getByRole('dialog', { name: /menu/i })
     expect(within(dialog).getByRole('link', { name: /toutes les catégories|all categories/i })).toBeInTheDocument()

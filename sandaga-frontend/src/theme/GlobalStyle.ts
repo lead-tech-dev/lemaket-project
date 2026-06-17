@@ -10,8 +10,6 @@ import { createGlobalStyle } from 'styled-components'
  *    pendant la migration. Le reset complet reste dans le SCSS hérité.
  */
 export const GlobalStyle = createGlobalStyle`
-  @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap');
-
   body {
     background: ${({ theme }) => theme.bg};
     color: ${({ theme }) => theme.text};
