@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import Header from './Header';
 import { I18nProvider } from '../contexts/I18nContext';
+import { AppThemeProvider } from '../theme/ThemeProvider';
 
 vi.mock('../hooks/useAuth', () => ({
   useAuth: vi.fn(),
@@ -146,9 +147,11 @@ describe('Header', () => {
   it('renders the header with user information', () => {
     render(
       <MemoryRouter>
+        <AppThemeProvider>
         <I18nProvider>
           <Header />
         </I18nProvider>
+        </AppThemeProvider>
       </MemoryRouter>
     );
 
@@ -158,9 +161,11 @@ describe('Header', () => {
   it('renders navigation links', () => {
     render(
       <MemoryRouter>
+        <AppThemeProvider>
         <I18nProvider>
           <Header />
         </I18nProvider>
+        </AppThemeProvider>
       </MemoryRouter>
     );
 
@@ -179,9 +184,11 @@ describe('Header', () => {
 
     render(
       <MemoryRouter>
+        <AppThemeProvider>
         <I18nProvider>
           <Header />
         </I18nProvider>
+        </AppThemeProvider>
       </MemoryRouter>
     );
 
@@ -194,9 +201,11 @@ describe('Header', () => {
 
     render(
       <MemoryRouter>
+        <AppThemeProvider>
         <I18nProvider>
           <Header />
         </I18nProvider>
+        </AppThemeProvider>
       </MemoryRouter>
     )
 
@@ -231,9 +240,11 @@ describe('Header', () => {
 
     render(
       <MemoryRouter>
+        <AppThemeProvider>
         <I18nProvider>
           <Header />
         </I18nProvider>
+        </AppThemeProvider>
       </MemoryRouter>
     )
 
@@ -280,9 +291,11 @@ describe('Header', () => {
 
     render(
       <MemoryRouter>
+        <AppThemeProvider>
         <I18nProvider>
           <Header />
         </I18nProvider>
+        </AppThemeProvider>
       </MemoryRouter>
     )
 
@@ -317,10 +330,12 @@ describe('Header', () => {
 
     render(
       <MemoryRouter initialEntries={['/']}>
+        <AppThemeProvider>
         <I18nProvider>
           <Header />
           <LocationEcho />
         </I18nProvider>
+        </AppThemeProvider>
       </MemoryRouter>
     )
 

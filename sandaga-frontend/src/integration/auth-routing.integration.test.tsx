@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react'
 import { I18nProvider } from '../contexts/I18nContext'
 import { FeatureFlagProvider } from '../contexts/FeatureFlagContext'
 import { ToastProvider } from '../components/ui/Toast'
+import { AppThemeProvider } from '../theme/ThemeProvider'
 import { App } from '../App'
 
 vi.mock('../hooks/useAuth', () => ({
@@ -13,13 +14,15 @@ import * as AuthMod from '../hooks/useAuth'
 
 function renderApp() {
   return render(
-    <I18nProvider>
-      <FeatureFlagProvider>
-        <ToastProvider>
-          <App />
-        </ToastProvider>
-      </FeatureFlagProvider>
-    </I18nProvider>
+    <AppThemeProvider>
+      <I18nProvider>
+        <FeatureFlagProvider>
+          <ToastProvider>
+            <App />
+          </ToastProvider>
+        </FeatureFlagProvider>
+      </I18nProvider>
+    </AppThemeProvider>
   )
 }
 
