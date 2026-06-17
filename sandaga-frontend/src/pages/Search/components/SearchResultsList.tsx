@@ -1,7 +1,8 @@
-import { Link } from 'react-router-dom'
-import { Card } from '../../../components/ui/Card'
+import { useNavigate } from 'react-router-dom'
 import { Button } from '../../../components/ui/Button'
 import { FavoriteButton } from '../../../components/ui/FavoriteButton'
+import { ListingCard } from '../../../components/ds'
+import { listingToCardItem } from '../../../utils/listing-card'
 import type { Listing } from '../../../types/listing'
 import type { SearchViewMode } from '../types'
 
@@ -60,6 +61,7 @@ export function SearchResultsList({
   onCreateAlert,
   isCreatingAlert
 }: SearchResultsListProps) {
+  const navigate = useNavigate()
   return (
     <>
       <section className={`search-page__results ${viewMode === 'grid' ? 'search-page__results--grid' : 'search-page__results--list'}`}>
@@ -132,72 +134,17 @@ export function SearchResultsList({
           </div>
         ) : null}
 
-        {listings.map(listing => {
-          const cover = listing.images?.find(image => image.isCover) ?? listing.images?.[0]
-          const coverUrl = cover?.url?.trim() ?? ''
-          const hasCover = Boolean(coverUrl)
-          const ownerProfileUrl = getOwnerProfileUrl(listing)
-          const ownerName = getOwnerName(listing)
-
-          return (
-            <Link key={listing.id} to={`/listing/${listing.id}`} className="search-result-link">
-              <Card className="search-result">
-                <div
-                  className={`search-result__media${hasCover ? '' : ' is-placeholder'}`}
-                  style={hasCover ? { backgroundImage: `url(${coverUrl})` } : undefined}
-                >
-                  <FavoriteButton listingId={listing.id} className="favorite-toggle--overlay" />
-                </div>
-                <div className="search-result__body">
-                  <header className="search-result__header">
-                    <div className="search-result__badges">
-                      {listing.isPremium ? (
-                        <span className="search-result__badge search-result__badge--featured">
-                          Premium
-                        </span>
-                      ) : null}
-                      {listing.isFeatured ? (
-                        <span className="search-result__badge search-result__badge--featured">
-                          {t('listings.detail.badges.featured')}
-                        </span>
-                      ) : null}
-                      {listing.isBoosted ? (
-                        <span className="search-result__badge search-result__badge--boosted">
-                          {t('listings.detail.badges.boosted')}
-                        </span>
-                      ) : null}
-                      {listing.owner?.isCompanyVerified ? (
-                        <span className="search-result__badge search-result__badge--verified">
-                          {t('listings.badge.companyVerified')}
-                        </span>
-                      ) : null}
-                    </div>
-                    <span className="search-result__category">{listing.category?.name ?? t('listing.fallbackCategory')}</span>
-                  </header>
-                  <h2>{listing.title}</h2>
-                  {ownerProfileUrl && ownerName ? (
-                    <button
-                      type="button"
-                      className="listing-seller-link"
-                      onClick={event => {
-                        event.preventDefault()
-                        event.stopPropagation()
-                        onOwnerNavigate(ownerProfileUrl)
-                      }}
-                    >
-                      {ownerName}
-                    </button>
-                  ) : null}
-                  {listing.publishedAt ? (
-                    <p className="search-result__date">{formatListingDate(listing.publishedAt)}</p>
-                  ) : null}
-                  <p>{getListingLocation(listing)}</p>
-                  <strong>{formatPrice(listing)}</strong>
-                </div>
-              </Card>
-            </Link>
-          )
-        })}
+        {listings.map(listing => (
+          <ListingCard
+            key={listing.id}
+            item={listingToCardItem(listing)}
+            wide={viewMode === 'list'}
+            onOpen={() => navigate(`/listing/${listing.id}`)}
+            favoriteSlot={
+              <FavoriteButton listingId={listing.id} className="favorite-toggle--overlay" />
+            }
+          />
+        ))}
       </section>
 
       {totalPages > 1 ? (
