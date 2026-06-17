@@ -1,4 +1,4 @@
-import type { FC, MouseEvent } from 'react'
+import type { FC, MouseEvent, ReactNode } from 'react'
 import styled from 'styled-components'
 import { Badge } from './Badge'
 import { Icon } from './Icon'
@@ -26,6 +26,9 @@ interface ListingCardProps {
   item: ListingCardItem
   onOpen?: (item: ListingCardItem) => void
   onFav?: (id: ListingCardItem['id']) => void
+  /** Slot pour injecter un bouton favori applicatif (ex: <FavoriteButton/>).
+   *  Prioritaire sur le FavBtn interne (qui utilise onFav). */
+  favoriteSlot?: ReactNode
   wide?: boolean
   selectable?: boolean
   selected?: boolean
@@ -234,6 +237,7 @@ export const ListingCard: FC<ListingCardProps> = ({
   item,
   onOpen,
   onFav,
+  favoriteSlot,
   wide = false,
   selectable = false,
   selected = false,
@@ -261,7 +265,7 @@ export const ListingCard: FC<ListingCardProps> = ({
             <Price $big>
               {item.price} <span>FCFA{item.unit ?? ''}</span>
             </Price>
-            <FavBtn item={item} onFav={onFav} />
+            {favoriteSlot ?? <FavBtn item={item} onFav={onFav} />}
           </TopRow>
           <Title>{item.title}</Title>
           <div style={{ flex: 1 }} />
@@ -304,7 +308,7 @@ export const ListingCard: FC<ListingCardProps> = ({
           />
         )}
         <div style={{ position: 'absolute', top: 10, right: 10 }}>
-          <FavBtn item={item} onFav={onFav} float />
+          {favoriteSlot ?? <FavBtn item={item} onFav={onFav} float />}
         </div>
       </Photo>
       <Body>
