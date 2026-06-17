@@ -29,7 +29,7 @@ import { useI18n } from '../../contexts/I18nContext'
 import { useFeatureFlagsContext } from '../../contexts/FeatureFlagContext'
 import { resolveMediaUrl } from '../../utils/media'
 import { formatListingLocation } from '../../utils/location'
-import { Icon, Logo, Badge, ListingCard, SectionHead } from '../../components/ds'
+import { Icon, Badge, ListingCard, SectionHead, Photo, BoostTag } from '../../components/ds'
 import { toCardItem } from '../../utils/listing-card'
 import * as S from './Home.styles'
 
@@ -828,38 +828,44 @@ export default function Home() {
             </div>
 
             <S.HeroAside>
-              {featuredListings.slice(0, 2).map(listing => (
-                <div key={listing.id} style={{ width: 260 }}>
-                  {/* Cartes décoratives du héros : pas de bouton favori actif
-                      (le vrai vit dans la section "À la une" plus bas) pour
-                      éviter les doublons de favori sur la même annonce. */}
-                  <ListingCard
-                    item={toCardItem(listing, numberLocale)}
-                    onOpen={() => navigate(`/listing/${listing.id}`)}
-                  />
-                </div>
-              ))}
-              <S.HeroStatCard>
-                <div
-                  style={{
-                    width: 38,
-                    height: 38,
-                    borderRadius: 19,
-                    background: 'var(--color-primary-soft)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}
-                >
-                  <Badge size={20} />
-                </div>
-                <div>
-                  <strong>{primaryStat?.value ?? '92%'}</strong>
-                  <div>
-                    <span>{primaryStat?.label ?? t('home.storefronts.companyVerified')}</span>
+              <S.FloatCollage>
+                {[...featuredListings, ...latestListings].slice(0, 3).map((listing, i) => {
+                  const card = toCardItem(listing, numberLocale)
+                  const pos = [
+                    { top: 0, right: 30, width: 230, transform: 'rotate(-4deg)' },
+                    { top: 120, left: 0, width: 235, transform: 'rotate(3deg)', zIndex: 2 },
+                    { bottom: 0, right: 0, width: 225, transform: 'rotate(5deg)' }
+                  ][i]
+                  return (
+                    <S.FloatCard
+                      key={listing.id}
+                      style={pos}
+                      onClick={() => navigate(`/listing/${listing.id}`)}
+                    >
+                      <Photo item={card} h={120} fz={40}>
+                        {card.boosted ? <BoostTag /> : null}
+                      </Photo>
+                      <S.FloatBody>
+                        <div className="price">
+                          {card.price} <span>FCFA{card.unit ?? ''}</span>
+                        </div>
+                        <div className="title">{card.title}</div>
+                      </S.FloatBody>
+                    </S.FloatCard>
+                  )
+                })}
+                <S.VerifiedFloat>
+                  <div className="circle">
+                    <Badge size={20} />
                   </div>
-                </div>
-              </S.HeroStatCard>
+                  <div>
+                    <div className="pct">{primaryStat?.value ?? '92%'}</div>
+                    <div className="lbl">
+                      {primaryStat?.label ?? t('home.storefronts.companyVerified')}
+                    </div>
+                  </div>
+                </S.VerifiedFloat>
+              </S.FloatCollage>
             </S.HeroAside>
           </S.HeroInner>
         </S.Hero>

@@ -177,6 +177,74 @@ export const HeroAside = styled.div`
     display: none;
   }
 `
+
+/* ── Hero floating-card collage (maquette FloatCard) ── */
+export const FloatCollage = styled.div`
+  position: relative;
+  height: 430px;
+`
+export const FloatCard = styled.div`
+  position: absolute;
+  background: ${({ theme }) => theme.surface};
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.22);
+  cursor: pointer;
+`
+export const FloatBody = styled.div`
+  padding: 11px 13px;
+  .price {
+    font-family: ${({ theme }) => theme.fonts.display};
+    font-weight: 800;
+    font-size: 16px;
+    color: ${({ theme }) => theme.primary};
+  }
+  .price span {
+    font-size: 10px;
+  }
+  .title {
+    font-size: 12.5px;
+    color: ${({ theme }) => theme.text};
+    font-weight: 500;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    margin-top: 2px;
+  }
+`
+export const VerifiedFloat = styled.div`
+  position: absolute;
+  top: 260px;
+  left: 20px;
+  z-index: 3;
+  background: ${({ theme }) => theme.surface};
+  border-radius: 14px;
+  padding: 12px 16px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.2);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  .circle {
+    width: 38px;
+    height: 38px;
+    border-radius: 19px;
+    background: ${({ theme }) => theme.primarySoft};
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .pct {
+    font-family: ${({ theme }) => theme.fonts.display};
+    font-weight: 800;
+    font-size: 18px;
+    color: ${({ theme }) => theme.text};
+    line-height: 1;
+  }
+  .lbl {
+    font-size: 11px;
+    color: ${({ theme }) => theme.textSec};
+  }
+`
 export const HeroStatCard = styled.div`
   background: ${({ theme }) => theme.surface};
   border-radius: 14px;
