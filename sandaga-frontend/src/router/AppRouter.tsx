@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import Home from '../pages/Home/Home'
+import Category from '../pages/Category/Category'
 import ListingDetail from '../pages/Listings/ListingDetail'
 import ListingCheckout from '../pages/Listings/ListingCheckout'
 import NewListing from '../pages/Listings/NewListing'
@@ -164,6 +165,7 @@ export function AppRouter() {
           element={<ProtectedRoute element={<EditListing />} />}
         />
         <Route path="/search" element={<SearchResults />} />
+        <Route path="/category/:slug" element={<Category />} />
         <Route path="/store/:slug" element={<StorefrontPage />} />
         <Route path="/stores" element={<StorefrontsPage />} />
         <Route path="/user/:id" element={<PublicUserProfile />} />

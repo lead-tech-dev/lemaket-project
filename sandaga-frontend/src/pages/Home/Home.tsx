@@ -886,9 +886,7 @@ export default function Home() {
                   <S.CategoryCard
                     key={category.id}
                     type="button"
-                    onClick={() =>
-                      navigate(`/search?category=${encodeURIComponent(category.slug)}`)
-                    }
+                    onClick={() => navigate(`/category/${encodeURIComponent(category.slug)}`)}
                   >
                     <div className="icon">{category.icon ?? '🛒'}</div>
                     <div className="name">{category.name}</div>
